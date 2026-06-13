@@ -1,0 +1,174 @@
+import { useAccount } from "wagmi";
+import { useShop } from "../hooks/useShop";
+import { ShieldIcon, BoltIcon, FlameIcon } from "./icons";
+
+function fmtG(val: bigint | undefined): string {
+  if (val === undefined) return "…";
+  return (Number(val) / 1e18).toFixed(0) + " G$";
+}
+
+function fmtTimeLeft(expiry: bigint): string {
+  const secsLeft = Number(expiry) - Math.floor(Date.now() / 1000);
+  if (secsLeft <= 0) return "Expired";
+  const h = Math.floor(secsLeft / 3600);
+  const m = Math.floor((secsLeft % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
+}
+
+export default function Shop() {
+  const { isConnected } = useAccount();
+  const {
+    shieldPrice, boost2xPrice, boost5xPrice,
+    shieldCount, xpBoost, boostActive,
+    playerXp, streakCount,
+    gdBalance,
+    pendingAction,
+    approve, buyShield, buyBoost,
+    isApproved, canAfford,
+    error,
+  } = useShop();
+
+  if (!isConnected) return null;
+
+  const isPending = (a: typeof pendingAction) => pendingAction === a;
+
+  function ItemButton({
+    price,
+    buyAction,
+    pendingKey,
+  }: {
+    price: bigint | undefined;
+    buyAction: () => void;
+    pendingKey: "shield" | "boost2" | "boost5";
+  }) {
+    const pending = isPending(pendingKey);
+    const approvePending = isPending("approve");
+
+    if (!canAfford(price)) {
+      return (
+        <button className="shop-btn shop-btn--disabled" disabled>
+          Insufficient G$
+        </button>
+      );
+    }
+
+    if (!isApproved(price)) {
+      return (
+        <button
+          className="shop-btn shop-btn--approve"
+          onClick={approve}
+          disabled={!!pendingAction}
+        >
+          {approvePending ? <Spinner /> : "Approve G$"}
+        </button>
+      );
+    }
+
+    return (
+      <button
+        className="shop-btn shop-btn--buy"
+        onClick={buyAction}
+        disabled={!!pendingAction}
+      >
+        {pending ? <Spinner /> : "Buy"}
+      </button>
+    );
+  }
+
+  return (
+    <section className="shop">
+      {/* Header */}
+      <div className="shop__header">
+        <h2 className="shop__title">Shop</h2>
+        <span className="shop__balance">Balance: {fmtG(gdBalance)}</span>
+      </div>
+
+      {/* Player stats row */}
+      <div className="shop__stats">
+        <span className="shop__stat">
+          <span className="shop__stat-label">XP</span>
+          <span className="shop__stat-value">{Number(playerXp).toLocaleString()}</span>
+        </span>
+        <span className="shop__stat">
+          <span className="shop__stat-label">Streak</span>
+          <span className="shop__stat-value">{Number(streakCount)} day{streakCount !== 1n ? "s" : ""}</span>
+        </span>
+        <span className="shop__stat">
+          <span className="shop__stat-label">Shields</span>
+          <span className="shop__stat-value">{Number(shieldCount)}</span>
+        </span>
+      </div>
+
+      {/* Items */}
+      <div className="shop__items">
+
+        {/* Streak Shield */}
+        <div className="shop-item">
+          <div className="shop-item__top">
+            <span className="shop-item__icon shop-item__icon--shield"><ShieldIcon size={18} /></span>
+            <div>
+              <p className="shop-item__name">Streak Shield</p>
+              <p className="shop-item__price">{fmtG(shieldPrice)}</p>
+            </div>
+          </div>
+          <p className="shop-item__desc">
+            Protects your streak for one missed day. Shields stack in your inventory.
+          </p>
+          <p className="shop-item__status">
+            {Number(shieldCount) > 0
+              ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""} in inventory`
+              : "No shields"}
+          </p>
+          <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
+        </div>
+
+        {/* 2x XP Boost */}
+        <div className="shop-item">
+          <div className="shop-item__top">
+            <span className="shop-item__icon shop-item__icon--bolt"><BoltIcon size={18} /></span>
+            <div>
+              <p className="shop-item__name">2x XP Boost</p>
+              <p className="shop-item__price">{fmtG(boost2xPrice)}</p>
+            </div>
+          </div>
+          <p className="shop-item__desc">
+            Doubles all XP earned from games for 24 hours.
+          </p>
+          <p className="shop-item__status">
+            {boostActive && xpBoost?.multiplier === 2
+              ? fmtTimeLeft(xpBoost.expiry)
+              : "Not active"}
+          </p>
+          <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
+        </div>
+
+        {/* 5x XP Boost */}
+        <div className="shop-item">
+          <div className="shop-item__top">
+            <span className="shop-item__icon shop-item__icon--flame"><FlameIcon size={18} /></span>
+            <div>
+              <p className="shop-item__name">5x XP Boost</p>
+              <p className="shop-item__price">{fmtG(boost5xPrice)}</p>
+            </div>
+          </div>
+          <p className="shop-item__desc">
+            Multiplies all XP earned from games by 5 for 24 hours.
+          </p>
+          <p className="shop-item__status">
+            {boostActive && xpBoost?.multiplier === 5
+              ? fmtTimeLeft(xpBoost.expiry)
+              : "Not active"}
+          </p>
+          <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
+        </div>
+
+      </div>
+
+      {error && <p className="shop__error">{error}</p>}
+    </section>
+  );
+}
+
+function Spinner() {
+  return <span className="spinner" aria-hidden="true" />;
+}

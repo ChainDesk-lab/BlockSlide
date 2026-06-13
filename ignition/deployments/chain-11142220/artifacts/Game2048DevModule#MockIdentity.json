@@ -1,0 +1,59 @@
+{
+  "_format": "hh3-artifact-1",
+  "contractName": "MockIdentity",
+  "sourceName": "contracts/test/MockIdentity.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "blacklist",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "isWhitelisted",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "whitelist",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600e575f5ffd5b506101468061001c5f395ff3fe608060405234801561000f575f5ffd5b506004361061003f575f3560e01c80633af32abf146100435780639b19251a14610082578063f9f92be4146100b5575b5f5ffd5b61006e6100513660046100e3565b6001600160a01b03165f9081526020819052604090205460ff1690565b604051901515815260200160405180910390f35b6100b36100903660046100e3565b6001600160a01b03165f908152602081905260409020805460ff19166001179055565b005b6100b36100c33660046100e3565b6001600160a01b03165f908152602081905260409020805460ff19169055565b5f602082840312156100f3575f5ffd5b81356001600160a01b0381168114610109575f5ffd5b939250505056fea26469706673582212203ba3904b0171840119d35e4b5a1a29f804bce9d7d0f7924e44f354e59f07e12864736f6c634300081c0033",
+  "deployedBytecode": "0x608060405234801561000f575f5ffd5b506004361061003f575f3560e01c80633af32abf146100435780639b19251a14610082578063f9f92be4146100b5575b5f5ffd5b61006e6100513660046100e3565b6001600160a01b03165f9081526020819052604090205460ff1690565b604051901515815260200160405180910390f35b6100b36100903660046100e3565b6001600160a01b03165f908152602081905260409020805460ff19166001179055565b005b6100b36100c33660046100e3565b6001600160a01b03165f908152602081905260409020805460ff19169055565b5f602082840312156100f3575f5ffd5b81356001600160a01b0381168114610109575f5ffd5b939250505056fea26469706673582212203ba3904b0171840119d35e4b5a1a29f804bce9d7d0f7924e44f354e59f07e12864736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "immutableReferences": {},
+  "inputSourceName": "project/contracts/test/MockIdentity.sol",
+  "buildInfoId": "solc-0_8_28-384c2363d0829e4595e5f9fae00457a5d9627bac"
+}

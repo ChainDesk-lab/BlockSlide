@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-9f08c97869223b3000397a715c1fb2a716fc4a44",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.8.0"
+  },
+  "userSourceNameMap": {
+    "contracts/Game2048.sol": "project/contracts/Game2048.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/Game2048.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.28;\n\ninterface IERC20 {\n    function transfer(address to, uint256 amount) external returns (bool);\n    function transferFrom(address from, address to, uint256 amount) external returns (bool);\n    function balanceOf(address account) external view returns (uint256);\n}\n\n// GoodDollar IdentityV2 — isWhitelisted returns true for verified humans\ninterface IIdentity {\n    function isWhitelisted(address user) external view returns (bool);\n}\n\n/// @title BlockSlide — onchain 2048 with G$ milestone rewards\n///\n/// Game logic runs in the browser. This contract handles session registration,\n/// score submission with commit-reveal anti-cheat, G$ rewards, and leaderboard.\n///\n/// Anti-cheat: player commits keccak256(seed) before playing. The seed drives\n/// tile spawning in the browser. On submit, player reveals the seed; contract\n/// verifies the hash matches. Prevents cherry-picking a lucky seed post-game.\n///\n/// Milestone rewards are one-time per address to prevent farming.\ncontract Game2048 {\n    IERC20 public immutable gDollar;\n    IIdentity public immutable identity;\n    address public owner;\n\n    // G$ has 18 decimals\n    uint256 public constant REWARD_256  = 5e18;\n    uint256 public constant REWARD_512  = 15e18;\n    uint256 public constant REWARD_1024 = 40e18;\n    uint256 public constant REWARD_2048 = 100e18;\n\n    uint256 public constant SESSION_TIMEOUT = 2 hours;\n\n    uint8 private constant MILESTONE_256  = 1 << 0;\n    uint8 private constant MILESTONE_512  = 1 << 1;\n    uint8 private constant MILESTONE_1024 = 1 << 2;\n    uint8 private constant MILESTONE_2048 = 1 << 3;\n\n    struct Session {\n        bool active;\n        uint64 startTime;\n        bytes32 seedHash;\n    }\n\n    struct LeaderboardEntry {\n        address player;\n        uint256 score;\n        uint32 highestTile;\n    }\n\n    mapping(address => Session) public sessions;\n    mapping(address => uint256) public bestScore;\n    mapping(address => uint32) public bestTile;\n    mapping(address => uint8) public claimedMilestones;\n\n    LeaderboardEntry[10] private _leaderboard;\n\n    event SessionStarted(address indexed player);\n    event ScoreSubmitted(address indexed player, uint256 score, uint32 highestTile);\n    event RewardPaid(address indexed player, uint32 milestone, uint256 amount);\n\n    error NotVerifiedHuman();\n    error SessionAlreadyActive();\n    error NoActiveSession();\n    error SessionExpired();\n    error InvalidSeed();\n    error InvalidMoveCount();\n    error InvalidTileValue();\n\n    modifier onlyOwner() {\n        require(msg.sender == owner, \"Not owner\");\n        _;\n    }\n\n    constructor(address _gDollar, address _identity) {\n        gDollar = IERC20(_gDollar);\n        identity = IIdentity(_identity);\n        owner = msg.sender;\n    }\n\n    /// Start a new game session. Caller must be a verified GoodDollar human.\n    /// @param seedHash keccak256(seed) — seed drives tile spawning in the browser\n    function startSession(bytes32 seedHash) external {\n        if (!identity.isWhitelisted(msg.sender)) revert NotVerifiedHuman();\n\n        Session storage session = sessions[msg.sender];\n\n        // Auto-clear sessions that silently timed out\n        if (session.active && block.timestamp > session.startTime + SESSION_TIMEOUT) {\n            session.active = false;\n        }\n\n        if (session.active) revert SessionAlreadyActive();\n\n        sessions[msg.sender] = Session({\n            active: true,\n            startTime: uint64(block.timestamp),\n            seedHash: seedHash\n        });\n\n        emit SessionStarted(msg.sender);\n    }\n\n    /// Submit result of a completed game.\n    /// @param score       Final score\n    /// @param highestTile Highest tile reached (must be a power of 2 in [2, 131072])\n    /// @param moveCount   Moves made (sanity range: 1–10 000)\n    /// @param seed        The seed whose keccak256 was committed at session start\n    function submitScore(\n        uint256 score,\n        uint32 highestTile,\n        uint256 moveCount,\n        bytes32 seed\n    ) external {\n        Session storage session = sessions[msg.sender];\n        if (!session.active) revert NoActiveSession();\n        if (block.timestamp > session.startTime + SESSION_TIMEOUT) revert SessionExpired();\n        if (keccak256(abi.encodePacked(seed)) != session.seedHash) revert InvalidSeed();\n        if (moveCount < 1 || moveCount > 10_000) revert InvalidMoveCount();\n\n        // highestTile must be a power of 2\n        if (highestTile < 2 || highestTile > 131_072) revert InvalidTileValue();\n        if ((highestTile & (highestTile - 1)) != 0) revert InvalidTileValue();\n\n        session.active = false;\n\n        if (score > bestScore[msg.sender]) bestScore[msg.sender] = score;\n        if (highestTile > bestTile[msg.sender]) bestTile[msg.sender] = highestTile;\n\n        emit ScoreSubmitted(msg.sender, score, highestTile);\n\n        _payMilestoneRewards(highestTile);\n        _updateLeaderboard(msg.sender, score, highestTile);\n    }\n\n    /// Anyone can call this to clean up a timed-out session.\n    function expireSession(address player) external {\n        Session storage session = sessions[player];\n        if (!session.active) revert NoActiveSession();\n        require(block.timestamp > session.startTime + SESSION_TIMEOUT, \"Not expired yet\");\n        session.active = false;\n    }\n\n    function getLeaderboard() external view returns (LeaderboardEntry[10] memory) {\n        return _leaderboard;\n    }\n\n    function getSession(address player) external view returns (Session memory) {\n        return sessions[player];\n    }\n\n    /// Deposit G$ into the reward treasury (owner must approve this contract first).\n    function fundTreasury(uint256 amount) external onlyOwner {\n        gDollar.transferFrom(msg.sender, address(this), amount);\n    }\n\n    function withdrawTreasury(uint256 amount) external onlyOwner {\n        gDollar.transfer(owner, amount);\n    }\n\n    function transferOwnership(address newOwner) external onlyOwner {\n        require(newOwner != address(0), \"Zero address\");\n        owner = newOwner;\n    }\n\n    // ─── Internal ─────────────────────────────────────────────────────────────\n\n    function _payMilestoneRewards(uint32 highestTile) internal {\n        uint8 claimed = claimedMilestones[msg.sender];\n\n        // Each tier is paid once per address. A player who jumps straight to\n        // 2048 earns all four unclaimed tiers in the same transaction.\n        if (highestTile >= 2048 && (claimed & MILESTONE_2048) == 0) {\n            claimedMilestones[msg.sender] |= MILESTONE_2048;\n            _sendReward(2048, REWARD_2048);\n        }\n        if (highestTile >= 1024 && (claimed & MILESTONE_1024) == 0) {\n            claimedMilestones[msg.sender] |= MILESTONE_1024;\n            _sendReward(1024, REWARD_1024);\n        }\n        if (highestTile >= 512 && (claimed & MILESTONE_512) == 0) {\n            claimedMilestones[msg.sender] |= MILESTONE_512;\n            _sendReward(512, REWARD_512);\n        }\n        if (highestTile >= 256 && (claimed & MILESTONE_256) == 0) {\n            claimedMilestones[msg.sender] |= MILESTONE_256;\n            _sendReward(256, REWARD_256);\n        }\n    }\n\n    function _sendReward(uint32 milestone, uint256 amount) internal {\n        if (gDollar.balanceOf(address(this)) >= amount) {\n            gDollar.transfer(msg.sender, amount);\n            emit RewardPaid(msg.sender, milestone, amount);\n        }\n        // Silently skip if treasury is dry — score is still recorded\n    }\n\n    function _updateLeaderboard(address player, uint256 score, uint32 highestTile) internal {\n        uint8 lowestIdx = 0;\n        bool foundEmpty = false;\n\n        for (uint8 i = 0; i < 10; i++) {\n            if (_leaderboard[i].player == address(0)) {\n                lowestIdx = i;\n                foundEmpty = true;\n                break;\n            }\n            if (_leaderboard[i].score < _leaderboard[lowestIdx].score) {\n                lowestIdx = i;\n            }\n        }\n\n        if (foundEmpty || score > _leaderboard[lowestIdx].score) {\n            _leaderboard[lowestIdx] = LeaderboardEntry({\n                player: player,\n                score: score,\n                highestTile: highestTile\n            });\n        }\n    }\n}\n"
+      }
+    }
+  }
+}
