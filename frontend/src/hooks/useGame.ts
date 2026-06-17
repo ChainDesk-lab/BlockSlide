@@ -38,9 +38,11 @@ export function useGame(address?: string) {
       setSeed(saved.seed);
       setState({
         ...saved.state,
-        // Clear animation flags on restore
-        newTiles: [],
-        mergedTiles: [],
+        newTiles:     [],
+        mergedTiles:  [],
+        // Guard fields added after old saves were written
+        currentCombo: saved.state.currentCombo ?? 0,
+        maxCombo:     saved.state.maxCombo     ?? 0,
       });
     } catch {
       // corrupt storage — ignore

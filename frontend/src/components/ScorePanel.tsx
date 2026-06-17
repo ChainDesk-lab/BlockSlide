@@ -28,6 +28,14 @@ export default function ScorePanel({ state }: ScorePanelProps) {
     query: { enabled: canRead, retry: 2, retryDelay: 3000 },
   });
 
+  const { data: playerXp } = useReadContract({
+    address: GAME2048_ADDRESS,
+    abi: GAME2048_ABI,
+    functionName: "xp",
+    args: address ? [address] : undefined,
+    query: { enabled: canRead, retry: 2, retryDelay: 3000 },
+  });
+
   const totalEarned = calcEarned(claimed ?? 0);
 
   return (
@@ -52,6 +60,13 @@ export default function ScorePanel({ state }: ScorePanelProps) {
           {formatUnits(totalEarned, 18)} G$
         </span>
       </div>
+
+      {playerXp !== undefined && (
+        <div className="score-box">
+          <span className="score-label">XP</span>
+          <span className="score-value">{Number(playerXp).toLocaleString()}</span>
+        </div>
+      )}
 
       <div className="milestone-row">
         {MILESTONES.map(({ tile, reward }) => {

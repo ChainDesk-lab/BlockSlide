@@ -226,6 +226,18 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     // ─── Owner ────────────────────────────────────────────────────────────────
 
+    event TokensUpdated(address gDollar, address identity);
+
+    /// Update the G$ token and GoodDollar identity addresses. Needed because
+    /// the original initialize() committed an incorrect G$ address with no code
+    /// on Celo, which made the milestone reward path revert. Owner-only.
+    function setTokens(address _gDollar, address _identity) external onlyOwner {
+        require(_gDollar != address(0) && _identity != address(0), "zero address");
+        gDollar  = IERC20(_gDollar);
+        identity = IIdentity(_identity);
+        emit TokensUpdated(_gDollar, _identity);
+    }
+
     function fundTreasury(uint256 amount) external onlyOwner {
         gDollar.transferFrom(msg.sender, address(this), amount);
     }
@@ -317,30 +329,39 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _payMilestoneRewards(uint32 highestTile) internal {
         uint8 claimed = claimedMilestones[msg.sender];
 
+        // Only mark a milestone claimed once the reward is actually paid, so a
+        // dry/unset treasury doesn't permanently burn the player's reward — it
+        // will pay out on a later submission once the treasury is funded.
         if (highestTile >= 2048 && (claimed & MILESTONE_2048) == 0) {
-            claimedMilestones[msg.sender] |= MILESTONE_2048;
-            _sendReward(2048, REWARD_2048);
+            if (_sendReward(2048, REWARD_2048)) claimedMilestones[msg.sender] |= MILESTONE_2048;
         }
         if (highestTile >= 1024 && (claimed & MILESTONE_1024) == 0) {
-            claimedMilestones[msg.sender] |= MILESTONE_1024;
-            _sendReward(1024, REWARD_1024);
+            if (_sendReward(1024, REWARD_1024)) claimedMilestones[msg.sender] |= MILESTONE_1024;
         }
         if (highestTile >= 512 && (claimed & MILESTONE_512) == 0) {
-            claimedMilestones[msg.sender] |= MILESTONE_512;
-            _sendReward(512, REWARD_512);
+            if (_sendReward(512, REWARD_512)) claimedMilestones[msg.sender] |= MILESTONE_512;
         }
         if (highestTile >= 256 && (claimed & MILESTONE_256) == 0) {
-            claimedMilestones[msg.sender] |= MILESTONE_256;
-            _sendReward(256, REWARD_256);
+            if (_sendReward(256, REWARD_256)) claimedMilestones[msg.sender] |= MILESTONE_256;
         }
     }
 
-    function _sendReward(uint32 milestone, uint256 amount) internal {
-        if (gDollar.balanceOf(address(this)) >= amount) {
-            gDollar.transfer(msg.sender, amount);
-            emit RewardPaid(msg.sender, milestone, amount);
-        }
-        // Silently skip if treasury is dry — score still records
+    /// Sends a milestone reward, returning true only if it was actually paid.
+    /// All external token interaction is wrapped in try/catch so a broken,
+    /// unset, or paused G$ token can NEVER revert score submission — the score,
+    /// XP and leaderboard still record even when the reward can't be paid.
+    function _sendReward(uint32 milestone, uint256 amount) internal returns (bool) {
+        try gDollar.balanceOf(address(this)) returns (uint256 bal) {
+            if (bal >= amount) {
+                try gDollar.transfer(msg.sender, amount) returns (bool ok) {
+                    if (ok) {
+                        emit RewardPaid(msg.sender, milestone, amount);
+                        return true;
+                    }
+                } catch { /* transfer failed — leave unclaimed */ }
+            }
+        } catch { /* token has no code / reverted — leave unclaimed */ }
+        return false;
     }
 
     function _updateLeaderboard(address player, uint256 score, uint32 highestTile) internal {

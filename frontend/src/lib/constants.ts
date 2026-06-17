@@ -9,7 +9,9 @@ export const CONTRACT_DEPLOYED =
   GAME2048_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
 // GoodDollar contracts on Celo mainnet
-export const G_DOLLAR_ADDRESS = "0x62B8b11039FCfe5Ab0C56e502b1C372a3d462A4e" as `0x${string}`;
+// G$ token — verified on CeloScan (ends …2a9c7A). The previous value (…462A4e)
+// was a typo with no code on Celo, which broke milestone rewards.
+export const G_DOLLAR_ADDRESS = "0x62B8B11039FcfE5aB0C56E502b1C372A3D2a9c7A" as `0x${string}`;
 export const IDENTITY_ADDRESS  = "0xC361A6E67822a0EDc17D899227dd9FC50BD62F42" as `0x${string}`;
 
 export const MILESTONES: { tile: number; reward: string }[] = [

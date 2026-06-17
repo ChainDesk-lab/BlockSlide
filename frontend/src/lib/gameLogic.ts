@@ -164,8 +164,9 @@ export function applyMove(
   const won = highestTile >= 2048;
   const over = !won && !canMove(b);
 
-  const currentCombo = mergedTiles.length > 0 ? state.currentCombo + 1 : 0;
-  const maxCombo = Math.max(state.maxCombo, currentCombo);
+  const prevCombo  = (state.currentCombo ?? 0);
+  const currentCombo = mergedTiles.length > 0 ? prevCombo + 1 : 0;
+  const maxCombo = Math.max(state.maxCombo ?? 0, currentCombo);
 
   return {
     board: b,

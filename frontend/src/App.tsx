@@ -36,6 +36,8 @@ export default function App() {
     startSession,
     submitScore,
     reset,
+    sessionExpiresAt,
+    sessionExpired,
     switchToTargetChain,
   } = useGameSession();
 
@@ -66,15 +68,26 @@ export default function App() {
   const handleNewGame = () => {
     sounds.newGame();
     reset();
-    clearGame();
-    const newSeed = startNewGame();
-    startSession(newSeed as `0x${string}`);
+    // clearGame is called inside the callback so it only runs after all
+    // pre-flight checks pass — prevents wiping localStorage when startSession
+    // returns early (e.g. active session on-chain), which would cause a seed
+    // mismatch when the user later tries to submit their existing game.
+    startSession((newSeed) => {
+      clearGame();
+      startNewGame(newSeed);
+    });
   };
 
   const handleSubmit = () => {
     if (!state || !seed) return;
     submitScore(state, seed as `0x${string}`);
   };
+
+  // Auto-clear stale error messages when the session expires so the user
+  // isn't stuck seeing "Your session expired" with no way to dismiss it.
+  useEffect(() => {
+    if (sessionExpired) reset();
+  }, [sessionExpired, reset]);
 
   const gameEnded = state && (state.over || state.won);
   const stuckActive = phase === "active" && !state;
@@ -150,10 +163,27 @@ export default function App() {
             <div className="board board--empty">
               <div className="board-placeholder">
                 {stuckActive ? (
-                  <>
-                    <p>Session active on-chain</p>
-                    <p className="board-placeholder__sub">Start a new game to continue.</p>
-                  </>
+                  sessionExpired ? (
+                    <>
+                      <p>Previous session expired</p>
+                      <p className="board-placeholder__sub">Hit New Game — it will clear automatically.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>Session active on-chain</p>
+                      <SessionCountdown expiresAt={sessionExpiresAt!} />
+                      <p className="board-placeholder__sub">
+                        Game state was lost (page refresh?).{" "}
+                        <button
+                          className="btn btn--xs"
+                          onClick={() => { clearGame(); startNewGame(); }}
+                          style={{ marginTop: "0.5rem" }}
+                        >
+                          Play locally (no G$ rewards)
+                        </button>
+                      </p>
+                    </>
+                  )
                 ) : (
                   <>
                     <p>Ready to slide?</p>
@@ -175,7 +205,13 @@ export default function App() {
         {/* ── Controls ──────────────────────────────────────────────────── */}
         <GameControls
           state={state}
-          phase={stuckActive ? "idle" : phase}
+          phase={
+            // stuckActive: on-chain session exists but local game state is gone
+            (stuckActive && !sessionExpired) ? "active" :
+            // session expired → unlock New Game regardless of phase/stuckActive
+            (stuckActive || sessionExpired) ? "idle" :
+            phase
+          }
           isPending={isPending}
           isWrongChain={isWrongChain}
           onNewGame={handleNewGame}
@@ -189,5 +225,28 @@ export default function App() {
         <Leaderboard />
       </main>
     </div>
+  );
+}
+
+function SessionCountdown({ expiresAt }: { expiresAt: number }) {
+  const [secsLeft, setSecsLeft] = useState(() =>
+    Math.max(0, Math.ceil(expiresAt - Date.now() / 1000))
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const left = Math.max(0, Math.ceil(expiresAt - Date.now() / 1000));
+      setSecsLeft(left);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+
+  const m = Math.floor(secsLeft / 60);
+  const s = secsLeft % 60;
+
+  return (
+    <p className="board-placeholder__sub">
+      Expires in {m}:{String(s).padStart(2, "0")} — you can start a new game after.
+    </p>
   );
 }
