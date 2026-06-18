@@ -2,21 +2,28 @@ import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import Board from "./components/Board";
 import GameControls from "./components/GameControls";
+import Home from "./components/Home";
 import HowToPlay from "./components/HowToPlay";
 import IdentityGate from "./components/IdentityGate";
 import Leaderboard from "./components/Leaderboard";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
 import WalletButton from "./components/WalletButton";
-import { SoundOnIcon, SoundOffIcon } from "./components/icons";
+import { SoundOnIcon, SoundOffIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
 import { sounds } from "./lib/sounds";
 
+type View = "home" | "game" | "leaderboard" | "shop";
+
 export default function App() {
   const { address } = useAccount();
   const { status: identityStatus, refetch: refetchIdentity } = useIdentity();
+
+  // Which screen is showing. Game state/hooks live at this level so navigating
+  // away and back never resets an in-progress game.
+  const [view, setView] = useState<View>("home");
 
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(() =>
     !localStorage.getItem("blockslide_seen_htp")
@@ -26,7 +33,7 @@ export default function App() {
     localStorage.setItem("blockslide_seen_htp", "1");
     setShowHowToPlay(false);
   };
-  const { state, seed, startNewGame, clearGame } = useGame(address);
+  const { state, seed, startNewGame, clearGame } = useGame(address, view === "game");
   const {
     phase,
     isPending,
@@ -97,27 +104,63 @@ export default function App() {
       {showHowToPlay && <HowToPlay onClose={closeHowToPlay} />}
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="header">
-        <div className="header__left">
+        <div
+          className="header__left"
+          onClick={() => setView("home")}
+          role="button"
+          tabIndex={0}
+          title="Home"
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setView("home"); }}
+        >
           <h1 className="header__logo">BlockSlide</h1>
           <span className="header__sub">2048 on Celo</span>
         </div>
         <div className="header__right">
-          <button
-            className="icon-btn"
-            onClick={openHowToPlay}
-            aria-label="How to play"
-            title="How to play"
-          >
-            ?
-          </button>
-          <button
-            className="icon-btn"
-            onClick={toggleSound}
-            aria-label={soundEnabled ? "Mute sounds" : "Enable sounds"}
-            title={soundEnabled ? "Sound on" : "Sound off"}
-          >
-            {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
-          </button>
+          <span className="tooltip" data-tip="Play">
+            <button
+              className={`icon-btn ${view === "game" ? "icon-btn--active" : ""}`}
+              onClick={() => setView("game")}
+              aria-label="Play"
+            >
+              <GamepadIcon />
+            </button>
+          </span>
+          <span className="tooltip" data-tip="Leaderboard">
+            <button
+              className={`icon-btn ${view === "leaderboard" ? "icon-btn--active" : ""}`}
+              onClick={() => setView("leaderboard")}
+              aria-label="Leaderboard"
+            >
+              <TrophyIcon />
+            </button>
+          </span>
+          <span className="tooltip" data-tip="Shop">
+            <button
+              className={`icon-btn ${view === "shop" ? "icon-btn--active" : ""}`}
+              onClick={() => setView("shop")}
+              aria-label="Shop"
+            >
+              <CartIcon />
+            </button>
+          </span>
+          <span className="tooltip" data-tip="How to play">
+            <button
+              className="icon-btn"
+              onClick={openHowToPlay}
+              aria-label="How to play"
+            >
+              <HelpIcon />
+            </button>
+          </span>
+          <span className="tooltip" data-tip={soundEnabled ? "Sound on" : "Sound off"}>
+            <button
+              className="icon-btn"
+              onClick={toggleSound}
+              aria-label={soundEnabled ? "Mute sounds" : "Enable sounds"}
+            >
+              {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
+            </button>
+          </span>
           <WalletButton />
         </div>
       </header>
@@ -140,89 +183,112 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Scores ────────────────────────────────────────────────────── */}
-        <ScorePanel state={state} />
+        {/* ── Home screen ───────────────────────────────────────────────── */}
+        {view === "home" && (
+          <Home
+            onPlay={() => setView("game")}
+            onLeaderboard={() => setView("leaderboard")}
+          />
+        )}
 
-        {/* ── Board ─────────────────────────────────────────────────────── */}
-        <div className="board-wrapper">
-          {state ? (
-            <>
-              <Board state={state} />
-              {gameEnded && (
-                <div className="game-overlay">
-                  <div className="game-overlay__content">
-                    <p className="game-overlay__title">
-                      {state.won ? "🎉 You reached 2048!" : "Game Over"}
-                    </p>
-                    <p className="game-overlay__score">Score: {state.score.toLocaleString()}</p>
+        {/* ── Play screen ───────────────────────────────────────────────── */}
+        {view === "game" && (
+          <>
+            <ScorePanel state={state} />
+
+            <div className="board-wrapper">
+              {state ? (
+                <>
+                  <Board state={state} />
+                  {gameEnded && (
+                    <div className="game-overlay">
+                      <div className="game-overlay__content">
+                        <p className="game-overlay__title">
+                          {state.won ? "🎉 You reached 2048!" : "Game Over"}
+                        </p>
+                        <p className="game-overlay__score">Score: {state.score.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="board board--empty">
+                  <div className="board-placeholder">
+                    {stuckActive ? (
+                      sessionExpired ? (
+                        <>
+                          <p>Previous session expired</p>
+                          <p className="board-placeholder__sub">Hit New Game — it will clear automatically.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>Session active on-chain</p>
+                          <SessionCountdown expiresAt={sessionExpiresAt!} />
+                          <p className="board-placeholder__sub">
+                            Game state was lost (page refresh?).{" "}
+                            <button
+                              className="btn btn--xs"
+                              onClick={() => { clearGame(); startNewGame(); }}
+                              style={{ marginTop: "0.5rem" }}
+                            >
+                              Play locally (no G$ rewards)
+                            </button>
+                          </p>
+                        </>
+                      )
+                    ) : (
+                      <>
+                        <p>Ready to slide?</p>
+                        <p className="board-placeholder__sub">Hit New Game to start</p>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
-            </>
-          ) : (
-            <div className="board board--empty">
-              <div className="board-placeholder">
-                {stuckActive ? (
-                  sessionExpired ? (
-                    <>
-                      <p>Previous session expired</p>
-                      <p className="board-placeholder__sub">Hit New Game — it will clear automatically.</p>
-                    </>
-                  ) : (
-                    <>
-                      <p>Session active on-chain</p>
-                      <SessionCountdown expiresAt={sessionExpiresAt!} />
-                      <p className="board-placeholder__sub">
-                        Game state was lost (page refresh?).{" "}
-                        <button
-                          className="btn btn--xs"
-                          onClick={() => { clearGame(); startNewGame(); }}
-                          style={{ marginTop: "0.5rem" }}
-                        >
-                          Play locally (no G$ rewards)
-                        </button>
-                      </p>
-                    </>
-                  )
-                ) : (
-                  <>
-                    <p>Ready to slide?</p>
-                    <p className="board-placeholder__sub">Hit New Game to start</p>
-                  </>
-                )}
-              </div>
             </div>
-          )}
-        </div>
 
-        {/* Error / info messages (only shown when relevant) */}
-        {error && (
-          <div className="error-banner" role="alert">
-            {error}
+            {error && (
+              <div className="error-banner" role="alert">
+                {error}
+              </div>
+            )}
+
+            <GameControls
+              state={state}
+              phase={
+                // stuckActive: on-chain session exists but local game state is gone
+                (stuckActive && !sessionExpired) ? "active" :
+                // session expired → unlock New Game regardless of phase/stuckActive
+                (stuckActive || sessionExpired) ? "idle" :
+                phase
+              }
+              isPending={isPending}
+              isWrongChain={isWrongChain}
+              onNewGame={handleNewGame}
+              onSubmit={handleSubmit}
+            />
+          </>
+        )}
+
+        {/* ── Leaderboard screen ────────────────────────────────────────── */}
+        {view === "leaderboard" && (
+          <div className="screen">
+            <h2 className="screen__title">
+              <TrophyIcon size={26} /> Leaderboard
+            </h2>
+            <Leaderboard />
           </div>
         )}
 
-        {/* ── Controls ──────────────────────────────────────────────────── */}
-        <GameControls
-          state={state}
-          phase={
-            // stuckActive: on-chain session exists but local game state is gone
-            (stuckActive && !sessionExpired) ? "active" :
-            // session expired → unlock New Game regardless of phase/stuckActive
-            (stuckActive || sessionExpired) ? "idle" :
-            phase
-          }
-          isPending={isPending}
-          isWrongChain={isWrongChain}
-          onNewGame={handleNewGame}
-          onSubmit={handleSubmit}
-        />
-
-        {/* ── Shop ──────────────────────────────────────────────────────── */}
-        <Shop />
-
-        {/* ── Leaderboard ───────────────────────────────────────────────── */}
-        <Leaderboard />
+        {/* ── Shop screen ───────────────────────────────────────────────── */}
+        {view === "shop" && (
+          <div className="screen">
+            <h2 className="screen__title">
+              <CartIcon size={26} /> Shop
+            </h2>
+            <Shop />
+          </div>
+        )}
       </main>
     </div>
   );

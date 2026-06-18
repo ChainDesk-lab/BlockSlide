@@ -63,7 +63,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   z-index: 100;
 }
 
-.header__left { display: flex; align-items: baseline; gap: 10px; }
+.header__left { display: flex; align-items: baseline; gap: 10px; cursor: pointer; }
 
 .header__logo {
   font-size: 1.5rem;
@@ -106,6 +106,241 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   background: var(--cell);
   transform: scale(1.1);
   box-shadow: 0 0 10px rgba(132, 94, 247, 0.3);
+}
+
+/* ─── Hover tooltips ─────────────────────────────────────────────────────── */
+.tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px) scale(0.96);
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 5px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 200;
+}
+
+/* little arrow pointing up at the icon */
+.tooltip::before {
+  content: "";
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  border: 5px solid transparent;
+  border-bottom-color: var(--text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 200;
+}
+
+.tooltip:hover::after,
+.tooltip:focus-within::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.tooltip:hover::before,
+.tooltip:focus-within::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ─── Active nav icon (Play / Leaderboard / Shop) ────────────────────────── */
+.icon-btn--active {
+  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 10px rgba(132, 94, 247, 0.35);
+}
+
+.icon-btn--active:hover {
+  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+}
+
+/* ─── Sub-screen (Leaderboard / Shop) ────────────────────────────────────── */
+.screen {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.screen__title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+.screen__title svg {
+  color: #845ef7;
+}
+
+/* ─── Home / landing ─────────────────────────────────────────────────────── */
+.home {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding-top: 12px;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.hero__badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.hero__title {
+  font-size: clamp(2.8rem, 9vw, 4.5rem);
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 50%, #ff7a00 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero__tagline {
+  max-width: 480px;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.hero__tagline strong { color: var(--accent); font-weight: 800; }
+
+.hero__cta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.btn--ghost {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Feature cards */
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.feature-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.feature-card__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+  margin-bottom: 4px;
+}
+
+.feature-card__title { font-size: 1rem; font-weight: 800; }
+.feature-card__text  { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; }
+
+/* Milestone rewards */
+.rewards { display: flex; flex-direction: column; gap: 16px; }
+.rewards__heading {
+  font-size: 1.25rem;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+.rewards__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.reward-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.reward-card__tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.reward-card__amount { font-weight: 800; color: var(--green); font-size: 0.95rem; }
+
+@media (max-width: 560px) {
+  .rewards__grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 420px) {
+  .features { grid-template-columns: 1fr; }
 }
 
 /* ─── Contract not deployed notice ──────────────────────────────────────── */
@@ -957,4 +1192,5 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   .score-box { padding: 8px 12px; min-width: 80px; }
   .score-value { font-size: 1.2rem; }
   .icon-btn { width: 32px; height: 32px; font-size: 0.9rem; }
+  .header__right { gap: 5px; }
 }

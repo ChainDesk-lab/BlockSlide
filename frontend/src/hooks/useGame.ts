@@ -14,10 +14,15 @@ interface PersistedGame {
   state: GameState;
 }
 
-export function useGame(address?: string) {
+export function useGame(address?: string, inputEnabled: boolean = true) {
   const [state, setState] = useState<GameState | null>(null);
   const [seed, setSeed] = useState<string | null>(null);
   const rngRef = useRef<(() => number) | null>(null);
+
+  // Keep keyboard/touch handlers from firing while the player is on another
+  // screen (Leaderboard/Shop). A ref avoids re-subscribing the listeners.
+  const inputEnabledRef = useRef(inputEnabled);
+  inputEnabledRef.current = inputEnabled;
 
   // Restore persisted game on mount
   useEffect(() => {
@@ -89,6 +94,7 @@ export function useGame(address?: string) {
       k: "up", j: "down", h: "left", l: "right",
     };
     const onKey = (e: KeyboardEvent) => {
+      if (!inputEnabledRef.current) return;
       const dir = KEYS[e.key];
       if (dir) {
         e.preventDefault();
@@ -105,11 +111,13 @@ export function useGame(address?: string) {
     let startY = 0;
 
     const onTouchStart = (e: TouchEvent) => {
+      if (!inputEnabledRef.current) return;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
     };
 
     const onTouchEnd = (e: TouchEvent) => {
+      if (!inputEnabledRef.current) return;
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
       const absX = Math.abs(dx);
