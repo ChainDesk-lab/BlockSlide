@@ -197,6 +197,49 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   color: #845ef7;
 }
 
+/* ─── Username card ──────────────────────────────────────────────────────── */
+.username-card {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.username-card--editing { flex-direction: column; align-items: stretch; gap: 10px; }
+
+.username-card__display { display: flex; flex-direction: column; gap: 2px; }
+.username-card__label { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.username-card__name  { font-size: 1.05rem; font-weight: 800; }
+.username-card__unset { color: var(--text-muted); font-weight: 600; font-style: italic; }
+
+.username-card__form { display: flex; gap: 8px; align-items: center; }
+.username-card__input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.username-card__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(132, 94, 247, 0.18);
+}
+.username-card__actions { display: flex; gap: 6px; }
+
+.username-card__hint { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; }
+.username-card__hint--error { color: #dc2626; font-weight: 600; }
+
 /* ─── Home / landing ─────────────────────────────────────────────────────── */
 .home {
   width: 100%;
@@ -680,6 +723,13 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   border-radius: 6px;
   background: #f59e0b;
   color: #fff;
+}
+
+/* Size-only modifier — keeps the colour from btn--primary/btn--ghost */
+.btn--sm {
+  padding: 8px 16px;
+  min-width: auto;
+  font-size: 0.85rem;
 }
 
 .controls__hint {

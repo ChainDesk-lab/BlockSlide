@@ -8,6 +8,7 @@ import IdentityGate from "./components/IdentityGate";
 import Leaderboard from "./components/Leaderboard";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
+import UsernameEditor from "./components/UsernameEditor";
 import WalletButton from "./components/WalletButton";
 import { SoundOnIcon, SoundOffIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
@@ -276,6 +277,7 @@ export default function App() {
             <h2 className="screen__title">
               <TrophyIcon size={26} /> Leaderboard
             </h2>
+            <UsernameEditor />
             <Leaderboard />
           </div>
         )}

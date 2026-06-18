@@ -98,6 +98,12 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public boost2xPrice;
     uint256 public boost5xPrice;
 
+    // ─── Username state (appended in V4 — keep at end for UUPS layout safety) ──
+
+    mapping(address => string)  public usernames;   // player => display name
+    mapping(bytes32 => address) public nameOwner;    // keccak(lowercased name) => owner
+    mapping(address => bytes32) private _nameKey;     // owner => their current name hash
+
     // ─── Events ───────────────────────────────────────────────────────────────
 
     event SessionStarted(address indexed player);
@@ -108,6 +114,7 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event ShieldPurchased(address indexed player, uint256 count);
     event XpBoostPurchased(address indexed player, uint8 multiplier, uint64 expiry);
     event ShopPricesUpdated(uint256 shield, uint256 boost2x, uint256 boost5x);
+    event UsernameSet(address indexed player, string name);
 
     // ─── Errors ───────────────────────────────────────────────────────────────
 
@@ -120,6 +127,8 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error InvalidTileValue();
     error InvalidComboCount();
     error InvalidBoostMultiplier();
+    error UsernameTaken();
+    error InvalidUsername();
 
     // ─── Init ─────────────────────────────────────────────────────────────────
 
@@ -222,6 +231,62 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint64 expiry = uint64(block.timestamp + BOOST_DURATION);
         xpBoost[msg.sender] = XpBoost({ multiplier: multiplier, expiry: expiry });
         emit XpBoostPurchased(msg.sender, multiplier, expiry);
+    }
+
+    // ─── Username ───────────────────────────────────────────────────────────────
+
+    /// Claim or change your display name shown on the leaderboard.
+    /// Rules: 3–20 chars, only a–z A–Z 0–9 and underscore. Case-insensitive
+    /// uniqueness — "Alice" and "alice" are the same name. Free to re-claim your
+    /// own name; reverts if someone else owns it.
+    function setUsername(string calldata name) external {
+        bytes memory b = bytes(name);
+        if (b.length < 3 || b.length > 20) revert InvalidUsername();
+
+        // Validate chars and build a lowercased copy for the uniqueness key.
+        bytes memory lower = new bytes(b.length);
+        for (uint256 i = 0; i < b.length; i++) {
+            bytes1 c = b[i];
+            if (c >= 0x41 && c <= 0x5A) {
+                lower[i] = bytes1(uint8(c) + 32);          // A–Z → a–z
+            } else if (
+                (c >= 0x61 && c <= 0x7A) ||                 // a–z
+                (c >= 0x30 && c <= 0x39) ||                 // 0–9
+                c == 0x5F                                    // _
+            ) {
+                lower[i] = c;
+            } else {
+                revert InvalidUsername();
+            }
+        }
+
+        bytes32 key = keccak256(lower);
+        address owner_ = nameOwner[key];
+        if (owner_ != address(0) && owner_ != msg.sender) revert UsernameTaken();
+
+        // Release the caller's previous name so it can be reused by others.
+        bytes32 prevKey = _nameKey[msg.sender];
+        if (prevKey != bytes32(0) && prevKey != key) {
+            delete nameOwner[prevKey];
+        }
+
+        nameOwner[key]        = msg.sender;
+        _nameKey[msg.sender]  = key;
+        usernames[msg.sender] = name;
+        emit UsernameSet(msg.sender, name);
+    }
+
+    /// Batch-resolve display names for a list of players (empty string if unset).
+    /// Used by the leaderboard to show names instead of addresses in one call.
+    function getUsernames(address[] calldata players)
+        external
+        view
+        returns (string[] memory names)
+    {
+        names = new string[](players.length);
+        for (uint256 i = 0; i < players.length; i++) {
+            names[i] = usernames[players[i]];
+        }
     }
 
     // ─── Owner ────────────────────────────────────────────────────────────────

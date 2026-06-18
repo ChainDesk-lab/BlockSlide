@@ -29,6 +29,15 @@ export default function Leaderboard() {
     query: { enabled: entries.length > 0 },
   });
 
+  // Resolve display names for everyone on the board in a single call.
+  const { data: namesData } = useReadContract({
+    address: GAME2048_ADDRESS,
+    abi: GAME2048_ABI,
+    functionName: "getUsernames",
+    args: [entries.map((e) => e.player)],
+    query: { enabled: CONTRACT_DEPLOYED && entries.length > 0 },
+  });
+
   return (
     <div className="leaderboard">
       <h3 className="leaderboard__title">Leaderboard</h3>
@@ -51,11 +60,14 @@ export default function Leaderboard() {
           {entries.map((entry, i) => {
             const xpResult = xpData?.[i];
             const xp = xpResult?.status === "success" ? (xpResult.result as bigint) : null;
+            const name = namesData?.[i]?.trim();
 
             return (
               <li key={entry.player} className="leaderboard__entry">
                 <span className="leaderboard__rank">{i + 1}</span>
-                <span className="leaderboard__addr">{shortAddr(entry.player)}</span>
+                <span className="leaderboard__addr" title={entry.player}>
+                  {name ? name : shortAddr(entry.player)}
+                </span>
                 <span className="leaderboard__tile tile-badge">{entry.highestTile}</span>
                 <div className="leaderboard__right">
                   <span className="leaderboard__score">{entry.score.toLocaleString()}</span>
