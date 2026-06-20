@@ -240,7 +240,7 @@ blockslide/
 
 ---
 
-## Roadmap
+<!-- ## Roadmap
 
 - [ ] **MiniPay listing** — wallet-optimized build for Celo's MiniPay
 - [ ] **More milestone tiers** — 4096, 8192 with escalating G$ rewards
@@ -249,7 +249,7 @@ blockslide/
 - [ ] **G$ staking** — stake G$ to enter higher-stakes leaderboard pools
 - [ ] **Mobile push notifications** — streak reminders, reward alerts
 
----
+--- -->
 
 ## Team & Contact
 
