@@ -10,9 +10,10 @@ const FALLBACK_URL = "https://goodwallet.xyz/en";
 interface Props {
   status: IdentityStatus;
   onRefresh: () => void;
+  onStarted: () => void;
 }
 
-export default function IdentityGate({ status, onRefresh }: Props) {
+export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
   const publicClient          = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const [pending,  setPending]  = useState(false);
@@ -44,6 +45,8 @@ export default function IdentityGate({ status, onRefresh }: Props) {
 
         if (popup) {
           popup.location.href = link;
+          // FV flow launched — mark this wallet as pending verification.
+          onStarted();
         } else {
           // Popup was blocked — surface the link so the user can click it
           setErrorMsg(`Popup blocked. Open this link manually: ${link}`);
@@ -80,6 +83,40 @@ export default function IdentityGate({ status, onRefresh }: Props) {
       <div className="identity-gate__body">
         {status === "loading" ? (
           <p className="identity-gate__title">Checking GoodDollar verification…</p>
+        ) : status === "pending" ? (
+          <>
+            <p className="identity-gate__title">Verification in progress</p>
+            <p className="identity-gate__desc">
+              Finish the face scan in the GoodDollar tab. Once it completes, come
+              back and check again — it can take a moment to confirm on-chain.
+            </p>
+
+            {errorMsg && (
+              <p className="identity-gate__error">{errorMsg}</p>
+            )}
+
+            <div className="identity-gate__actions">
+              <button
+                className="btn btn--primary identity-gate__btn"
+                onClick={() => { setErrorMsg(null); onRefresh(); }}
+              >
+                I have completed verification, check again
+              </button>
+              <button
+                className="btn identity-gate__btn identity-gate__btn--check"
+                onClick={handleVerify}
+                disabled={pending}
+              >
+                {pending
+                  ? <><span className="spinner" aria-hidden="true" /> Preparing…</>
+                  : "Restart verification"}
+              </button>
+            </div>
+
+            <p className="identity-gate__note">
+              You can still play in demo mode while this confirms.
+            </p>
+          </>
         ) : (
           <>
             <p className="identity-gate__title">Face verification required</p>

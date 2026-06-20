@@ -69,6 +69,17 @@ export function CoinIcon({ className, size = 18 }: IconProps) {
   );
 }
 
+export function VerifiedIcon({ className, size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="10" fill="currentColor" />
+      <path d="m8 12 2.5 2.5L16 9" stroke="#fff" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
 export function HomeIcon({ className, size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"

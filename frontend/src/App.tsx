@@ -11,7 +11,7 @@ import ScorePanel from "./components/ScorePanel";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
 import WalletButton from "./components/WalletButton";
-import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon } from "./components/icons";
+import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon, VerifiedIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
@@ -22,7 +22,7 @@ type View = "home" | "game" | "leaderboard" | "shop";
 
 export default function App() {
   const { address } = useAccount();
-  const { status: identityStatus, refetch: refetchIdentity } = useIdentity();
+  const { status: identityStatus, refetch: refetchIdentity, markPending: markIdentityPending } = useIdentity();
 
   // Which screen is showing. Game state/hooks live at this level so navigating
   // away and back never resets an in-progress game.
@@ -191,18 +191,25 @@ export default function App() {
               {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
             </button>
           </span>
-          {username && (
+          {username ? (
             <span className="header__username" title="Your username">
-              {username}
+              <span className="header__username-name">{username}</span>
+              {identityStatus === "verified" && (
+                <VerifiedIcon size={15} className="header__verified" />
+              )}
             </span>
-          )}
+          ) : identityStatus === "verified" ? (
+            <span className="header__username header__username--badge-only" title="Verified with GoodDollar">
+              <VerifiedIcon size={15} className="header__verified" /> Verified
+            </span>
+          ) : null}
           <WalletButton />
         </div>
       </header>
 
       <main className="main">
         {/* GoodDollar identity gate — shown when connected but not verified */}
-        <IdentityGate status={identityStatus} onRefresh={refetchIdentity} />
+        <IdentityGate status={identityStatus} onRefresh={refetchIdentity} onStarted={markIdentityPending} />
 
         {/* Wrong-chain only — this actually blocks onchain play */}
         {isWrongChain && (

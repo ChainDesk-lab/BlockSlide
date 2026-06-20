@@ -87,9 +87,11 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 /* Username pill in the header */
 .header__username {
-  max-width: 140px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 160px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   padding: 6px 12px;
   border-radius: 999px;
@@ -99,6 +101,10 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-weight: 700;
   color: var(--text);
 }
+/* Allow the name text to ellipsize while the badge stays visible */
+.header__username-name { overflow: hidden; text-overflow: ellipsis; }
+.header__verified { color: var(--green); flex-shrink: 0; }
+.header__username--badge-only { color: var(--green); }
 
 /* ─── Icon buttons (theme toggle, sound toggle) ──────────────────────────── */
 .icon-btn {
