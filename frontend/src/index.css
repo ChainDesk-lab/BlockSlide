@@ -365,6 +365,45 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 .feature-card__title { font-size: 1rem; font-weight: 800; }
 .feature-card__text  { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; }
 
+/* ─── Daily G$ claim ─────────────────────────────────────────────────────── */
+.daily-claim {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+}
+
+.daily-claim__info { display: flex; align-items: center; gap: 14px; min-width: 0; }
+
+.daily-claim__icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+}
+
+.daily-claim__title  { font-size: 1.05rem; font-weight: 800; }
+.daily-claim__status { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
+.daily-claim__status--done { color: var(--green); font-weight: 700; }
+
+.daily-claim .btn { flex-shrink: 0; }
+
+@media (max-width: 480px) {
+  .daily-claim { justify-content: center; }
+  .daily-claim .btn { width: 100%; }
+}
+
 @media (max-width: 420px) {
   .features { grid-template-columns: 1fr; }
 }

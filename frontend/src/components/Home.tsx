@@ -1,3 +1,4 @@
+import DailyClaim from "./DailyClaim";
 import { BoltIcon, FlameIcon, GamepadIcon, TrophyIcon } from "./icons";
 
 interface HomeProps {
@@ -48,6 +49,9 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
           </button>
         </div>
       </section>
+
+      {/* ── Daily G$ claim ────────────────────────────────────────────────── */}
+      <DailyClaim />
 
       {/* ── Features ──────────────────────────────────────────────────────── */}
       <section className="features">
