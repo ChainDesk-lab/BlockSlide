@@ -1172,11 +1172,10 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .leaderboard__entry {
   display: grid;
-  grid-template-columns: 24px 1fr auto auto;
+  grid-template-columns: 28px 1fr auto;
   align-items: center;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 12px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   font-size: 0.875rem;
@@ -1187,42 +1186,41 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-.leaderboard__rank { font-weight: 800; color: var(--text-muted); font-size: 0.8rem; }
+.leaderboard__rank {
+  font-weight: 800;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 .leaderboard__entry:first-child .leaderboard__rank { color: var(--accent); }
+
+.leaderboard__player {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.leaderboard__name {
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .leaderboard__addr {
   font-family: "SF Mono", "Fira Code", monospace;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 
-.tile-badge {
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: var(--cell);
-  color: var(--text);
-}
-
-.leaderboard__right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-}
-
 .leaderboard__score {
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 0.95rem;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-}
-
-.leaderboard__xp {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
