@@ -33,7 +33,7 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
     <div className="home">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="hero">
-        <span className="hero__badge">🎮 2048 · on-chain · Celo</span>
+        <span className="hero__badge">2048 · on-chain · Celo</span>
         <h1 className="hero__title">BlockSlide</h1>
         <p className="hero__tagline">
           The classic 2048, reimagined on Celo. Slide tiles, build your streak,
