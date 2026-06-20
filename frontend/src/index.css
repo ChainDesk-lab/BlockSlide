@@ -85,6 +85,21 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .header__right { display: flex; align-items: center; gap: 8px; }
 
+/* Username pill in the header */
+.header__username {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* ─── Icon buttons (theme toggle, sound toggle) ──────────────────────────── */
 .icon-btn {
   background: var(--surface-2);
@@ -239,6 +254,13 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .username-card__hint { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; }
 .username-card__hint--error { color: #dc2626; font-weight: 600; }
+
+/* Username setup modal */
+.username-modal__title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; }
+.username-modal__desc  { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; margin: 8px 0 16px; }
+.username-modal__input { width: 100%; font-size: 1.05rem; }
+.username-modal__actions { display: flex; margin-top: 16px; }
+.username-modal__actions .btn { width: 100%; }
 
 /* ─── Home / landing ─────────────────────────────────────────────────────── */
 .home {

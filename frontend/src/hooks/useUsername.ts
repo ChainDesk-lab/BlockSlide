@@ -23,7 +23,7 @@ export function useUsername() {
   const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
   const { data: walletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
 
-  const { data: current, refetch } = useReadContract({
+  const { data: current, refetch, isLoading: isReading } = useReadContract({
     address: GAME2048_ADDRESS,
     abi: GAME2048_ABI,
     functionName: "usernames",
@@ -149,6 +149,7 @@ export function useUsername() {
 
   return {
     username: (current as string | undefined)?.trim() || "",
+    isLoading: isReading,
     isSaving,
     error,
     savedName,

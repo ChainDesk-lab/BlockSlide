@@ -9,11 +9,13 @@ import Leaderboard from "./components/Leaderboard";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
 import UsernameEditor from "./components/UsernameEditor";
+import UsernameModal from "./components/UsernameModal";
 import WalletButton from "./components/WalletButton";
 import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
+import { useUsername } from "./hooks/useUsername";
 import { sounds } from "./lib/sounds";
 
 type View = "home" | "game" | "leaderboard" | "shop";
@@ -48,6 +50,21 @@ export default function App() {
     sessionExpired,
     switchToTargetChain,
   } = useGameSession();
+
+  // ── Username ────────────────────────────────────────────────────────────────
+  // On connect we read the username from the contract. If it's empty, prompt the
+  // user to choose one via a modal; if they already have one it loads silently
+  // and shows in the header. Dismissed-per-wallet so we don't nag on every read.
+  const { username, isLoading: usernameLoading } = useUsername();
+  const [usernameModalDismissed, setUsernameModalDismissed] = useState(false);
+
+  useEffect(() => {
+    // Reset the dismiss flag whenever the connected wallet changes.
+    setUsernameModalDismissed(false);
+  }, [address]);
+
+  const showUsernameModal =
+    !!address && !isWrongChain && !usernameLoading && !username && !usernameModalDismissed;
 
   // ── Sound toggle ───────────────────────────────────────────────────────────
   const [soundEnabled, setSoundEnabled] = useState(sounds.enabled);
@@ -103,6 +120,9 @@ export default function App() {
   return (
     <div className="app">
       {showHowToPlay && <HowToPlay onClose={closeHowToPlay} />}
+      {showUsernameModal && (
+        <UsernameModal onClose={() => setUsernameModalDismissed(true)} />
+      )}
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="header">
         <div
@@ -171,6 +191,11 @@ export default function App() {
               {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
             </button>
           </span>
+          {username && (
+            <span className="header__username" title="Your username">
+              {username}
+            </span>
+          )}
           <WalletButton />
         </div>
       </header>
