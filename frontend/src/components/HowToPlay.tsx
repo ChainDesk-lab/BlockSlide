@@ -19,7 +19,7 @@ const SLIDES = [
   },
   {
     title: "Verification",
-    text: "Complete GoodDollar face verification once to unlock on-chain score submission and G$ rewards. You can play in demo mode at any time without it.",
+    text: "Complete GoodDollar face verification once to unlock on-chain score submission. You can play in demo mode at any time without it.",
   },
 ];
 

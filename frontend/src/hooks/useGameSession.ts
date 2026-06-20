@@ -453,7 +453,7 @@ function parseContractError(error: Error): string {
       // aren't in our ABI). Surface the raw 4-byte selector for diagnosis.
       const raw = r.raw ?? "";
       console.error("[BlockSlide] undecoded revert. selector:", raw.slice(0, 10), "full:", raw);
-      return `Contract reverted (undecoded). This often means the G$ reward transfer failed — the treasury may be empty or the token paused. Selector: ${raw.slice(0, 10) || "n/a"}`;
+      return `Contract reverted (undecoded). Please try again. Selector: ${raw.slice(0, 10) || "n/a"}`;
     }
     if (error.walk((e) => (e as { name?: string }).name === "UserRejectedRequestError"))
       return "Transaction rejected.";

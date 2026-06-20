@@ -343,45 +343,6 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 .feature-card__title { font-size: 1rem; font-weight: 800; }
 .feature-card__text  { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; }
 
-/* Milestone rewards */
-.rewards { display: flex; flex-direction: column; gap: 16px; }
-.rewards__heading {
-  font-size: 1.25rem;
-  font-weight: 800;
-  text-align: center;
-  letter-spacing: -0.02em;
-}
-.rewards__grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-.reward-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 16px 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.reward-card__tile {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 10px;
-  font-weight: 800;
-  font-size: 0.95rem;
-}
-.reward-card__amount { font-weight: 800; color: var(--green); font-size: 0.95rem; }
-
-@media (max-width: 560px) {
-  .rewards__grid { grid-template-columns: repeat(2, 1fr); }
-}
 @media (max-width: 420px) {
   .features { grid-template-columns: 1fr; }
 }
@@ -464,10 +425,6 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   box-shadow: var(--shadow);
 }
 
-.score-box--highlight {
-  border-color: color-mix(in srgb, var(--green) 40%, var(--border));
-}
-
 .score-label {
   font-size: 0.62rem;
   font-weight: 700;
@@ -482,39 +439,6 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   letter-spacing: -0.04em;
   line-height: 1;
 }
-.score-value--green { color: var(--green); }
-
-/* ─── Milestone badges ───────────────────────────────────────────────────── */
-.milestone-row {
-  width: 100%;
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.milestone-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  opacity: 0.35;
-  transition: opacity 0.25s, border-color 0.25s, background 0.25s;
-}
-
-.milestone-badge--unlocked {
-  opacity: 1;
-  border-color: var(--green);
-  background: color-mix(in srgb, var(--green) 10%, var(--surface-2));
-  box-shadow: 0 0 8px color-mix(in srgb, var(--green) 25%, transparent);
-}
-
-.milestone-tile  { font-weight: 800; font-size: 0.8rem;  color: var(--text); }
-.milestone-reward { font-weight: 600; color: var(--green); font-size: 0.68rem; }
-
 /* ─── Board ──────────────────────────────────────────────────────────────── */
 .board-wrapper { position: relative; }
 

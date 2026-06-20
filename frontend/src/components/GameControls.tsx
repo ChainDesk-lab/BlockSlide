@@ -62,10 +62,10 @@ export default function GameControls({
         <p className="controls__hint">Arrow keys · WASD · swipe to move</p>
       )}
       {!isConnected && phase === "active" && gameEnded && (
-        <p className="controls__hint">Connect your wallet to submit your score onchain and earn G$</p>
+        <p className="controls__hint">Connect your wallet to submit your score on-chain</p>
       )}
       {!isConnected && (phase === "idle" || phase === "done") && !state && (
-        <p className="controls__hint">Connect your wallet to earn G$ for high scores</p>
+        <p className="controls__hint">Connect your wallet to save your scores on-chain</p>
       )}
       {isConnected && !gameEnded && phase === "active" && (
         <p className="controls__hint">Arrow keys · WASD · swipe to move</p>

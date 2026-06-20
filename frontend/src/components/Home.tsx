@@ -1,5 +1,4 @@
-import { MILESTONES } from "../lib/constants";
-import { BoltIcon, CoinIcon, FlameIcon, TrophyIcon } from "./icons";
+import { BoltIcon, FlameIcon, GamepadIcon, TrophyIcon } from "./icons";
 
 interface HomeProps {
   onPlay: () => void;
@@ -8,14 +7,14 @@ interface HomeProps {
 
 const FEATURES = [
   {
-    Icon: CoinIcon,
-    title: "Earn real G$",
-    text: "Reach milestone tiles and get GoodDollar paid straight to your wallet.",
-  },
-  {
     Icon: TrophyIcon,
     title: "Climb the leaderboard",
     text: "Your best scores are recorded on-chain for everyone to chase.",
+  },
+  {
+    Icon: GamepadIcon,
+    title: "On-chain play",
+    text: "Start a verified session and submit your score straight to the chain.",
   },
   {
     Icon: FlameIcon,
@@ -37,8 +36,8 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
         <span className="hero__badge">🎮 2048 · on-chain · Celo</span>
         <h1 className="hero__title">BlockSlide</h1>
         <p className="hero__tagline">
-          The classic 2048, reimagined on Celo. Slide tiles, hit milestones, and
-          earn real <strong>G$</strong> rewards while you climb the leaderboard.
+          The classic 2048, reimagined on Celo. Slide tiles, build your streak,
+          and climb the on-chain leaderboard.
         </p>
         <div className="hero__cta">
           <button className="btn btn--primary" onClick={onPlay}>
@@ -63,18 +62,6 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
         ))}
       </section>
 
-      {/* ── Milestone rewards ─────────────────────────────────────────────── */}
-      <section className="rewards">
-        <h2 className="rewards__heading">Milestone rewards</h2>
-        <div className="rewards__grid">
-          {MILESTONES.map(({ tile, reward }) => (
-            <div className="reward-card" key={tile}>
-              <span className={`reward-card__tile tile--${tile}`}>{tile}</span>
-              <span className="reward-card__amount">{reward}</span>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

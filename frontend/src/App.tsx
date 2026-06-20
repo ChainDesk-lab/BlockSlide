@@ -71,8 +71,8 @@ export default function App() {
   }, [state]);
 
   // ── Game actions ───────────────────────────────────────────────────────────
-  // New Game always works — no wallet required. Blockchain features (submit
-  // score, earn G$) activate only when wallet is connected + contract deployed.
+  // New Game always works — no wallet required. Blockchain features (on-chain
+  // score submission) activate only when wallet is connected + contract deployed.
   const handleNewGame = () => {
     sounds.newGame();
     reset();
@@ -173,7 +173,7 @@ export default function App() {
         {/* Wrong-chain only — this actually blocks onchain play */}
         {isWrongChain && (
           <div className="chain-banner" role="alert">
-            <span>⚠ Wrong network — switch to Celo Alfajores to earn G$.</span>
+            <span>⚠ Wrong network — switch to Celo to submit scores on-chain.</span>
             <button
               className="btn btn--xs"
               onClick={switchToTargetChain}
@@ -232,7 +232,7 @@ export default function App() {
                               onClick={() => { clearGame(); startNewGame(); }}
                               style={{ marginTop: "0.5rem" }}
                             >
-                              Play locally (no G$ rewards)
+                              Play locally (off-chain)
                             </button>
                           </p>
                         </>

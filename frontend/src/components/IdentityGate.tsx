@@ -84,9 +84,9 @@ export default function IdentityGate({ status, onRefresh }: Props) {
           <>
             <p className="identity-gate__title">Face verification required</p>
             <p className="identity-gate__desc">
-              Verify once with GoodDollar to earn G$ rewards and submit scores
-              on-chain. Your wallet will ask you to sign a message, then you will
-              be taken directly to the face scan.
+              Verify once with GoodDollar to submit scores on-chain. Your wallet
+              will ask you to sign a message, then you will be taken directly to
+              the face scan.
             </p>
 
             {errorMsg && (
