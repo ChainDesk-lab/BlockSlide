@@ -235,7 +235,7 @@ export default function App() {
 
         {/* ── Play screen ───────────────────────────────────────────────── */}
         {view === "game" && (
-          <>
+          <div className="game-view">
             <ScorePanel state={state} />
 
             <div className="board-wrapper">
@@ -309,7 +309,7 @@ export default function App() {
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
             />
-          </>
+          </div>
         )}
 
         {/* ── Leaderboard screen ────────────────────────────────────────── */}

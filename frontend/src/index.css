@@ -1245,3 +1245,168 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   .header__right { gap: 5px; }
   .header__username { max-width: 110px; padding: 5px 10px; font-size: 0.8rem; }
 }
+
+/* ─── Very small phones (≤ 360px) ───────────────────────────────── */
+@media (max-width: 360px) {
+  .header { padding: 10px 10px; }
+  .header__logo { font-size: 1.1rem; }
+  .header__right { gap: 4px; }
+  .header__username { max-width: 80px; padding: 4px 7px; font-size: 0.72rem; }
+  .icon-btn { width: 28px; height: 28px; font-size: 0.8rem; }
+  .main { padding: 12px 10px 32px; gap: 12px; }
+  .board { gap: 6px; padding: 6px; border-radius: var(--radius-sm); }
+  .score-panel { gap: 6px; }
+  .score-box { min-width: 60px; padding: 5px 7px; }
+  .score-value { font-size: 1rem; }
+  .score-label { font-size: 0.55rem; }
+  .btn { padding: 10px 18px; min-width: 120px; font-size: 0.82rem; }
+  .hero__title { font-size: clamp(1.8rem, 8vw, 2.4rem); }
+  .hero__tagline { font-size: 0.88rem; }
+  .feature-card { padding: 12px; }
+  .feature-card__title { font-size: 0.88rem; }
+  .feature-card__text { font-size: 0.78rem; }
+  .feature-card__icon { width: 36px; height: 36px; }
+  .game-overlay__title { font-size: 1.1rem; }
+  .game-overlay__score { font-size: 0.85rem; }
+  .htp-modal { padding: 18px 14px 16px; }
+  .htp-slide__title { font-size: 1.1rem; }
+  .combo-badge { top: 4px; left: 4px; padding: 3px 7px; }
+  .combo-badge__count { font-size: 0.9rem; }
+  .combo-badge__label { font-size: 0.55rem; }
+  .leaderboard__entry { padding: 8px 10px; gap: 8px; font-size: 0.8rem; }
+  .shop { padding: 14px; }
+  .shop-item { padding: 10px 12px; }
+  .controls__hint { font-size: 0.72rem; }
+  .daily-claim { padding: 14px 16px; }
+  .daily-claim__title { font-size: 0.92rem; }
+}
+
+/* ─── Landscape mobile (≤ 500px height) ──────────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .header { padding: 6px 14px; }
+  .header__logo { font-size: 1.1rem; }
+  .header__sub { display: none; }
+  .icon-btn { width: 30px; height: 30px; font-size: 0.85rem; }
+  .main { padding: 8px 16px 16px; gap: 8px; }
+  .score-panel { gap: 6px; }
+  .score-box { min-width: 65px; padding: 4px 8px; }
+  .score-value { font-size: 0.95rem; }
+  .score-label { font-size: 0.55rem; }
+  .board { width: min(340px, 55vh, calc(100vw - 32px)); gap: 5px; padding: 5px; }
+  .controls { gap: 6px; }
+  .btn { padding: 6px 14px; min-width: 90px; font-size: 0.75rem; }
+  .combo-badge { top: 3px; left: 3px; padding: 2px 6px; }
+  .combo-badge__count { font-size: 0.8rem; }
+  .combo-badge__label { font-size: 0.5rem; }
+  .game-overlay__title { font-size: 1rem; }
+  .game-overlay__score { font-size: 0.8rem; }
+  .controls__hint { font-size: 0.68rem; }
+  .board-placeholder { font-size: 0.85rem; }
+  .board-placeholder__sub { font-size: 0.72rem; }
+  .identity-gate { padding: 14px; gap: 12px; }
+  .identity-gate__title { font-size: 0.85rem; }
+  .identity-gate__desc { font-size: 0.75rem; }
+}
+
+/* ─── Larger phones / small tablets (481–767px) ──────────────────── */
+@media (min-width: 481px) and (max-width: 767px) {
+  .board { width: min(440px, calc(100vw - 48px)); }
+  .screen { max-width: 520px; }
+  .main { padding: 24px 24px 48px; gap: 20px; }
+  .home { max-width: 520px; }
+  .hero__title { font-size: clamp(3rem, 8vw, 3.8rem); }
+  .hero__tagline { font-size: 1rem; }
+}
+
+/* ─── Tablets (≥ 768px) ─────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .board { width: min(520px, calc(100vw - 64px)); gap: 12px; padding: 12px; }
+  .screen { max-width: 560px; }
+  .score-panel { max-width: 520px; gap: 14px; }
+  .score-box { padding: 14px 24px; }
+  .score-value { font-size: 1.6rem; }
+  .score-label { font-size: 0.68rem; }
+  .controls { max-width: 520px; }
+  .header { padding: 18px 32px; }
+  .header__logo { font-size: 1.7rem; }
+  .header__right { gap: 10px; }
+  .icon-btn { width: 38px; height: 38px; font-size: 1.05rem; }
+  .main { padding: 36px 32px 56px; gap: 28px; }
+  .home { max-width: 800px; gap: 48px; }
+  .features { gap: 18px; }
+  .feature-card { padding: 24px; }
+  .hero__tagline { font-size: 1.1rem; max-width: 560px; }
+  .btn { padding: 14px 40px; min-width: 180px; font-size: 1rem; }
+  .controls__hint { font-size: 0.85rem; }
+  .htp-modal { max-width: 480px; padding: 36px 32px 28px; }
+  .leaderboard { padding: 24px; }
+  .shop { padding: 22px 22px 18px; }
+  .game-overlay__title { font-size: 1.8rem; }
+  .game-overlay__score { font-size: 1.05rem; }
+  .combo-badge { top: 12px; left: 12px; padding: 6px 12px; }
+  .combo-badge__count { font-size: 1.2rem; }
+  .combo-badge__label { font-size: 0.68rem; }
+  .combo-badge__best { font-size: 0.62rem; }
+  .score-box { min-width: 120px; }
+  .daily-claim { padding: 20px 24px; }
+}
+
+/* ─── Desktop (≥ 1024px) ────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  .board { width: min(560px, calc(100vw - 80px)); gap: 14px; padding: 14px; }
+  .screen { max-width: 640px; }
+  .score-panel { max-width: 560px; gap: 16px; }
+  .score-box { min-width: 140px; padding: 16px 28px; }
+  .score-value { font-size: 1.8rem; }
+  .controls { max-width: 560px; }
+  .header { padding: 20px 40px; }
+  .header__logo { font-size: 1.8rem; }
+  .header__right { gap: 12px; }
+  .header__username { max-width: 200px; padding: 7px 14px; font-size: 0.9rem; }
+  .icon-btn { width: 40px; height: 40px; font-size: 1.1rem; }
+  .main { padding: 40px 40px 64px; gap: 32px; }
+  .home { max-width: 960px; gap: 56px; }
+  .features { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .hero__title { font-size: clamp(3.5rem, 5vw, 5rem); }
+  .hero__tagline { max-width: 640px; font-size: 1.15rem; }
+  .btn { padding: 14px 44px; min-width: 190px; font-size: 1.05rem; }
+  .leaderboard { padding: 28px; }
+  .leaderboard__entry { padding: 12px 16px; font-size: 0.95rem; }
+  .shop { padding: 26px; }
+  .shop-item { padding: 14px 16px; }
+  .game-overlay__title { font-size: 2rem; }
+  .game-overlay__score { font-size: 1.15rem; }
+}
+
+/* ─── Large desktop (≥ 1440px) ───────────────────────────────────── */
+@media (min-width: 1440px) {
+  .board { width: 600px; gap: 16px; padding: 16px; }
+  .screen { max-width: 720px; }
+  .score-panel { max-width: 600px; gap: 18px; }
+  .score-box { min-width: 160px; padding: 18px 32px; }
+  .score-value { font-size: 2rem; }
+  .controls { max-width: 600px; }
+  .header { padding: 22px 48px; }
+  .header__logo { font-size: 1.9rem; }
+  .main { padding: 44px 48px 72px; gap: 36px; }
+  .home { max-width: 1100px; gap: 64px; }
+  .features { gap: 24px; }
+  .feature-card { padding: 28px; }
+  .hero__tagline { max-width: 720px; font-size: 1.2rem; }
+  .leaderboard { padding: 32px; }
+  .shop { padding: 28px; }
+  .htp-modal { max-width: 520px; padding: 40px 36px 32px; }
+  .daily-claim { padding: 22px 28px; }
+}
+
+/* ─── Touch device optimizations (minimum tap targets) ──────────── */
+@media (hover: none) and (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .shop-btn { min-height: 44px; }
+  .htp-nav__btn { min-height: 44px; }
+  .htp-close { min-width: 44px; min-height: 44px; }
+  .hero__cta .btn { min-height: 48px; }
+  .identity-gate__btn { min-height: 44px; }
+  .username-card__input { min-height: 44px; }
+  .username-modal__input { min-height: 44px; }
+}
