@@ -10,7 +10,7 @@ import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
 import UsernameEditor from "./components/UsernameEditor";
 import WalletButton from "./components/WalletButton";
-import { SoundOnIcon, SoundOffIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon } from "./components/icons";
+import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
@@ -117,6 +117,15 @@ export default function App() {
           <span className="header__sub">2048 on Celo</span>
         </div>
         <div className="header__right">
+          <span className="tooltip" data-tip="Home">
+            <button
+              className={`icon-btn ${view === "home" ? "icon-btn--active" : ""}`}
+              onClick={() => setView("home")}
+              aria-label="Home"
+            >
+              <HomeIcon />
+            </button>
+          </span>
           <span className="tooltip" data-tip="Play">
             <button
               className={`icon-btn ${view === "game" ? "icon-btn--active" : ""}`}
