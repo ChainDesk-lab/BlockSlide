@@ -102,14 +102,6 @@ export function useGameSession() {
     //  - wait error (txWaitError) — node returned an error fetching the receipt
     if (!txConfirmed && !txWaitError) return;
 
-    console.log("[BlockSlide] tx receipt:", {
-      confirmed: txConfirmed,
-      waitError: txWaitError,
-      status: txReceipt?.status,
-      action: pendingActionRef.current,
-      hash: txHash,
-    });
-
     const reverted = txReceipt?.status === "reverted" || txWaitError;
     if (reverted) {
       if (pendingActionRef.current === "submit") {
@@ -300,13 +292,6 @@ export function useGameSession() {
         if (result.data) session = result.data;
       } catch { /* use cached value */ }
 
-      console.log("[BlockSlide] submitScore pre-flight:", {
-        sessionActive: session?.active,
-        seedHash: session?.seedHash,
-        expectedHash: keccak256(seed),
-        phase,
-      });
-
       if (!session?.active) {
         setError("No active session found — start a new game first.");
         return;
@@ -356,12 +341,10 @@ export function useGameSession() {
           simErr instanceof BaseError &&
           !!simErr.walk((e) => e instanceof ContractFunctionRevertedError);
         if (isContractRevert) {
-          console.error("[BlockSlide] submitScore would revert:", simErr);
           setError(parseContractError(simErr as Error));
           return; // don't send a doomed transaction
         }
-        // Network/RPC error during simulation — log and proceed to send anyway.
-        console.warn("[BlockSlide] submitScore simulation inconclusive, sending anyway:", simErr);
+        // Network/RPC error during simulation — proceed and let the tx decide.
       }
 
       setError(null);
@@ -369,19 +352,17 @@ export function useGameSession() {
       setPhase("submitting");
 
       try {
-        const hash = await signAndBroadcast(
+        await signAndBroadcast(
           encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args }),
           500_000n,
         );
-        console.log("[BlockSlide] submitScore tx submitted:", hash);
       } catch (e) {
-        console.error("[BlockSlide] submitScore tx error:", e);
         setError(parseContractError(e as Error));
         setPhase("active");
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, celoBalance, walletClient, publicClient, onChainSession, phase, refetchSession, signAndBroadcast],
+    [address, contractDeployed, celoBalance, walletClient, publicClient, onChainSession, refetchSession, signAndBroadcast],
   );
 
   const reset = useCallback(() => {
@@ -420,7 +401,6 @@ export function useGameSession() {
 }
 
 function parseContractError(error: Error): string {
-  console.error("[BlockSlide] transaction error:", error);
   if (error instanceof BaseError) {
     const revert = error.walk(
       (e): e is ContractFunctionRevertedError =>
@@ -449,11 +429,8 @@ function parseContractError(error: Error): string {
       if (errorName) return `Contract reverted: ${errorName}`;
       // Error(string) revert (require with a message)
       if (r.reason) return `Contract reverted: ${r.reason}`;
-      // Couldn't decode (e.g. revert came from the G$ token, whose errors
-      // aren't in our ABI). Surface the raw 4-byte selector for diagnosis.
-      const raw = r.raw ?? "";
-      console.error("[BlockSlide] undecoded revert. selector:", raw.slice(0, 10), "full:", raw);
-      return `Contract reverted (undecoded). Please try again. Selector: ${raw.slice(0, 10) || "n/a"}`;
+      // Couldn't decode the revert data — surface a clean, generic message.
+      return "Transaction reverted. Please try again.";
     }
     if (error.walk((e) => (e as { name?: string }).name === "UserRejectedRequestError"))
       return "Transaction rejected.";

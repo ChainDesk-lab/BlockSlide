@@ -54,6 +54,8 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 14px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -83,7 +85,13 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   text-transform: uppercase;
 }
 
-.header__right { display: flex; align-items: center; gap: 8px; }
+.header__right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
 
 /* Username pill in the header */
 .header__username {
@@ -128,6 +136,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   transform: scale(1.1);
   box-shadow: 0 0 10px rgba(132, 94, 247, 0.3);
 }
+.icon-btn:active { transform: scale(0.96); box-shadow: none; }
 
 /* ─── Hover tooltips ─────────────────────────────────────────────────────── */
 .tooltip {
@@ -1120,6 +1129,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .shop-btn:not(:disabled):hover { transform: translateY(-1px); opacity: 0.9; }
+.shop-btn:not(:disabled):active { transform: translateY(0); opacity: 0.8; }
 .shop-btn:disabled { cursor: not-allowed; }
 
 .shop-btn--buy     { background: var(--accent); color: #fff; }
@@ -1227,9 +1237,11 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 @media (max-width: 480px) {
   .header { padding: 12px 14px; }
   .header__logo { font-size: 1.25rem; }
+  .header__sub { display: none; }
   .main { padding: 18px 12px 40px; gap: 16px; }
   .score-box { padding: 8px 12px; min-width: 80px; }
   .score-value { font-size: 1.2rem; }
   .icon-btn { width: 32px; height: 32px; font-size: 0.9rem; }
   .header__right { gap: 5px; }
+  .header__username { max-width: 110px; padding: 5px 10px; font-size: 0.8rem; }
 }
