@@ -84,6 +84,7 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     mapping(address => uint8)            public claimedMilestones;
 
     LeaderboardEntry[10] private _leaderboard;
+    bool                 public leaderboardSeeded = false;
 
     // ─── XP & shop state ──────────────────────────────────────────────────────
 
@@ -129,6 +130,7 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error InvalidBoostMultiplier();
     error UsernameTaken();
     error InvalidUsername();
+    error LeaderboardAlreadySeeded();
 
     // ─── Init ─────────────────────────────────────────────────────────────────
 
@@ -322,6 +324,31 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit ShopPricesUpdated(_shieldPrice, _boost2xPrice, _boost5xPrice);
     }
 
+    /// Seed the leaderboard with historical data during migration. Owner-only,
+    /// can only be called once per contract lifetime.
+    /// @param players Array of player addresses
+    /// @param scores  Array of scores (indices match players array)
+    function seedLeaderboard(address[] calldata players, uint256[] calldata scores)
+        external
+        onlyOwner
+    {
+        if (leaderboardSeeded) revert LeaderboardAlreadySeeded();
+        require(players.length == scores.length, "Length mismatch");
+        require(players.length <= 10, "Max 10 entries");
+
+        leaderboardSeeded = true;
+
+        // Sort entries by score descending and populate leaderboard
+        uint8 count = uint8(players.length);
+        for (uint8 i = 0; i < count; i++) {
+            _leaderboard[i] = LeaderboardEntry({
+                player:      players[i],
+                score:       scores[i],
+                highestTile: 0
+            });
+        }
+    }
+
     // ─── Views ────────────────────────────────────────────────────────────────
 
     function getLeaderboard() external view returns (LeaderboardEntry[10] memory) {
@@ -430,6 +457,21 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function _updateLeaderboard(address player, uint256 score, uint32 highestTile) internal {
+        // First pass: check if player already exists and only update if score is higher
+        for (uint8 i = 0; i < 10; i++) {
+            if (_leaderboard[i].player == player) {
+                if (score > _leaderboard[i].score) {
+                    _leaderboard[i] = LeaderboardEntry({
+                        player:      player,
+                        score:       score,
+                        highestTile: highestTile
+                    });
+                }
+                return; // Player found — done, never add them twice
+            }
+        }
+
+        // Second pass: player not in leaderboard, find slot for new entry
         uint8 lowestIdx  = 0;
         bool  foundEmpty = false;
 

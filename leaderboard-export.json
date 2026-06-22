@@ -1,0 +1,13 @@
+{
+  "exportedAt": "2026-06-20T13:41:27.110Z",
+  "network": "celo-mainnet",
+  "contractAddress": "0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6",
+  "totalEntries": 1,
+  "leaderboard": [
+    {
+      "player": "0xcb6f72152DB12546b21ef0dD5F614Ca532531838",
+      "score": "5624",
+      "highestTile": 512
+    }
+  ]
+}

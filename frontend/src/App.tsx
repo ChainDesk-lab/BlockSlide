@@ -6,6 +6,7 @@ import Home from "./components/Home";
 import HowToPlay from "./components/HowToPlay";
 import IdentityGate from "./components/IdentityGate";
 import Leaderboard from "./components/Leaderboard";
+import LoginScreen from "./components/LoginScreen";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
 import UsernameEditor from "./components/UsernameEditor";
@@ -116,6 +117,11 @@ export default function App() {
 
   const gameEnded = state && (state.over || state.won);
   const stuckActive = phase === "active" && !state;
+
+  // Show login screen if not connected
+  if (!address) {
+    return <LoginScreen />;
+  }
 
   return (
     <div className="app">
