@@ -1,40 +1,55 @@
 import { useState } from "react";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useWeb3Auth } from "../hooks/useWeb3Auth";
-import { MailIcon, WalletIcon } from "./icons";
+import { usePrivy } from "@privy-io/react-auth";
+import { WalletIcon } from "./icons";
 
 export default function LoginScreen() {
-  const { openConnectModal } = useConnectModal();
-  const { login: web3AuthLogin, isLoading: isWeb3AuthLoading, error: web3AuthError } = useWeb3Auth();
-  const [isWalletConnecting, setIsWalletConnecting] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
+  const { login, connectWallet, ready } = usePrivy();
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeMethod, setActiveMethod] = useState<"email" | "wallet" | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleWalletConnect = async () => {
-    setIsWalletConnecting(true);
-    setEmailError(null);
+  const handleEmailLogin = () => {
+    setIsLoading(true);
+    setActiveMethod("email");
+    setError(null);
     try {
-      openConnectModal?.();
+      login();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to sign in with email";
+      setError(message);
+      setActiveMethod(null);
+      setIsLoading(false);
+    }
+  };
+
+  const handleWalletConnect = () => {
+    setIsLoading(true);
+    setActiveMethod("wallet");
+    setError(null);
+    try {
+      connectWallet();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to connect wallet";
-      setEmailError(message);
-    } finally {
-      setTimeout(() => setIsWalletConnecting(false), 100);
+      setError(message);
+      setActiveMethod(null);
+      setIsLoading(false);
     }
   };
 
-  const handleEmailLogin = async () => {
-    setEmailError(null);
-    try {
-      await web3AuthLogin();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Email login failed";
-      setEmailError(message);
-      console.error("Email login failed:", error);
-    }
-  };
-
-  const isLoading = isWalletConnecting || isWeb3AuthLoading;
-  const errorMessage = emailError || (web3AuthError?.message || null);
+  if (!ready) {
+    return (
+      <div className="login-screen">
+        <div className="login-container">
+          <div className="login-header">
+            <h1 className="login-title">BlockSlide</h1>
+          </div>
+          <div className="login-loading">
+            <p>Initializing authentication...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-screen">
@@ -47,59 +62,61 @@ export default function LoginScreen() {
           </p>
         </div>
 
-        {/* Options */}
+        {/* Login Options */}
         <div className="login-options">
-          {/* Connect Wallet Option */}
-          <button
-            className="login-option login-option--wallet"
-            onClick={handleWalletConnect}
-            disabled={isLoading}
-            aria-busy={isWalletConnecting}
-          >
-            <span className="login-option__icon">
-              <WalletIcon size={32} />
-            </span>
-            <div className="login-option__text">
-              <h2 className="login-option__title">
-                {isWalletConnecting ? "Connecting..." : "Connect Wallet"}
-              </h2>
-              <p className="login-option__description">
-                Use MetaMask, Coinbase Wallet, or other EVM wallets
-              </p>
-            </div>
-            <span className="login-option__arrow">{isWalletConnecting ? "⏳" : "→"}</span>
-          </button>
-
           {/* Email Login Option */}
           <button
             className="login-option login-option--email"
             onClick={handleEmailLogin}
-            disabled={isLoading}
-            aria-busy={isWeb3AuthLoading}
+            disabled={isLoading || !ready}
+            aria-busy={isLoading && activeMethod === "email"}
+          >
+            <span className="login-option__icon">✉</span>
+            <div className="login-option__text">
+              <h2 className="login-option__title">
+                {isLoading && activeMethod === "email" ? "Signing in..." : "Sign in with Email"}
+              </h2>
+              <p className="login-option__description">
+                Get an OTP code sent to your email
+              </p>
+            </div>
+            <span className="login-option__arrow">
+              {isLoading && activeMethod === "email" ? "⏳" : "→"}
+            </span>
+          </button>
+
+          {/* Wallet Connect Option */}
+          <button
+            className="login-option login-option--wallet"
+            onClick={handleWalletConnect}
+            disabled={isLoading || !ready}
+            aria-busy={isLoading && activeMethod === "wallet"}
           >
             <span className="login-option__icon">
-              <MailIcon size={32} />
+              <WalletIcon size={24} />
             </span>
             <div className="login-option__text">
               <h2 className="login-option__title">
-                {isWeb3AuthLoading ? "Signing in..." : "Sign in with Email"}
+                {isLoading && activeMethod === "wallet" ? "Connecting..." : "Connect Wallet"}
               </h2>
               <p className="login-option__description">
-                Create an embedded wallet with email or social login
+                Use MetaMask, MiniPay, or other EVM wallets
               </p>
             </div>
-            <span className="login-option__arrow">{isWeb3AuthLoading ? "⏳" : "→"}</span>
+            <span className="login-option__arrow">
+              {isLoading && activeMethod === "wallet" ? "⏳" : "→"}
+            </span>
           </button>
         </div>
 
         {/* Error State */}
-        {errorMessage && (
+        {error && (
           <div className="login-error" role="alert">
             <p className="login-error__title">Authentication failed</p>
-            <p className="login-error__message">{errorMessage}</p>
+            <p className="login-error__message">{error}</p>
             <button
               className="login-error__dismiss"
-              onClick={() => setEmailError(null)}
+              onClick={() => setError(null)}
               aria-label="Dismiss error"
             >
               ✕
