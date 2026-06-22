@@ -12,7 +12,7 @@ TODO: Add live demo badge and screenshot once deployed publicly
 ![Gameplay Screenshot](screenshot.png)
 -->
 
-**Play BlockSlide**: [https://block-slide-henna.vercel.app](https://block-slide-henna.vercel.app)
+**Play BlockSlide**: [BlockSlide](https://blockslide.app/)
 
 ---
 
