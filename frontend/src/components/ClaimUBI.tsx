@@ -4,6 +4,7 @@ import { ClaimSDK, IdentitySDK } from "@goodsdks/citizen-sdk";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
 import { CoinIcon } from "./icons";
 import { G_DOLLAR_ADDRESS } from "../lib/constants";
+import { erc20Abi } from "viem";
 
 interface ClaimState {
   isEntitled: boolean;
@@ -40,8 +41,8 @@ export default function ClaimUBI() {
   const [balance, setBalance] = useState<string>("0");
   const [countdown, setCountdown] = useState<string>("");
 
-  // Fetch G$ balance
-  const { data: balanceData } = useBalance({
+  // Fetch G$ balance with manual refetch
+  const { data: balanceData, refetch: refetchBalance } = useBalance({
     address,
     token: G_DOLLAR_ADDRESS,
     query: { enabled: !!address },
@@ -52,6 +53,32 @@ export default function ClaimUBI() {
       setBalance(balanceData.formatted);
     }
   }, [balanceData]);
+
+  // Manual balance fetch after claim
+  const fetchBalanceManual = async () => {
+    if (!address || !publicClient) return;
+
+    try {
+      const balance = await publicClient.readContract({
+        address: G_DOLLAR_ADDRESS as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [address as `0x${string}`],
+      });
+
+      const decimals = await publicClient.readContract({
+        address: G_DOLLAR_ADDRESS as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "decimals",
+      });
+
+      const formatted = (Number(balance) / Math.pow(10, Number(decimals))).toString();
+      setBalance(formatted);
+    } catch (err) {
+      console.error("Error fetching balance:", err);
+      refetchBalance();
+    }
+  };
 
   // Check entitlement status using GoodDollar SDK
   useEffect(() => {
@@ -192,6 +219,12 @@ export default function ClaimUBI() {
         txHash,
         nextClaimTime: status.nextClaimTime || null,
       }));
+
+      // Fetch updated balance immediately
+      setTimeout(() => {
+        fetchBalanceManual();
+        refetchBalance();
+      }, 1000);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";
 

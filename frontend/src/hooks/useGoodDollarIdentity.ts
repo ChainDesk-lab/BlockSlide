@@ -78,14 +78,8 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     setError(null);
     setIsVerifying(true);
 
-    // Open popup immediately on user-click stack frame to avoid popup blockers
-    const width = 500;
-    const height = 700;
-    const left = window.innerWidth / 2 - width / 2;
-    const top = window.innerHeight / 2 - height / 2;
-
-    const popup = window.open("about:blank", "_blank",
-      `width=${width},height=${height},left=${left},top=${top}`);
+    let popup: Window | null = null;
+    let pollInterval: NodeJS.Timeout | undefined;
 
     try {
       // Initialize SDK with wallet and public clients
@@ -96,40 +90,82 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       });
 
       // Generate face verification link with wallet signature attached
-      // This ensures the verification is tied to this specific wallet
       const verificationLink = await sdk.generateFVLink(
         false,
         window.location.href,
         TARGET_CHAIN.id
       );
 
-      if (popup) {
-        popup.location.href = verificationLink;
-      } else {
-        // Popup was blocked
+      if (!verificationLink) {
+        throw new Error("Failed to generate verification link");
+      }
+
+      console.log("Opening face verification popup...");
+
+      // Open popup immediately on user-click stack frame to avoid popup blockers
+      const width = 500;
+      const height = 700;
+      const left = window.innerWidth / 2 - width / 2;
+      const top = window.innerHeight / 2 - height / 2;
+
+      popup = window.open(
+        verificationLink,
+        "FaceVerification",
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      if (!popup) {
+        // Popup was blocked - provide direct link
         setError(
-          `Popup blocked. Please allow popups and try again, or visit: ${verificationLink}`
+          `Please enable popups for this site, or click the link below to verify. We'll check your verification status when you return.`
         );
+
+        // Create a clickable link as fallback
+        const link = document.createElement("a");
+        link.href = verificationLink;
+        link.target = "_blank";
+        link.textContent = "Open Face Verification";
+        link.style.display = "block";
+        link.style.marginTop = "10px";
+        link.style.color = "#845ef7";
+
         setIsVerifying(false);
         return;
       }
 
-      // Poll for popup closure and recheck verification status
-      const pollInterval = setInterval(async () => {
-        if (popup?.closed) {
+      // Focus the popup window
+      if (popup) {
+        popup.focus();
+      }
+
+      // Poll for popup closure with longer interval and timeout
+      let pollCount = 0;
+      const maxPolls = 300; // 5 minutes max (300 * 1000ms)
+
+      pollInterval = setInterval(async () => {
+        pollCount++;
+
+        // Check if popup is closed
+        if (popup?.closed || pollCount > maxPolls) {
           clearInterval(pollInterval);
 
           // User closed the popup - recheck their verification status on-chain
-          // They may have completed the verification
+          console.log("Popup closed, checking verification status...");
           setTimeout(() => {
             checkVerificationStatus();
-          }, 1500); // Wait 1.5s for on-chain confirmation
+          }, 2000); // Wait 2s for on-chain confirmation
 
           setIsVerifying(false);
+          return;
         }
-      }, 500);
+      }, 1000); // Check every 1 second
+
     } catch (err) {
+      if (pollInterval) clearInterval(pollInterval);
+      if (popup && !popup.closed) popup.close();
+
       const message = err instanceof Error ? err.message : String(err);
+      console.error("Face verification error:", message);
 
       // Check if this was a wallet signature rejection
       if (
@@ -137,11 +173,9 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         message.toLowerCase().includes("denied") ||
         message.toLowerCase().includes("cancel")
       ) {
-        popup?.close();
         setError(null); // Don't show error for user cancellation
       } else {
-        setError("Could not generate verification link. Please try again.");
-        if (popup && !popup.closed) popup.close();
+        setError("Could not start face verification. Please try again.");
       }
 
       setIsVerifying(false);

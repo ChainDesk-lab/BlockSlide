@@ -8,28 +8,48 @@ export default function LoginScreen() {
   const [activeMethod, setActiveMethod] = useState<"email" | "wallet" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleEmailLogin = () => {
+  const handleEmailLogin = async () => {
+    if (!ready) {
+      setError("Authentication is still initializing...");
+      return;
+    }
+
     setIsLoading(true);
     setActiveMethod("email");
     setError(null);
+
     try {
+      console.log("Opening Privy email login modal...");
       login();
+      // Note: login() opens a modal, doesn't return a promise
+      // Loading state will be cleared when user completes or cancels
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to sign in with email";
+      console.error("Email login error:", message);
       setError(message);
       setActiveMethod(null);
       setIsLoading(false);
     }
   };
 
-  const handleWalletConnect = () => {
+  const handleWalletConnect = async () => {
+    if (!ready) {
+      setError("Authentication is still initializing...");
+      return;
+    }
+
     setIsLoading(true);
     setActiveMethod("wallet");
     setError(null);
+
     try {
+      console.log("Opening Privy wallet connect modal...");
       connectWallet();
+      // Note: connectWallet() opens a modal, doesn't return a promise
+      // Loading state will be cleared when user completes or cancels
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to connect wallet";
+      console.error("Wallet connect error:", message);
       setError(message);
       setActiveMethod(null);
       setIsLoading(false);
