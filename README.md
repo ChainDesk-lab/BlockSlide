@@ -12,7 +12,7 @@ TODO: Add live demo badge and screenshot once deployed publicly
 ![Gameplay Screenshot](screenshot.png)
 -->
 
-**Play BlockSlide**: [BlockSlide](https://blockslide.app/)
+**Play BlockSlide**: [👉 @BlockSlide](https://blockslide.app/)
 
 ---
 
