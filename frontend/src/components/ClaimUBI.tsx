@@ -104,6 +104,17 @@ export default function ClaimUBI() {
     checkEntitlement();
   }, [address, isVerified, publicClient, walletClient]);
 
+  // Auto-dismiss success message after 6 seconds
+  useEffect(() => {
+    if (!state.success) return;
+
+    const timer = setTimeout(() => {
+      setState((prev) => ({ ...prev, success: false, txHash: null }));
+    }, 6000);
+
+    return () => clearTimeout(timer);
+  }, [state.success]);
+
   // Update countdown timer
   useEffect(() => {
     if (!state.nextClaimTime) {
@@ -172,7 +183,7 @@ export default function ClaimUBI() {
       // Get updated claim status
       const status = await claimSDK.getWalletClaimStatus();
 
-      // Successful claim
+      // Successful claim - show success message inline
       setState((prev) => ({
         ...prev,
         success: true,
@@ -181,16 +192,6 @@ export default function ClaimUBI() {
         txHash,
         nextClaimTime: status.nextClaimTime || null,
       }));
-
-      // Reset success message after 8 seconds
-      setTimeout(() => {
-        setState((prev) => ({ ...prev, success: false, txHash: null }));
-      }, 8000);
-
-      // Refresh balance after successful claim
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";
 
@@ -316,33 +317,47 @@ export default function ClaimUBI() {
   }
 
   return (
-    <section className="daily-claim daily-claim--ready">
+    <section className={`daily-claim daily-claim--ready ${state.success ? "daily-claim--success" : ""}`}>
       <div className="daily-claim__info">
         <span className="daily-claim__icon">
           <CoinIcon size={22} />
         </span>
         <div className="daily-claim__text">
           <h3 className="daily-claim__title">Claim Daily G$</h3>
-          <p className="daily-claim__status">
-            {state.success ? "✓ Claim successful!" : "Ready to claim your UBI"}
-          </p>
-          {state.success && state.txHash && (
-            <p className="daily-claim__tx-hash">
-              <a
-                href={`https://celoscan.io/tx/${state.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="daily-claim__tx-link"
-                title="View on Celoscan"
-              >
-                View transaction on Celoscan →
-              </a>
-            </p>
-          )}
-          {balance && (
-            <p className="daily-claim__balance">
-              Current balance: <strong>{parseFloat(balance).toFixed(2)} G$</strong>
-            </p>
+          {state.success ? (
+            <>
+              <p className="daily-claim__status">✓ G$ added to your account!</p>
+              <p className="daily-claim__success-message">
+                Your daily UBI has been successfully claimed.
+              </p>
+              {balance && (
+                <p className="daily-claim__balance">
+                  New balance: <strong>{parseFloat(balance).toFixed(2)} G$</strong>
+                </p>
+              )}
+              {state.txHash && (
+                <p className="daily-claim__tx-hash">
+                  <a
+                    href={`https://celoscan.io/tx/${state.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="daily-claim__tx-link"
+                    title="View on Celoscan"
+                  >
+                    View transaction →
+                  </a>
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="daily-claim__status">Ready to claim your UBI</p>
+              {balance && (
+                <p className="daily-claim__balance">
+                  Current balance: <strong>{parseFloat(balance).toFixed(2)} G$</strong>
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>
