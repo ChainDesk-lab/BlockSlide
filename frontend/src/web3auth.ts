@@ -1,0 +1,63 @@
+import {
+  WEB3AUTH_NETWORK,
+  CHAIN_NAMESPACES,
+  WALLET_CONNECTORS,
+} from "@web3auth/modal";
+import { type Web3AuthContextConfig } from "@web3auth/modal/react";
+
+// Web3Auth (MetaMask Embedded Wallets) client ID — create a project at
+// https://dashboard.web3auth.io and whitelist your localhost + Vercel origins.
+const clientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "";
+
+export const isWeb3AuthConfigured = clientId.length > 0;
+
+if (!isWeb3AuthConfigured && typeof window !== "undefined") {
+  console.warn(
+    "NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is not set — login will not work until it is configured.",
+  );
+}
+
+// Web3Auth config. The wagmi integration (@web3auth/modal/react/wagmi) derives
+// its chains/connectors from here, so no separate wagmi createConfig is needed.
+export const web3AuthContextConfig: Web3AuthContextConfig = {
+  web3AuthOptions: {
+    clientId,
+    web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
+    // The app is rendered client-only (dynamic ssr:false), so disable SSR mode.
+    ssr: false,
+    // Celo mainnet (chain 42220 / 0xa4ec) — the BlockSlide contract lives here.
+    defaultChainId: "0xa4ec",
+    chains: [
+      {
+        chainNamespace: CHAIN_NAMESPACES.EIP155,
+        chainId: "0xa4ec",
+        rpcTarget: "https://forno.celo.org",
+        displayName: "Celo Mainnet",
+        blockExplorerUrl: "https://celoscan.io",
+        ticker: "CELO",
+        tickerName: "Celo",
+        logo: "https://cryptologos.cc/logos/celo-celo-logo.png",
+      },
+    ],
+    uiConfig: {
+      appName: "BlockSlide",
+    },
+    // Show both email passwordless login and external wallets in one modal.
+    modalConfig: {
+      connectors: {
+        [WALLET_CONNECTORS.AUTH]: {
+          label: "auth",
+          showOnModal: true,
+          loginMethods: {
+            email_passwordless: {
+              name: "email passwordless login",
+              showOnModal: true,
+            },
+          },
+        },
+      },
+      // false → external wallets (MetaMask, WalletConnect, injected) are listed.
+      hideWalletDiscovery: false,
+    },
+  },
+};
