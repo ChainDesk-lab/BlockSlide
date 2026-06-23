@@ -1,51 +1,31 @@
 import { useState } from "react";
 import { useWeb3AuthConnect, useWeb3Auth } from "@web3auth/modal/react";
-import { WalletIcon } from "./icons";
+import { BoltIcon } from "./icons";
 
 export default function LoginScreen() {
   const { isInitialized } = useWeb3Auth();
   const { connect, loading } = useWeb3AuthConnect();
-  const [activeMethod, setActiveMethod] = useState<"email" | "wallet" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const ready = isInitialized;
+  // Busy while the SDK is still booting OR a connect is in flight. We keep the
+  // branded screen visible the whole time and reflect this on the button, so the
+  // user never sees a bare "initializing" message.
+  const busy = loading || !ready;
 
-  // Both options open the Web3Auth modal, which offers email passwordless login
-  // and external wallets (MetaMask, WalletConnect, injected) in one place.
-  const openLogin = async (method: "email" | "wallet") => {
-    if (!ready) {
-      setError("Authentication is still initializing...");
-      return;
-    }
-
-    setActiveMethod(method);
+  const handleSignIn = async () => {
+    if (!ready) return;
     setError(null);
-
     try {
+      // Opens the Web3Auth modal — email passwordless and external wallets
+      // (MetaMask, MiniPay, WalletConnect) are both offered there.
       await connect();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to sign in";
       console.error("Web3Auth login error:", message);
       setError(message);
-    } finally {
-      setActiveMethod(null);
     }
   };
-
-  if (!ready) {
-    return (
-      <div className="login-screen">
-        <div className="login-container">
-          <div className="login-header">
-            <h1 className="login-title">BlockSlide</h1>
-          </div>
-          <div className="login-loading">
-            <p>Initializing authentication...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="login-screen">
@@ -58,50 +38,31 @@ export default function LoginScreen() {
           </p>
         </div>
 
-        {/* Login Options */}
+        {/* Single sign-in action. The Web3Auth modal handles the email vs.
+            wallet choice, so one button covers both. */}
         <div className="login-options">
-          {/* Email Login Option */}
-          <button
-            className="login-option login-option--email"
-            onClick={() => openLogin("email")}
-            disabled={loading || !ready}
-            aria-busy={loading && activeMethod === "email"}
-          >
-            <span className="login-option__icon">✉</span>
-            <div className="login-option__text">
-              <h2 className="login-option__title">
-                {loading && activeMethod === "email" ? "Signing in..." : "Sign in with Email"}
-              </h2>
-              <p className="login-option__description">
-                Get an OTP code sent to your email
-              </p>
-            </div>
-            <span className="login-option__arrow">
-              {loading && activeMethod === "email" ? "⏳" : "→"}
-            </span>
-          </button>
-
-          {/* Wallet Connect Option */}
           <button
             className="login-option login-option--wallet"
-            onClick={() => openLogin("wallet")}
-            disabled={loading || !ready}
-            aria-busy={loading && activeMethod === "wallet"}
+            onClick={handleSignIn}
+            disabled={busy}
+            aria-busy={busy}
           >
             <span className="login-option__icon">
-              <WalletIcon size={24} />
+              {busy ? (
+                <span className="spinner" aria-hidden="true" />
+              ) : (
+                <BoltIcon size={26} />
+              )}
             </span>
             <div className="login-option__text">
               <h2 className="login-option__title">
-                {loading && activeMethod === "wallet" ? "Connecting..." : "Connect Wallet"}
+                {loading ? "Signing in…" : !ready ? "Getting ready…" : "Sign In"}
               </h2>
               <p className="login-option__description">
-                Use MetaMask, MiniPay, or other EVM wallets
+                Continue with email or connect a wallet
               </p>
             </div>
-            <span className="login-option__arrow">
-              {loading && activeMethod === "wallet" ? "⏳" : "→"}
-            </span>
+            <span className="login-option__arrow">→</span>
           </button>
         </div>
 
