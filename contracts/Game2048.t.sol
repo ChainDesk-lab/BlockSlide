@@ -431,4 +431,95 @@ contract Game2048Test is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
         game.withdrawTreasury(1e18);
     }
+
+    // ─── XP leaderboard registry (V5) ───────────────────────────────────────────
+
+    function test_Registry_RegistersPlayerOnFirstSubmit() public {
+        _startSession(alice);
+        _submit(alice, 1000, 256, 0);
+
+        assertEq(game.getPlayerCount(), 1);
+        (address[] memory ps, uint256[] memory xps) = game.getPlayersWithXp();
+        assertEq(ps.length, 1);
+        assertEq(ps[0], alice);
+        assertEq(xps[0], 100); // 1000 / 10
+    }
+
+    function test_Registry_NoDuplicateOnSecondSubmit() public {
+        _startSession(alice);
+        _submit(alice, 1000, 256, 0);
+        _startSession(alice);
+        _submit(alice, 2000, 256, 0);
+
+        assertEq(game.getPlayerCount(), 1);
+        (, uint256[] memory xps) = game.getPlayersWithXp();
+        assertEq(xps[0], 300); // (1000 + 2000) / 10, one row only
+    }
+
+    function test_Registry_TracksMultiplePlayers() public {
+        _startSession(alice);
+        _submit(alice, 1000, 256, 0);
+        _startSession(bob);
+        _submit(bob, 5000, 256, 0);
+
+        assertEq(game.getPlayerCount(), 2);
+        (address[] memory ps, uint256[] memory xps) = game.getPlayersWithXp();
+        assertEq(ps[0], alice);
+        assertEq(xps[0], 100);
+        assertEq(ps[1], bob);
+        assertEq(xps[1], 500);
+    }
+
+    function test_Registry_BackfillRegistersHistoricalPlayers() public {
+        address[] memory ps = new address[](2);
+        ps[0] = alice;
+        ps[1] = bob;
+        game.registerPlayers(ps);
+
+        assertEq(game.getPlayerCount(), 2);
+        (address[] memory got,) = game.getPlayersWithXp();
+        assertEq(got[0], alice);
+        assertEq(got[1], bob);
+    }
+
+    function test_Registry_BackfillIsIdempotent() public {
+        _startSession(alice);
+        _submit(alice, 1000, 256, 0); // alice already registered
+
+        address[] memory ps = new address[](2);
+        ps[0] = alice; // already registered
+        ps[1] = bob;   // new
+        game.registerPlayers(ps);
+
+        assertEq(game.getPlayerCount(), 2); // alice not double-counted
+    }
+
+    function test_Registry_BackfillOnlyOwner() public {
+        address[] memory ps = new address[](1);
+        ps[0] = bob;
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+        game.registerPlayers(ps);
+    }
+
+    function test_Registry_PagedReturnsSlices() public {
+        address carol = makeAddr("carol");
+        address[] memory ps = new address[](3);
+        ps[0] = alice;
+        ps[1] = bob;
+        ps[2] = carol;
+        game.registerPlayers(ps);
+
+        (address[] memory page0,) = game.getPlayersWithXpPaged(0, 2);
+        assertEq(page0.length, 2);
+        assertEq(page0[0], alice);
+        assertEq(page0[1], bob);
+
+        (address[] memory page1,) = game.getPlayersWithXpPaged(2, 2);
+        assertEq(page1.length, 1);
+        assertEq(page1[0], carol);
+
+        (address[] memory pageOob,) = game.getPlayersWithXpPaged(5, 2);
+        assertEq(pageOob.length, 0);
+    }
 }

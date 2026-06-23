@@ -1,51 +1,27 @@
-import { useReadContract, useReadContracts, useWatchContractEvent } from "wagmi";
+import { useReadContract, useWatchContractEvent } from "wagmi";
 import { GAME2048_ABI } from "../lib/abi";
 import { CONTRACT_DEPLOYED, GAME2048_ADDRESS } from "../lib/constants";
 
-const ZERO = "0x0000000000000000000000000000000000000000";
-
 export default function Leaderboard() {
+  // The full registered player set paired with cumulative XP, in one call.
+  // Requires the V5 contract (getPlayersWithXp); deploy that upgrade before
+  // shipping this frontend.
   const { data, isLoading, isError, refetch } = useReadContract({
     address: GAME2048_ADDRESS,
     abi: GAME2048_ABI,
-    functionName: "getLeaderboard",
+    functionName: "getPlayersWithXp",
     query: { enabled: CONTRACT_DEPLOYED, retry: 2, retryDelay: 3000 },
   });
 
-  // Unique players currently on the on-chain board. This is the candidate set we
-  // can discover cheaply — the contract exposes no full player list, so a player
-  // with high XP but a modest best score (not in this top-10) won't surface here.
-  const players: `0x${string}`[] = [];
-  if (data) {
-    const seen = new Set<string>();
-    for (const e of data) {
-      if (e.player === ZERO) continue;
-      const key = e.player.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      players.push(e.player);
-    }
-  }
-
-  // Read each candidate's cumulative XP in one multicall, then rank by XP.
-  const { data: xpData, refetch: refetchXp } = useReadContracts({
-    contracts: players.map((player) => ({
-      address: GAME2048_ADDRESS,
-      abi: GAME2048_ABI,
-      functionName: "xp" as const,
-      args: [player] as const,
-    })),
-    query: { enabled: CONTRACT_DEPLOYED && players.length > 0 },
-  });
-
-  // Top 10 players ranked by XP (highest first).
-  const entries = players
-    .map((player, i) => ({
-      player,
-      xp: (xpData?.[i]?.result as bigint | undefined) ?? 0n,
-    }))
-    .sort((a, b) => (b.xp > a.xp ? 1 : b.xp < a.xp ? -1 : 0))
-    .slice(0, 10);
+  // Rank every player by XP (highest first), top 10.
+  const entries = (() => {
+    if (!data) return [];
+    const [addrs, xps] = data;
+    return addrs
+      .map((player, i) => ({ player, xp: xps[i] ?? 0n }))
+      .sort((a, b) => (b.xp > a.xp ? 1 : b.xp < a.xp ? -1 : 0))
+      .slice(0, 10);
+  })();
 
   // Resolve on-chain display names for everyone on the board in one call.
   const { data: namesData, refetch: refetchNames } = useReadContract({
@@ -65,7 +41,6 @@ export default function Leaderboard() {
     enabled: CONTRACT_DEPLOYED,
     onLogs: () => {
       refetch();
-      refetchXp();
       refetchNames();
     },
   });
