@@ -1,0 +1,15 @@
+{
+  "name": "blockslide-leaderboard-subgraph",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Indexes Game2048 events on Celo into an XP leaderboard (deployed via Goldsky)",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy:goldsky": "goldsky subgraph deploy blockslide-leaderboard/1.0.0 --path ."
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.97.1",
+    "@graphprotocol/graph-ts": "0.38.0"
+  }
+}

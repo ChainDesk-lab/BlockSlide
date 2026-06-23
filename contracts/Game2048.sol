@@ -105,12 +105,6 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     mapping(bytes32 => address) public nameOwner;    // keccak(lowercased name) => owner
     mapping(address => bytes32) private _nameKey;     // owner => their current name hash
 
-    // ─── XP leaderboard registry (appended in V5 — keep at end for UUPS safety) ──
-    // Enumerates every address that has earned XP, so the leaderboard can rank the
-    // full player base by XP instead of just the best-score top 10.
-    address[]                private _players;
-    mapping(address => bool) private _isPlayer;
-
     // ─── Events ───────────────────────────────────────────────────────────────
 
     event SessionStarted(address indexed player);
@@ -355,15 +349,6 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
-    /// One-time backfill: register players who earned XP before this registry
-    /// existed (i.e. before the V5 upgrade). Idempotent — skips addresses that
-    /// are already registered. Owner-only.
-    function registerPlayers(address[] calldata ps) external onlyOwner {
-        for (uint256 i = 0; i < ps.length; i++) {
-            _registerPlayer(ps[i]);
-        }
-    }
-
     // ─── Views ────────────────────────────────────────────────────────────────
 
     function getLeaderboard() external view returns (LeaderboardEntry[10] memory) {
@@ -378,46 +363,6 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         return xpBoost[player];
     }
 
-    /// Number of players who have earned XP and been registered.
-    function getPlayerCount() external view returns (uint256) {
-        return _players.length;
-    }
-
-    /// Every registered player paired with their current XP. Lets the client
-    /// build a leaderboard ranked by XP across the full player base.
-    function getPlayersWithXp()
-        external
-        view
-        returns (address[] memory players_, uint256[] memory xps_)
-    {
-        uint256 n = _players.length;
-        players_ = _players;
-        xps_ = new uint256[](n);
-        for (uint256 i = 0; i < n; i++) {
-            xps_[i] = xp[_players[i]];
-        }
-    }
-
-    /// Paginated variant of getPlayersWithXp for when the player set grows large.
-    function getPlayersWithXpPaged(uint256 offset, uint256 limit)
-        external
-        view
-        returns (address[] memory players_, uint256[] memory xps_)
-    {
-        uint256 n = _players.length;
-        if (offset >= n) return (new address[](0), new uint256[](0));
-        uint256 end = offset + limit;
-        if (end > n) end = n;
-        uint256 count = end - offset;
-        players_ = new address[](count);
-        xps_ = new uint256[](count);
-        for (uint256 i = 0; i < count; i++) {
-            address p = _players[offset + i];
-            players_[i] = p;
-            xps_[i] = xp[p];
-        }
-    }
-
     // ─── UUPS ─────────────────────────────────────────────────────────────────
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
@@ -425,8 +370,6 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ─── Internal ─────────────────────────────────────────────────────────────
 
     function _awardXp(address player, uint256 score, uint256 comboMoves) internal {
-        _registerPlayer(player);
-
         uint256 earned = score / 10;
 
         // 5-move combo: 5× this game's XP
@@ -442,14 +385,6 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         xp[player] += earned;
         emit XpEarned(player, earned, xp[player]);
-    }
-
-    /// Register a player in the XP leaderboard set the first time they earn XP.
-    function _registerPlayer(address player) internal {
-        if (!_isPlayer[player]) {
-            _isPlayer[player] = true;
-            _players.push(player);
-        }
     }
 
     function _updateStreak(address player) internal {

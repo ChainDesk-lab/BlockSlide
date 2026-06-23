@@ -1,0 +1,16 @@
+type Player @entity(immutable: false) {
+  "Player wallet address"
+  id: Bytes!
+  "Cumulative XP (from XpEarned.total) — leaderboard rank key"
+  xp: BigInt!
+  "On-chain display name (from UsernameSet), if set"
+  username: String
+  "Best single-game score (from ScoreSubmitted)"
+  bestScore: BigInt!
+  "Number of scores submitted on-chain"
+  gamesPlayed: Int!
+  "Block timestamp of the player's first indexed event"
+  firstSeen: BigInt!
+  "Block timestamp of the most recent update"
+  lastUpdated: BigInt!
+}

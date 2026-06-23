@@ -1,0 +1,29 @@
+specVersion: 1.0.0
+description: BlockSlide XP leaderboard — indexes Game2048 events on Celo
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: Game2048
+    network: celo
+    source:
+      address: "0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6"
+      abi: Game2048
+      startBlock: 69294066
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Player
+      abis:
+        - name: Game2048
+          file: ./abis/Game2048.json
+      eventHandlers:
+        - event: XpEarned(indexed address,uint256,uint256)
+          handler: handleXpEarned
+        - event: UsernameSet(indexed address,string)
+          handler: handleUsernameSet
+        - event: ScoreSubmitted(indexed address,uint256,uint32)
+          handler: handleScoreSubmitted
+      file: ./src/mapping.ts
