@@ -1,12 +1,10 @@
-import "@rainbow-me/rainbowkit/styles.css";
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { celo } from "viem/chains";
 import { http, fallback } from "wagmi";
 
-const env = (import.meta as unknown as { env: Record<string, string> }).env;
-
 const projectId =
-  env.VITE_WALLETCONNECT_PROJECT_ID?.trim() || "blockslide-placeholder";
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
+  "blockslide-placeholder";
 
 // Base wagmi config with RainbowKit connectors (MetaMask, Coinbase Wallet, etc.).
 // Celo mainnet only — the game contract is deployed on chain 42220.
