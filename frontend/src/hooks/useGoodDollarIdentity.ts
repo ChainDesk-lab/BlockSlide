@@ -79,7 +79,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     setIsVerifying(true);
 
     let popup: Window | null = null;
-    let pollInterval: NodeJS.Timeout | undefined;
+    let pollInterval: ReturnType<typeof setTimeout> | undefined;
 
     try {
       // Initialize SDK with wallet and public clients
