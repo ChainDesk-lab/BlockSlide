@@ -1,58 +1,34 @@
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useWeb3AuthConnect, useWeb3Auth } from "@web3auth/modal/react";
 import { WalletIcon } from "./icons";
 
 export default function LoginScreen() {
-  const { login, connectWallet, ready } = usePrivy();
-  const [isLoading, setIsLoading] = useState(false);
+  const { isInitialized } = useWeb3Auth();
+  const { connect, loading } = useWeb3AuthConnect();
   const [activeMethod, setActiveMethod] = useState<"email" | "wallet" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleEmailLogin = async () => {
+  const ready = isInitialized;
+
+  // Both options open the Web3Auth modal, which offers email passwordless login
+  // and external wallets (MetaMask, WalletConnect, injected) in one place.
+  const openLogin = async (method: "email" | "wallet") => {
     if (!ready) {
       setError("Authentication is still initializing...");
       return;
     }
 
-    setIsLoading(true);
-    setActiveMethod("email");
+    setActiveMethod(method);
     setError(null);
 
     try {
-      console.log("Opening Privy email login modal...");
-      login();
-      // Note: login() opens a modal, doesn't return a promise
-      // Loading state will be cleared when user completes or cancels
+      await connect();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to sign in with email";
-      console.error("Email login error:", message);
+      const message = err instanceof Error ? err.message : "Failed to sign in";
+      console.error("Web3Auth login error:", message);
       setError(message);
+    } finally {
       setActiveMethod(null);
-      setIsLoading(false);
-    }
-  };
-
-  const handleWalletConnect = async () => {
-    if (!ready) {
-      setError("Authentication is still initializing...");
-      return;
-    }
-
-    setIsLoading(true);
-    setActiveMethod("wallet");
-    setError(null);
-
-    try {
-      console.log("Opening Privy wallet connect modal...");
-      connectWallet();
-      // Note: connectWallet() opens a modal, doesn't return a promise
-      // Loading state will be cleared when user completes or cancels
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to connect wallet";
-      console.error("Wallet connect error:", message);
-      setError(message);
-      setActiveMethod(null);
-      setIsLoading(false);
     }
   };
 
@@ -87,44 +63,44 @@ export default function LoginScreen() {
           {/* Email Login Option */}
           <button
             className="login-option login-option--email"
-            onClick={handleEmailLogin}
-            disabled={isLoading || !ready}
-            aria-busy={isLoading && activeMethod === "email"}
+            onClick={() => openLogin("email")}
+            disabled={loading || !ready}
+            aria-busy={loading && activeMethod === "email"}
           >
             <span className="login-option__icon">✉</span>
             <div className="login-option__text">
               <h2 className="login-option__title">
-                {isLoading && activeMethod === "email" ? "Signing in..." : "Sign in with Email"}
+                {loading && activeMethod === "email" ? "Signing in..." : "Sign in with Email"}
               </h2>
               <p className="login-option__description">
                 Get an OTP code sent to your email
               </p>
             </div>
             <span className="login-option__arrow">
-              {isLoading && activeMethod === "email" ? "⏳" : "→"}
+              {loading && activeMethod === "email" ? "⏳" : "→"}
             </span>
           </button>
 
           {/* Wallet Connect Option */}
           <button
             className="login-option login-option--wallet"
-            onClick={handleWalletConnect}
-            disabled={isLoading || !ready}
-            aria-busy={isLoading && activeMethod === "wallet"}
+            onClick={() => openLogin("wallet")}
+            disabled={loading || !ready}
+            aria-busy={loading && activeMethod === "wallet"}
           >
             <span className="login-option__icon">
               <WalletIcon size={24} />
             </span>
             <div className="login-option__text">
               <h2 className="login-option__title">
-                {isLoading && activeMethod === "wallet" ? "Connecting..." : "Connect Wallet"}
+                {loading && activeMethod === "wallet" ? "Connecting..." : "Connect Wallet"}
               </h2>
               <p className="login-option__description">
                 Use MetaMask, MiniPay, or other EVM wallets
               </p>
             </div>
             <span className="login-option__arrow">
-              {isLoading && activeMethod === "wallet" ? "⏳" : "→"}
+              {loading && activeMethod === "wallet" ? "⏳" : "→"}
             </span>
           </button>
         </div>

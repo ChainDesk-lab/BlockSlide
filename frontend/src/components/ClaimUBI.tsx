@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useAccount, useBalance, usePublicClient, useWalletClient } from "wagmi";
+import { useAccount, useReadContract, usePublicClient, useWalletClient } from "wagmi";
 import { ClaimSDK, IdentitySDK } from "@goodsdks/citizen-sdk";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
 import { CoinIcon } from "./icons";
 import { G_DOLLAR_ADDRESS } from "../lib/constants";
-import { erc20Abi } from "viem";
+import { erc20Abi, formatUnits } from "viem";
 
 interface ClaimState {
   isEntitled: boolean;
@@ -41,18 +41,21 @@ export default function ClaimUBI() {
   const [balance, setBalance] = useState<string>("0");
   const [countdown, setCountdown] = useState<string>("");
 
-  // Fetch G$ balance with manual refetch
-  const { data: balanceData, refetch: refetchBalance } = useBalance({
-    address,
-    token: G_DOLLAR_ADDRESS,
+  // Fetch G$ (ERC-20) balance with manual refetch. wagmi v3 removed the `token`
+  // option from useBalance, so read balanceOf directly. G$ uses 18 decimals.
+  const { data: balanceRaw, refetch: refetchBalance } = useReadContract({
+    address: G_DOLLAR_ADDRESS,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
     query: { enabled: !!address },
   });
 
   useEffect(() => {
-    if (balanceData) {
-      setBalance(balanceData.formatted);
+    if (balanceRaw !== undefined) {
+      setBalance(formatUnits(balanceRaw, 18));
     }
-  }, [balanceData]);
+  }, [balanceRaw]);
 
   // Manual balance fetch after claim
   const fetchBalanceManual = async () => {

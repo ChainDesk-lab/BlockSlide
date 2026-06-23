@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import "@rainbow-me/rainbowkit/styles.css";
 import "./globals.css";
 // Custom styles imported last so they stay authoritative over the libraries
 // above (mirrors the original Vite bundle order — no visual change).
