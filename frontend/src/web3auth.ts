@@ -13,7 +13,7 @@ export const isWeb3AuthConfigured = clientId.length > 0;
 
 if (!isWeb3AuthConfigured && typeof window !== "undefined") {
   console.warn(
-    "NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is not set — login will not work until it is configured.",
+    "NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is not set — login will not work until it is configured."
   );
 }
 
@@ -22,7 +22,8 @@ if (!isWeb3AuthConfigured && typeof window !== "undefined") {
 export const web3AuthContextConfig: Web3AuthContextConfig = {
   web3AuthOptions: {
     clientId,
-    web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
+    // web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
+    web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
     // The app is rendered client-only (dynamic ssr:false), so disable SSR mode.
     ssr: false,
     // Celo mainnet (chain 42220 / 0xa4ec) — the BlockSlide contract lives here.
