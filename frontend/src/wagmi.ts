@@ -1,6 +1,6 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { celoSepolia, celo } from "viem/chains";
+import { celo } from "viem/chains";
 import { http, fallback } from "wagmi";
 
 const env = (import.meta as unknown as { env: Record<string, string> }).env;
@@ -8,16 +8,13 @@ const env = (import.meta as unknown as { env: Record<string, string> }).env;
 const projectId =
   env.VITE_WALLETCONNECT_PROJECT_ID?.trim() || "blockslide-placeholder";
 
-// Base wagmi config with RainbowKit connectors (MetaMask, Coinbase Wallet, etc.)
+// Base wagmi config with RainbowKit connectors (MetaMask, Coinbase Wallet, etc.).
+// Celo mainnet only — the game contract is deployed on chain 42220.
 export const wagmiConfig = getDefaultConfig({
   appName: "BlockSlide",
   projectId,
-  chains: [celoSepolia, celo],
+  chains: [celo],
   transports: {
-    [celoSepolia.id]: fallback([
-      http("https://forno.celo-sepolia.celo-testnet.org"),
-      http("https://alfajores-forno.celo-testnet.org"),
-    ]),
     [celo.id]: fallback([
       http("https://rpc.ankr.com/celo"),
       http("https://celo.drpc.org"),
