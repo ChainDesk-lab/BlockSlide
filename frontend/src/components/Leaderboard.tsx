@@ -12,13 +12,23 @@ export default function Leaderboard() {
     query: { enabled: CONTRACT_DEPLOYED, retry: 2, retryDelay: 3000 },
   });
 
-  // Top 10 players, highest score first, padding/empty slots removed.
-  const entries = data
-    ? [...data]
-        .filter((e) => e.player !== ZERO)
-        .sort((a, b) => (b.score > a.score ? 1 : b.score < a.score ? -1 : 0))
-        .slice(0, 10)
-    : [];
+  // One row per player (their best score), highest first. The on-chain board is
+  // a fixed 10-slot array that can hold stale duplicate slots for the same
+  // address from earlier submissions; the contract dedupes new scores but those
+  // pre-existing slots persist, so collapse by player here for display.
+  const entries = (() => {
+    if (!data) return [];
+    const bestByPlayer = new Map<string, (typeof data)[number]>();
+    for (const e of data) {
+      if (e.player === ZERO) continue;
+      const key = e.player.toLowerCase();
+      const existing = bestByPlayer.get(key);
+      if (!existing || e.score > existing.score) bestByPlayer.set(key, e);
+    }
+    return [...bestByPlayer.values()]
+      .sort((a, b) => (b.score > a.score ? 1 : b.score < a.score ? -1 : 0))
+      .slice(0, 10);
+  })();
 
   // Resolve on-chain display names for everyone on the board in one call.
   const { data: namesData, refetch: refetchNames } = useReadContract({
