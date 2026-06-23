@@ -23,11 +23,16 @@ npm run build
 
 ## Deploy to Goldsky
 ```bash
-# 1. Install the Goldsky CLI and log in with your API key
-npm install -g @goldsky/cli      # or: npx @goldsky/cli ...
-goldsky login                     # paste the key from app.goldsky.com
+# 1. Install the Goldsky CLI
+#    macOS / Linux:
+curl https://goldsky.com | sh
+#    Windows:  npm install -g @goldskycom/cli
+#    Then open a NEW terminal (or source your shell profile) so `goldsky` is on PATH.
 
-# 2. Build + deploy
+# 2. Log in — this is INTERACTIVE; run it then paste your API key when prompted
+goldsky login
+
+# 3. Build + deploy (from the subgraph/ directory)
 npm run build
 goldsky subgraph deploy blockslide-leaderboard/1.0.0 --path .
 ```
