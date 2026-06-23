@@ -108,11 +108,19 @@ export function useUsername() {
           const signed = await (signTransaction as any)(walletClient, { ...base, type: "eip1559" });
           hash = await publicClient.sendRawTransaction({ serializedTransaction: signed });
         } catch (signErr: unknown) {
-          const msg = (signErr as Error)?.message ?? "";
+          const msg = ((signErr as Error)?.message ?? "").toLowerCase();
+          const code = (signErr as { code?: number })?.code;
+          const name = (signErr as { name?: string })?.name ?? "";
+          // See useGameSession: Web3Auth rejects eth_signTransaction as
+          // unauthorized (4100); fall back to eth_sendTransaction.
           const unsupported =
-            (signErr as { name?: string })?.name === "MethodNotSupportedRpcError" ||
+            name === "MethodNotSupportedRpcError" ||
+            name === "UnauthorizedProviderError" ||
+            code === 4100 ||
+            code === -32601 ||
             msg.includes("not supported") ||
-            msg.includes("eth_signTransaction");
+            msg.includes("authoriz") ||
+            msg.includes("eth_signtransaction");
           if (!unsupported) throw signErr;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           hash = await (walletClient as any).request({

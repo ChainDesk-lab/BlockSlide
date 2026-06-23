@@ -164,11 +164,20 @@ export function useGameSession() {
         const signedTx = await (signTransaction as any)(walletClient, { ...txBase, type: "eip1559" });
         hash = await publicClient.sendRawTransaction({ serializedTransaction: signedTx });
       } catch (signErr: unknown) {
-        const msg = (signErr as Error)?.message ?? "";
+        const msg = ((signErr as Error)?.message ?? "").toLowerCase();
+        const code = (signErr as { code?: number })?.code;
+        const name = (signErr as { name?: string })?.name ?? "";
+        // Not every provider exposes eth_signTransaction. Web3Auth rejects it as
+        // unauthorized (EIP-1193 4100); others report method-not-found (-32601)
+        // or "not supported". In all these cases fall back to eth_sendTransaction.
         const isUnsupported =
-          (signErr as { name?: string })?.name === "MethodNotSupportedRpcError" ||
+          name === "MethodNotSupportedRpcError" ||
+          name === "UnauthorizedProviderError" ||
+          code === 4100 ||
+          code === -32601 ||
           msg.includes("not supported") ||
-          msg.includes("eth_signTransaction");
+          msg.includes("authoriz") ||
+          msg.includes("eth_signtransaction");
 
         if (!isUnsupported) throw signErr;
 
