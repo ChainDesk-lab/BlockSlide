@@ -2,10 +2,27 @@ import { useState } from "react";
 import { useWeb3AuthConnect, useWeb3Auth } from "@web3auth/modal/react";
 import { BoltIcon } from "./icons";
 
+function errMessage(e: unknown): string | null {
+  if (!e) return null;
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (typeof e === "object") {
+    const o = e as { message?: string; code?: number };
+    if (o.message) return o.code ? `${o.message} (code ${o.code})` : o.message;
+  }
+  return String(e);
+}
+
 export default function LoginScreen() {
-  const { isInitialized } = useWeb3Auth();
-  const { connect, loading } = useWeb3AuthConnect();
-  const [error, setError] = useState<string | null>(null);
+  const { isInitialized, initError } = useWeb3Auth();
+  const { connect, loading, error: connectError } = useWeb3AuthConnect();
+  const [caughtError, setCaughtError] = useState<string | null>(null);
+
+  // Surface whichever error is present. A client-ID ↔ network mismatch (or an
+  // un-whitelisted origin) typically lands on initError/connectError, not the
+  // try/catch around connect() — without this it shows as a silent login loop.
+  const error =
+    caughtError ?? errMessage(connectError) ?? errMessage(initError);
 
   const ready = isInitialized;
   // Busy while the SDK is still booting OR a connect is in flight. We keep the
@@ -15,15 +32,15 @@ export default function LoginScreen() {
 
   const handleSignIn = async () => {
     if (!ready) return;
-    setError(null);
+    setCaughtError(null);
     try {
       // Opens the Web3Auth modal — email passwordless and external wallets
       // (MetaMask, MiniPay, WalletConnect) are both offered there.
       await connect();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to sign in";
-      console.error("Web3Auth login error:", message);
-      setError(message);
+      const message = errMessage(err) ?? "Failed to sign in";
+      console.error("Web3Auth login error:", err);
+      setCaughtError(message);
     }
   };
 
@@ -73,7 +90,7 @@ export default function LoginScreen() {
             <p className="login-error__message">{error}</p>
             <button
               className="login-error__dismiss"
-              onClick={() => setError(null)}
+              onClick={() => setCaughtError(null)}
               aria-label="Dismiss error"
             >
               ✕
