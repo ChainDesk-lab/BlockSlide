@@ -56,12 +56,11 @@ export const web3AuthContextConfig: Web3AuthContextConfig = {
         logo: "https://cryptologos.cc/logos/celo-celo-logo.png",
       },
     ],
-    // NOTE: do NOT pass `uiConfig` here. Providing it sets is_whitelabel=true on
-    // Web3Auth's feature-access check, which is a PAID feature. On the free
-    // (base) plan + Sapphire Mainnet that returns 403 and the login modal
-    // silently loops. Sapphire Devnet is unrestricted, which is why local dev
-    // worked but production did not. Whitelabel/appName branding requires a
-    // paid plan — omit it to keep mainnet login working for free.
+    // NOTE: do NOT add `uiConfig` here. It sets is_whitelabel=true on Web3Auth's
+    // feature-access check — a PAID feature. On the free (base) plan + Sapphire
+    // Mainnet that returns 403 and the login modal silently loops. (Devnet is
+    // unrestricted, which is why local dev works with it.) Re-add only after
+    // upgrading the Web3Auth plan.
     // Show both email passwordless login and external wallets in one modal.
     modalConfig: {
       connectors: {
