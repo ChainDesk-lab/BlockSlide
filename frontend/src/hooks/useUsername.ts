@@ -14,12 +14,15 @@ import {
 } from "wagmi";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
+import { isInsufficientGasError } from "../lib/gasError";
+import { useNoGas } from "../contexts/NoGasContext";
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 /** Read + set the connected wallet's on-chain display name. */
 export function useUsername() {
   const { address } = useAccount();
+  const { triggerNoGas } = useNoGas();
   const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
   const { data: walletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
 
@@ -147,12 +150,17 @@ export function useUsername() {
           await refetch();
         }
       } catch (e) {
-        setError(parseUsernameError(e as Error));
+        if (isInsufficientGasError(e)) {
+          triggerNoGas();
+          setError("You need a little CELO for gas — see the pop-up.");
+        } else {
+          setError(parseUsernameError(e as Error));
+        }
       } finally {
         setIsSaving(false);
       }
     },
-    [address, walletClient, publicClient, refetch],
+    [address, walletClient, publicClient, refetch, triggerNoGas],
   );
 
   return {

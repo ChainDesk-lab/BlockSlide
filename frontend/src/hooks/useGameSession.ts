@@ -14,6 +14,8 @@ import {
 import { GAME2048_ABI, IDENTITY_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, IDENTITY_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
+import { isInsufficientGasError } from "../lib/gasError";
+import { useNoGas } from "../contexts/NoGasContext";
 
 const LOW_GAS_THRESHOLD = 5_000_000_000_000_000n; // 0.005 CELO
 
@@ -30,6 +32,7 @@ export function useGameSession() {
   const { address } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
+  const { triggerNoGas } = useNoGas();
 
   // Public client uses our transport (ankr first) — for nonce reads and broadcast.
   const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
@@ -229,6 +232,7 @@ export function useGameSession() {
       }
 
       if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
+        triggerNoGas();
         setError("Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
         return;
       }
@@ -270,12 +274,13 @@ export function useGameSession() {
           200_000n,
         );
       } catch (e) {
+        if (isInsufficientGasError(e)) triggerNoGas();
         setError(parseContractError(e as Error));
         setPhase("idle");
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, isWrongChain, celoBalance, isVerified, isVerifiedLoading, onChainSession, walletClient, signAndBroadcast],
+    [address, contractDeployed, isWrongChain, celoBalance, isVerified, isVerifiedLoading, onChainSession, walletClient, signAndBroadcast, triggerNoGas],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -287,6 +292,7 @@ export function useGameSession() {
         return;
       }
       if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
+        triggerNoGas();
         setError("Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
         return;
       }
@@ -366,12 +372,13 @@ export function useGameSession() {
           500_000n,
         );
       } catch (e) {
+        if (isInsufficientGasError(e)) triggerNoGas();
         setError(parseContractError(e as Error));
         setPhase("active");
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, celoBalance, walletClient, publicClient, onChainSession, refetchSession, signAndBroadcast],
+    [address, contractDeployed, celoBalance, walletClient, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas],
   );
 
   const reset = useCallback(() => {
