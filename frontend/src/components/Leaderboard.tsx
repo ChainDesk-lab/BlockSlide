@@ -10,8 +10,9 @@ interface PlayerRow {
   username: string | null;
 }
 
+// All registered players, ranked by XP (earners on top; 0-XP users below).
 const QUERY = `{
-  players(first: 10, orderBy: xp, orderDirection: desc, where: { xp_gt: "0" }) {
+  players(first: 10, orderBy: xp, orderDirection: desc) {
     id
     xp
     username
