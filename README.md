@@ -28,7 +28,12 @@
 
 ## Overview
 
-BlockSlide is the classic 2048 tile-sliding puzzle rebuilt as a **hybrid onchain game** on Celo. The game engine runs client-side for instant responsiveness, while scores, XP, streaks, milestone rewards, and the leaderboard are settled onchain via a UUPS-upgradeable Solidity contract.
+BlockSlide is the classic 2048 tile-sliding puzzle rebuilt as a **hybrid onchain game** on Celo. This is where skill earns real value. It keeps everything that makes the classic game satisfying, the merges, the strategy, the chase for that final tile, while making every session matter beyond the screen. The game engine runs client-side for instant responsiveness, while scores, XP, streaks, milestone rewards, and the leaderboard are settled onchain via a UUPS-upgradeable Solidity contract.
+Scores, XP, and streaks are recorded as previously stated onchain. Hit a tile milestone and the smart contract automatically sends G$ to your wallet. No claiming, no redirects, just rewards for playing well.
+All players are verified through GoodDollar's proof-of-humanity, therefore the leaderboard is bots-free and reflects genuine skill against genuine competition.
+G$ is the economic backbone of BlockSlide, not an afterthought. Earn it through milestones, claim your daily GoodDollar UBI inside the app, and you can choose to spend it in the in-game shop on streak shields and XP boosts, all without leaving the platform.
+For players who are new to Web3? BlockSlide supports email login via Web3auth, which creates a wallet for you automatically. No seed phrases, no crypto experience needed.
+The smart contract is live on Celo mainnet at: 0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6, verified on Celoscan. Play now at https://blockslide.app.
 
 Key differentiators:
 
