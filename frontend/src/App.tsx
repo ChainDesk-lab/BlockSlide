@@ -118,12 +118,21 @@ export default function App() {
   const gameEnded = state && (state.over || state.won);
   const stuckActive = phase === "active" && !state;
 
-  // Show the login screen until auth is *fully* established. useAuth() already
-  // accounts for the mid-handshake case (a wagmi address can appear before
-  // Web3Auth sign-in completes), so both isConnected and address must be set —
-  // for MiniPay this means the injected connector has finished connecting.
-  if (!isConnected || !address) {
+  // Auth gate — 3-state, to avoid a login loop. The two signals are independent
+  // (see Web3AuthBridge): `isConnected` is the SDK's auth truth; `address` is
+  // the wagmi account, which the SDK syncs a tick LATER. If we collapsed this to
+  // `!isConnected || !address → LoginScreen`, the address-pending window would
+  // render LoginScreen, whose button re-fires connect() → infinite loop.
+  //   - not connected            → LoginScreen (also covers SDK still booting:
+  //                                 LoginScreen shows its own "Getting ready…")
+  //   - connected, address pending → FinishingSignIn (spinner, never the login
+  //                                 button — so nothing can re-trigger connect)
+  //   - connected + address       → the app
+  if (!isConnected) {
     return <LoginScreen />;
+  }
+  if (!address) {
+    return <FinishingSignIn />;
   }
 
   return (
@@ -366,5 +375,42 @@ function SessionCountdown({ expiresAt }: { expiresAt: number }) {
     <p className="board-placeholder__sub">
       Expires in {m}:{String(s).padStart(2, "0")} — you can start a new game after.
     </p>
+  );
+}
+
+// Shown when auth reports connected but the wagmi address hasn't synced yet.
+// Critically this renders a spinner, NOT the login button — so nothing here can
+// re-trigger connect() and spin up a login loop. If the address still hasn't
+// arrived after a few seconds the sync has genuinely stalled, so we surface a
+// clean sign-out rather than trapping the user on a spinner forever.
+function FinishingSignIn() {
+  const { logout } = useAuth();
+  const [showEscape, setShowEscape] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowEscape(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="login-screen">
+      <div className="login-container">
+        <div className="login-header">
+          <h1 className="login-title">BlockSlide</h1>
+          <p className="login-subtitle">Finishing sign-in…</p>
+        </div>
+        <div className="login-options">
+          <span className="spinner" aria-hidden="true" />
+        </div>
+        {showEscape && (
+          <div className="login-footer">
+            <p className="login-disclaimer">Taking longer than expected.</p>
+            <button className="btn btn--xs" onClick={() => logout()}>
+              Sign out and try again
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
