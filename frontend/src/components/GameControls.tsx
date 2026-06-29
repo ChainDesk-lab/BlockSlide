@@ -1,5 +1,6 @@
 import { useAccount } from "wagmi";
 import { SessionPhase } from "../hooks/useGameSession";
+import { IdentityStatus } from "../hooks/useIdentity";
 import { GameState } from "../lib/gameLogic";
 
 interface GameControlsProps {
@@ -7,6 +8,7 @@ interface GameControlsProps {
   phase: SessionPhase;
   isPending: boolean;
   isWrongChain: boolean;
+  identityStatus: IdentityStatus;
   onNewGame: () => void;
   onSubmit: () => void;
 }
@@ -15,6 +17,7 @@ export default function GameControls({
   state,
   phase,
   isPending,
+  identityStatus,
   onNewGame,
   onSubmit,
 }: GameControlsProps) {
@@ -69,6 +72,9 @@ export default function GameControls({
       )}
       {isConnected && !gameEnded && phase === "active" && (
         <p className="controls__hint">Arrow keys · WASD · swipe to move</p>
+      )}
+      {isConnected && identityStatus !== "verified" && phase === "active" && gameEnded && (
+        <p className="controls__hint">Verify your identity to submit your score on-chain</p>
       )}
     </div>
   );
