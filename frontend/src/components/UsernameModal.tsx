@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useUsername, USERNAME_RE } from "../hooks/useUsername";
 
 interface Props {
@@ -6,8 +6,13 @@ interface Props {
 }
 
 export default function UsernameModal({ onClose }: Props) {
-  const { isSaving, error, save } = useUsername();
+  const { isSaving, error, save, savedName } = useUsername();
   const [value, setValue] = useState("");
+
+  // Auto-close when username is successfully saved
+  useEffect(() => {
+    if (savedName) onClose();
+  }, [savedName, onClose]);
 
   const trimmed = value.trim();
   const valid = USERNAME_RE.test(trimmed);
@@ -59,9 +64,20 @@ export default function UsernameModal({ onClose }: Props) {
             disabled={!valid || isSaving}
             onClick={submit}
           >
-            {isSaving ? "Saving…" : "Save username"}
+            {isSaving ? (
+              <>
+                <span className="spinner" aria-hidden="true" /> Signing transaction…
+              </>
+            ) : (
+              "Save username"
+            )}
           </button>
         </div>
+        {isSaving && (
+          <p className="username-modal__info">
+            Check your wallet to approve the transaction.
+          </p>
+        )}
       </div>
     </div>
   );
