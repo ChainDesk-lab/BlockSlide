@@ -35,9 +35,8 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
   const verifiedElsewhereSteer = (
     <div className="identity-gate__steer">
       <p className="identity-gate__steer-text">
-        Already verified GoodDollar on another wallet? You can’t verify the same
-        face twice — if the scan says <strong>“found your twin”</strong>, your
-        identity lives on a different wallet. Sign in with that wallet to play
+        Already verified on another wallet? You can’t scan the same face twice.
+        If you see <strong>"found your twin"</strong>, use that wallet to play
         and claim.
       </p>
       <button
