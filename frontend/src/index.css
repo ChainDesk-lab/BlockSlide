@@ -1052,6 +1052,23 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-style: italic;
 }
 
+.identity-gate__steer {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.identity-gate__steer-text {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted, #6b7280);
+}
+.identity-gate__steer-btn {
+  align-self: flex-start;
+}
+
 /* ─── Shop ───────────────────────────────────────────────────────────────── */
 .shop {
   width: 100%;
