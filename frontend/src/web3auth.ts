@@ -40,6 +40,12 @@ export const web3AuthContextConfig: Web3AuthContextConfig = {
   web3AuthOptions: {
     clientId,
     web3AuthNetwork,
+    // Frictionless onboarding: email/social login mints the embedded wallet
+    // immediately — no MFA setup and no "new device detected, verify to
+    // continue" prompt. Trade-off: the wallet is secured by the login factor
+    // alone, so losing access to the email/social account loses the wallet.
+    // That's the right call for casual gaming; revisit if balances get large.
+    mfaLevel: "none",
     // The app is rendered client-only (dynamic ssr:false), so disable SSR mode.
     ssr: false,
     // Celo mainnet (chain 42220 / 0xa4ec) — the BlockSlide contract lives here.
