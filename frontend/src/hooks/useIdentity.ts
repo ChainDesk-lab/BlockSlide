@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { zeroAddress } from "viem";
 import { useAccount, useReadContract } from "wagmi";
 import { IDENTITY_ABI } from "../lib/abi";
 import { IDENTITY_ADDRESS } from "../lib/constants";
@@ -19,10 +20,13 @@ const PENDING_TTL_MS = 30 * 60 * 1000; // 30 minutes
 /**
  * Verification status for the connected wallet.
  *
- * Primary source of truth: the GoodDollar identity contract's isWhitelisted on
- * Celo mainnet. localStorage (keyed by wallet address) is used as a fallback so
- * the verified badge survives a transient RPC failure, and to remember that the
- * user has a face-verification in progress ("pending").
+ * Primary source of truth: the GoodDollar identity contract's getWhitelistedRoot
+ * on Celo mainnet — a non-zero root means verified. We use this (not
+ * isWhitelisted) so the gate/badge agrees with the claim block (useGoodDollar
+ * identity) AND recognises wallets LINKED to a verified root, so a connected
+ * account no longer shows "needs verification" while it can claim. localStorage
+ * (keyed by wallet address) is a fallback so the badge survives a transient RPC
+ * failure, and to remember an in-progress face verification ("pending").
  */
 export function useIdentity() {
   const { address } = useAccount();
@@ -30,12 +34,12 @@ export function useIdentity() {
   const { data, isLoading, refetch } = useReadContract({
     address: IDENTITY_ADDRESS,
     abi: IDENTITY_ABI,
-    functionName: "isWhitelisted",
+    functionName: "getWhitelistedRoot",
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });
 
-  const onChainVerified = data === true;
+  const onChainVerified = !!data && data !== zeroAddress;
 
   // localStorage-backed fallback state, re-synced whenever the wallet changes.
   const [cachedVerified, setCachedVerified] = useState(false);

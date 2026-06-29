@@ -20,4 +20,15 @@ export const IDENTITY_ABI = [
     inputs:  [{ name: "user", type: "address" }],
     outputs: [{ name: "",     type: "bool"    }],
   },
+  {
+    // Returns the verified "root" address an account is whitelisted under, or
+    // the zero address if not verified. Unlike isWhitelisted, this also resolves
+    // accounts LINKED to a verified root — GoodDollar allows one identity across
+    // multiple wallets, so a connected wallet reads as verified via its root.
+    name: "getWhitelistedRoot",
+    type: "function",
+    stateMutability: "view",
+    inputs:  [{ name: "account", type: "address" }],
+    outputs: [{ name: "",        type: "address" }],
+  },
 ] as const;
