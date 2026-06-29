@@ -1,29 +1,33 @@
 import { useState } from "react";
-import { useWeb3AuthConnect, useWeb3Auth } from "@web3auth/modal/react";
+import { useAuth, authErrMessage } from "../auth/AuthContext";
 import { BoltIcon } from "./icons";
 
 export default function LoginScreen() {
-  const { isInitialized } = useWeb3Auth();
-  const { connect, loading } = useWeb3AuthConnect();
-  const [error, setError] = useState<string | null>(null);
+  const { isReady, loading, error: authError, login, authType } = useAuth();
+  const [caughtError, setCaughtError] = useState<string | null>(null);
 
-  const ready = isInitialized;
-  // Busy while the SDK is still booting OR a connect is in flight. We keep the
-  // branded screen visible the whole time and reflect this on the button, so the
-  // user never sees a bare "initializing" message.
-  const busy = loading || !ready;
+  // Surface whichever error is present. A client-ID ↔ network mismatch (or an
+  // un-whitelisted origin) typically lands on the SDK error, not the try/catch
+  // around login() — without this it shows as a silent login loop.
+  const error = caughtError ?? authError;
+
+  const isMiniPay = authType === "minipay";
+  // Busy while the SDK/connector is still booting OR a connect is in flight. We
+  // keep the branded screen visible the whole time and reflect this on the
+  // button, so the user never sees a bare "initializing" message.
+  const busy = loading || !isReady;
 
   const handleSignIn = async () => {
-    if (!ready) return;
-    setError(null);
+    if (!isReady) return;
+    setCaughtError(null);
     try {
-      // Opens the Web3Auth modal — email passwordless and external wallets
-      // (MetaMask, MiniPay, WalletConnect) are both offered there.
-      await connect();
+      // Web3Auth: opens the modal (email passwordless + external wallets).
+      // MiniPay: (re)triggers the injected connector — usually auto-connects.
+      await login();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to sign in";
-      console.error("Web3Auth login error:", message);
-      setError(message);
+      const message = authErrMessage(err) ?? "Failed to sign in";
+      console.error("Login error:", err);
+      setCaughtError(message);
     }
   };
 
@@ -38,8 +42,9 @@ export default function LoginScreen() {
           </p>
         </div>
 
-        {/* Single sign-in action. The Web3Auth modal handles the email vs.
-            wallet choice, so one button covers both. */}
+        {/* Single sign-in action. In a browser the Web3Auth modal handles the
+            email vs. wallet choice; inside MiniPay this connects the injected
+            wallet (and auto-connect usually means this screen flashes briefly). */}
         <div className="login-options">
           <button
             className="login-option login-option--wallet"
@@ -56,10 +61,20 @@ export default function LoginScreen() {
             </span>
             <div className="login-option__text">
               <h2 className="login-option__title">
-                {loading ? "Signing in…" : !ready ? "Getting ready…" : "Sign In"}
+                {isMiniPay
+                  ? busy
+                    ? "Connecting to MiniPay…"
+                    : "Connect MiniPay"
+                  : loading
+                    ? "Signing in…"
+                    : !isReady
+                      ? "Getting ready…"
+                      : "Sign In"}
               </h2>
               <p className="login-option__description">
-                Continue with email or connect a wallet
+                {isMiniPay
+                  ? "Connect your MiniPay wallet to play"
+                  : "Continue with email or connect a wallet"}
               </p>
             </div>
             <span className="login-option__arrow">→</span>
@@ -73,7 +88,7 @@ export default function LoginScreen() {
             <p className="login-error__message">{error}</p>
             <button
               className="login-error__dismiss"
-              onClick={() => setError(null)}
+              onClick={() => setCaughtError(null)}
               aria-label="Dismiss error"
             >
               ✕

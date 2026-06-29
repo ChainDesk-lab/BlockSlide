@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useAccount } from "wagmi";
-import { useWeb3Auth } from "@web3auth/modal/react";
+import { useAuth } from "./auth/AuthContext";
 import Board from "./components/Board";
 import GameControls from "./components/GameControls";
 import Home from "./components/Home";
@@ -23,8 +22,7 @@ import { sounds } from "./lib/sounds";
 type View = "home" | "game" | "leaderboard" | "shop";
 
 export default function App() {
-  const { address } = useAccount();
-  const { isConnected } = useWeb3Auth();
+  const { address, isConnected } = useAuth();
   const { status: identityStatus, refetch: refetchIdentity, markPending: markIdentityPending } = useIdentity();
 
   // Which screen is showing. Game state/hooks live at this level so navigating
@@ -120,10 +118,10 @@ export default function App() {
   const gameEnded = state && (state.over || state.won);
   const stuckActive = phase === "active" && !state;
 
-  // Show the login screen until Web3Auth has *fully* authenticated. Connecting
-  // an external wallet exposes a wagmi address mid-handshake (before the
-  // ownership signature), so gate on Web3Auth's isConnected as well — otherwise
-  // the app would render before the user finishes signing in.
+  // Show the login screen until auth is *fully* established. useAuth() already
+  // accounts for the mid-handshake case (a wagmi address can appear before
+  // Web3Auth sign-in completes), so both isConnected and address must be set —
+  // for MiniPay this means the injected connector has finished connecting.
   if (!isConnected || !address) {
     return <LoginScreen />;
   }

@@ -25,6 +25,15 @@ const web3AuthNetwork =
     ? WEB3AUTH_NETWORK.SAPPHIRE_DEVNET
     : WEB3AUTH_NETWORK.SAPPHIRE_MAINNET;
 
+// One-time diagnostic so a client-ID ↔ network mismatch is obvious in the
+// console. The clientId is bound to ONE network at creation and cannot switch;
+// if this `network` doesn't match the dashboard, email login silently loops.
+if (typeof window !== "undefined" && isWeb3AuthConfigured) {
+  console.info(
+    `[Web3Auth] network=${web3AuthNetwork} clientId=${clientId.slice(0, 8)}…${clientId.slice(-4)} origin=${window.location.origin}`
+  );
+}
+
 // Web3Auth config. The wagmi integration (@web3auth/modal/react/wagmi) derives
 // its chains/connectors from here, so no separate wagmi createConfig is needed.
 export const web3AuthContextConfig: Web3AuthContextConfig = {
@@ -47,9 +56,11 @@ export const web3AuthContextConfig: Web3AuthContextConfig = {
         logo: "https://cryptologos.cc/logos/celo-celo-logo.png",
       },
     ],
-    uiConfig: {
-      appName: "BlockSlide",
-    },
+    // NOTE: do NOT add `uiConfig` here. It sets is_whitelabel=true on Web3Auth's
+    // feature-access check — a PAID feature. On the free (base) plan + Sapphire
+    // Mainnet that returns 403 and the login modal silently loops. (Devnet is
+    // unrestricted, which is why local dev works with it.) Re-add only after
+    // upgrading the Web3Auth plan.
     // Show both email passwordless login and external wallets in one modal.
     modalConfig: {
       connectors: {

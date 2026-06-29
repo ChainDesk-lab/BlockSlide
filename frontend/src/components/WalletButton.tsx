@@ -1,9 +1,7 @@
-import { useAccount } from "wagmi";
-import { useWeb3AuthDisconnect } from "@web3auth/modal/react";
+import { useAuth } from "../auth/AuthContext";
 
 export default function WalletButton() {
-  const { address } = useAccount();
-  const { disconnect, loading } = useWeb3AuthDisconnect();
+  const { address, logout } = useAuth();
 
   if (!address) return null;
 
@@ -12,11 +10,10 @@ export default function WalletButton() {
   return (
     <button
       className="btn btn--xs"
-      onClick={() => disconnect()}
-      disabled={loading}
+      onClick={() => logout()}
       title={`${address} — click to disconnect`}
     >
-      {loading ? "…" : short}
+      {short}
     </button>
   );
 }
