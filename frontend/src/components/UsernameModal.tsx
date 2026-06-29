@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useUsername, USERNAME_RE } from "../hooks/useUsername";
 
 interface Props {
@@ -6,8 +6,13 @@ interface Props {
 }
 
 export default function UsernameModal({ onClose }: Props) {
-  const { isSaving, error, save } = useUsername();
+  const { isSaving, error, save, savedName } = useUsername();
   const [value, setValue] = useState("");
+
+  // Auto-close when username is successfully saved
+  useEffect(() => {
+    if (savedName) onClose();
+  }, [savedName, onClose]);
 
   const trimmed = value.trim();
   const valid = USERNAME_RE.test(trimmed);

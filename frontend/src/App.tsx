@@ -55,13 +55,19 @@ export default function App() {
   // ── Username ────────────────────────────────────────────────────────────────
   // On connect we read the username from the contract. If it's empty, prompt the
   // user to choose one via a modal; if they already have one it loads silently
-  // and shows in the header. Dismissed-per-wallet so we don't nag on every read.
+  // and shows in the header. Dismissed-per-wallet and persisted to localStorage.
   const { username, isLoading: usernameLoading } = useUsername();
+  const DISMISSED_KEY = (addr: string) => `blockslide_username_dismissed_${addr.toLowerCase()}`;
   const [usernameModalDismissed, setUsernameModalDismissed] = useState(false);
 
   useEffect(() => {
-    // Reset the dismiss flag whenever the connected wallet changes.
-    setUsernameModalDismissed(false);
+    // On wallet change, read the dismiss state from localStorage.
+    if (!address) {
+      setUsernameModalDismissed(false);
+      return;
+    }
+    const dismissed = localStorage.getItem(DISMISSED_KEY(address)) === "true";
+    setUsernameModalDismissed(dismissed);
   }, [address]);
 
   const showUsernameModal =
@@ -139,7 +145,12 @@ export default function App() {
     <div className="app">
       {showHowToPlay && <HowToPlay onClose={closeHowToPlay} />}
       {showUsernameModal && (
-        <UsernameModal onClose={() => setUsernameModalDismissed(true)} />
+        <UsernameModal
+          onClose={() => {
+            setUsernameModalDismissed(true);
+            if (address) localStorage.setItem(DISMISSED_KEY(address), "true");
+          }}
+        />
       )}
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="header">
