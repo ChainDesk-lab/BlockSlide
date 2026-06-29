@@ -19,10 +19,16 @@ export function Web3AuthBridge({ children }: { children: ReactNode }) {
   const { connect, loading, error: connectError } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
 
-  // Gate on Web3Auth's own isConnected (not just a wagmi address): connecting an
-  // external wallet exposes an address mid-handshake before sign-in completes.
+  // `isConnected` is Web3Auth's OWN auth state — the source of truth for "is the
+  // user signed in". Do NOT AND it with the wagmi `address`: the SDK populates
+  // the wagmi account in a useEffect that runs *after* isConnected flips true
+  // (reconnectOnMount is false), so there's always a window where isConnected is
+  // true but address is still undefined. Gating on `isConnected && address` here
+  // makes that window look "logged out" → LoginScreen re-renders → its button
+  // re-fires connect() → login loop. The App gate handles the address-pending
+  // window separately (FinishingSignIn), so keep these two signals independent.
   const value: AuthValue = {
-    isConnected: !!isConnected && !!address,
+    isConnected: !!isConnected,
     address,
     isReady: isInitialized,
     loading,

@@ -1,5 +1,6 @@
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
 import { IdentityStatus } from "../hooks/useIdentity";
+import { useAuth } from "../auth/AuthContext";
 import { IdCardIcon } from "./icons";
 
 interface Props {
@@ -15,6 +16,7 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
     error: verificationError,
     startVerification: startGoodDollarVerification,
   } = useGoodDollarIdentity();
+  const { logout } = useAuth();
 
   if (status === "no-wallet" || status === "verified") return null;
 
@@ -22,6 +24,30 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
     onStarted(); // Mark as pending in useIdentity hook
     await startGoodDollarVerification(); // Start SDK-based verification
   };
+
+  // GoodDollar enforces one face = one wallet. If a user already verified on
+  // another wallet, scanning again here returns "found your twin" and can never
+  // succeed — so we always offer a path back to their verified wallet rather
+  // than looping a doomed scan.
+  const switchToVerifiedWallet = () => logout();
+
+  // Reusable "already verified elsewhere" steer, shown in both states.
+  const verifiedElsewhereSteer = (
+    <div className="identity-gate__steer">
+      <p className="identity-gate__steer-text">
+        Already verified GoodDollar on another wallet? You can’t verify the same
+        face twice — if the scan says <strong>“found your twin”</strong>, your
+        identity lives on a different wallet. Sign in with that wallet to play
+        and claim.
+      </p>
+      <button
+        className="btn btn--xs identity-gate__steer-btn"
+        onClick={switchToVerifiedWallet}
+      >
+        Switch to my verified wallet
+      </button>
+    </div>
+  );
 
   return (
     <div className="identity-gate" role="alert">
@@ -72,6 +98,8 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
               </button>
             </div>
 
+            {verifiedElsewhereSteer}
+
             <p className="identity-gate__note">
               You can still play in demo mode while this confirms.
             </p>
@@ -112,6 +140,8 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
                 I have verified, check again
               </button>
             </div>
+
+            {verifiedElsewhereSteer}
 
             <p className="identity-gate__note">
               You can still play in demo mode without verification.

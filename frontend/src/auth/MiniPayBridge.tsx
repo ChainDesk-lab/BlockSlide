@@ -37,7 +37,10 @@ export function MiniPayBridge({ children }: { children: ReactNode }) {
   const connecting = !isConnected && attempt <= 4;
 
   const value: AuthValue = {
-    isConnected: isConnected && !!address,
+    // Injected connector reports isConnected and address together, but keep the
+    // signals independent to match Web3AuthBridge and the App gate's 3-state
+    // logic (isConnected = "auth established", address checked separately).
+    isConnected,
     address,
     isReady: true,
     loading: connecting,

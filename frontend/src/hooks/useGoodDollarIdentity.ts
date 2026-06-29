@@ -50,11 +50,17 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         env: "production",
       });
 
-      // Check if wallet is whitelisted on the identity registry
-      // This reads from the on-chain identity contract
-      const whitelistStatus = await sdk.getWhitelistedRoot(walletClient.account.address);
+      // getWhitelistedRoot returns { isWhitelisted, root } — NOT a boolean.
+      // The old `!!whitelistStatus` was truthy for the object EVERY time, so
+      // every wallet looked verified (hence the claim block showing for
+      // unverified wallets). `.isWhitelisted` also correctly recognises a wallet
+      // LINKED to a verified root — GoodDollar allows one identity across
+      // multiple wallets, so a connected account reads as whitelisted too.
+      const { isWhitelisted } = await sdk.getWhitelistedRoot(
+        walletClient.account.address,
+      );
 
-      setIsVerified(!!whitelistStatus);
+      setIsVerified(isWhitelisted);
     } catch (err) {
       console.error("Error checking GoodDollar verification status:", err);
       // Don't show error for status check failures - just mark as unverified
