@@ -6,7 +6,7 @@ import { getMagic, isMagicConfigured } from "../magic";
 
 /**
  * Magic.link bridge - handles email authentication via magic links.
- * No device verification, no MFA prompts, purely frictionless email signup/login.
+ * Manages Magic auth state separately; wagmi reads contracts via Magic's RPC provider.
  */
 export function MagicBridge({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
@@ -15,7 +15,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if user is already logged in via Magic
+  // Auto-connect if user is already logged in
   useEffect(() => {
     if (!isMagicConfigured) {
       setIsReady(true);
@@ -28,8 +28,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
         const isLoggedIn = await magic.user.isLoggedIn();
 
         if (isLoggedIn) {
-          // Magic creates an EVM wallet on email login
-          // The address is accessible through the provider
+          // Get user's wallet address
           const provider = magic.rpcProvider;
           const accounts = await (provider as any).request({
             method: "eth_accounts",
@@ -40,7 +39,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
           }
         }
       } catch (err) {
-        console.error("Error checking Magic auth status:", err);
+        console.error("Error checking Magic auth:", err);
       } finally {
         setIsReady(true);
       }
@@ -64,11 +63,11 @@ export function MagicBridge({ children }: { children: ReactNode }) {
       // Send magic link to email
       const didToken = await magic.auth.loginWithMagicLink({
         email,
-        showUI: true, // Show Magic's UI for email verification
+        showUI: true,
       });
 
       if (didToken) {
-        // Get user's wallet address from the provider
+        // Get wallet address
         const provider = magic.rpcProvider;
         const accounts = await (provider as any).request({
           method: "eth_accounts",
