@@ -154,8 +154,6 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// Start a new game session. Caller must be a GoodDollar-verified human.
     /// @param seedHash keccak256(seed) — seed drives tile spawning client-side
     function startSession(bytes32 seedHash) external {
-        if (!identity.isWhitelisted(msg.sender)) revert NotVerifiedHuman();
-
         Session storage session = sessions[msg.sender];
 
         if (session.active && block.timestamp > session.startTime + SESSION_TIMEOUT) {
@@ -185,6 +183,8 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         bytes32 seed,
         uint256 comboMoves
     ) external {
+        if (!identity.isWhitelisted(msg.sender)) revert NotVerifiedHuman();
+
         Session storage session = sessions[msg.sender];
         if (!session.active)                                              revert NoActiveSession();
         if (block.timestamp > session.startTime + SESSION_TIMEOUT)       revert SessionExpired();
