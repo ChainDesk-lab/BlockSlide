@@ -6,22 +6,23 @@ import {
   toHex,
 } from "viem";
 import { signTransaction } from "viem/actions";
-import {
-  useWalletClient,
-} from "wagmi";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
+import { useAuth } from "../auth/AuthContext";
+import { useWalletClient } from "wagmi";
+import { getMagic, isMagicConfigured } from "../magic";
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 /** Read + set the connected wallet's on-chain display name. */
 export function useUsername() {
+  const { authType } = useAuth();
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
-  const { data: walletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
+  const { data: wagmiWalletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
   const { triggerNoGas } = useNoGas();
 
   const [current, setCurrent] = useState<string | undefined>();
@@ -82,7 +83,7 @@ export function useUsername() {
       setError(null);
       setSavedName(null);
 
-      if (!address || !walletClient || !publicClient) {
+      if (!address || !publicClient) {
         setError("Connect your wallet first.");
         return;
       }
@@ -140,9 +141,54 @@ export function useUsername() {
 
         let hash: `0x${string}`;
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const signed = await (signTransaction as any)(walletClient, { ...base, type: "eip1559" });
-          hash = await publicClient.sendRawTransaction({ serializedTransaction: signed });
+          let signed: string;
+
+          // For Magic.link, use its RPC provider directly for signing
+          if (authType === "magic" && isMagicConfigured) {
+            try {
+              const magic = getMagic();
+              const provider = magic.rpcProvider as any;
+              signed = await provider.request({
+                method: "eth_signTransaction",
+                params: [{ ...base, type: "eip1559" }],
+              });
+            } catch (magicErr) {
+              console.error("Magic signing failed, attempting fallback:", magicErr);
+              // Fallback to eth_sendTransaction if eth_signTransaction fails
+              const magic = getMagic();
+              const provider = magic.rpcProvider as any;
+              hash = await provider.request({
+                method: "eth_sendTransaction",
+                params: [{
+                  from: address,
+                  to: GAME2048_ADDRESS,
+                  data,
+                  gas: toHex(120_000n),
+                  maxFeePerGas: toHex(500_000_000_000n),
+                  maxPriorityFeePerGas: toHex(2_500_000_000n),
+                  chainId: toHex(TARGET_CHAIN.id),
+                  type: "0x2",
+                  ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
+                }],
+              }) as `0x${string}`;
+
+              const receipt = await publicClient.waitForTransactionReceipt({ hash });
+              if (receipt.status === "reverted") {
+                setError("Transaction reverted — that name may already be taken.");
+              } else {
+                setSavedName(trimmed);
+                await refetch();
+              }
+              setIsSaving(false);
+              return;
+            }
+          } else {
+            // For other auth types, use viem's signTransaction
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            signed = await (signTransaction as any)(wagmiWalletClient, { ...base, type: "eip1559" });
+          }
+
+          hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
         } catch (signErr: unknown) {
           const msg = ((signErr as Error)?.message ?? "").toLowerCase();
           const code = (signErr as { code?: number })?.code;
@@ -159,7 +205,7 @@ export function useUsername() {
             msg.includes("eth_signtransaction");
           if (!unsupported) throw signErr;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          hash = await (walletClient as any).request({
+          hash = await (wagmiWalletClient as any).request({
             method: "eth_sendTransaction",
             params: [{
               from: address,
@@ -193,7 +239,7 @@ export function useUsername() {
         setIsSaving(false);
       }
     },
-    [address, walletClient, publicClient, refetch, triggerNoGas],
+    [address, wagmiWalletClient, publicClient, refetch, triggerNoGas, authType],
   );
 
   return {

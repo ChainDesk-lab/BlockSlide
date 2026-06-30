@@ -50,7 +50,10 @@ export function MagicBridge({ children }: { children: ReactNode }) {
 
   const login = async (email: string) => {
     if (!isMagicConfigured) {
-      setError("Magic is not configured");
+      setError(
+        "Email login is not available. Magic.link API key is missing. " +
+        "Please contact support or try again later."
+      );
       return;
     }
 
@@ -78,10 +81,20 @@ export function MagicBridge({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to login with Magic";
+      let message = "Failed to sign in with Magic.link";
+
+      if (err instanceof Error) {
+        if (err.message.includes("Magic.link is not configured")) {
+          message = "Email login is not configured. Please try again later.";
+        } else if (err.message.includes("User denied")) {
+          message = "You cancelled the sign-in. Please try again.";
+        } else {
+          message = err.message;
+        }
+      }
+
       setError(message);
-      console.error("Magic login error:", err);
+      console.error("Magic.link login error:", err);
     } finally {
       setLoading(false);
     }

@@ -8,14 +8,13 @@ import {
   useReadContract,
   useSwitchChain,
   useWaitForTransactionReceipt,
-  useWalletClient,
 } from "wagmi";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
-import { useContractAddress } from "./useContractData";
+import { useContractAddress, useContractWalletClient } from "./useContractData";
 
 const LOW_GAS_THRESHOLD = 5_000_000_000_000_000n; // 0.005 CELO
 
@@ -38,7 +37,7 @@ export function useGameSession() {
   const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
   // Wallet client — used for signTransaction (pure signing, no RPC calls made
   // by the wallet, so the wallet's forno config can't block us).
-  const { data: walletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
+  const walletClient = useContractWalletClient();
 
   // Manual tx state — replaces useSendTransaction so we can use signTransaction
   // + sendRawTransaction and keep the same interface for the rest of the hook.
