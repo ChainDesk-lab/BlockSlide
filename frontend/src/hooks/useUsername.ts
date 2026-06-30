@@ -10,15 +10,18 @@ import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
-import { useContractAddress, useContractPublicClient, useContractWalletClient } from "./useContractData";
+import { useContractAddress, useContractPublicClient, useContractWalletClient, useMagicSignTransaction } from "./useContractData";
+import { useAuth } from "../auth/AuthContext";
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 /** Read + set the connected wallet's on-chain display name. */
 export function useUsername() {
+  const { authType } = useAuth();
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
   const walletClient = useContractWalletClient();
+  const magicSignTx = useMagicSignTransaction();
   const { triggerNoGas } = useNoGas();
 
   const [current, setCurrent] = useState<string | undefined>();
@@ -79,8 +82,15 @@ export function useUsername() {
       setError(null);
       setSavedName(null);
 
-      if (!address || !walletClient || !publicClient) {
+      // For Magic.link, we just need address and publicClient
+      // For other auth types, we need walletClient too
+      if (!address || !publicClient) {
         setError("Connect your wallet first.");
+        return;
+      }
+
+      if (authType !== "magic" && !walletClient) {
+        setError("Wallet not available. Please reconnect.");
         return;
       }
       const trimmed = name.trim();
@@ -137,9 +147,18 @@ export function useUsername() {
 
         let hash: `0x${string}`;
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const signed = await (signTransaction as any)(walletClient, { ...base, type: "eip1559" });
-          hash = await publicClient.sendRawTransaction({ serializedTransaction: signed });
+          let signed: string;
+
+          // For Magic.link, use its direct signing method
+          if (authType === "magic") {
+            signed = await magicSignTx({ ...base, type: "eip1559" });
+          } else {
+            // For other auth types, use viem's signTransaction
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            signed = await (signTransaction as any)(walletClient, { ...base, type: "eip1559" });
+          }
+
+          hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
         } catch (signErr: unknown) {
           const msg = ((signErr as Error)?.message ?? "").toLowerCase();
           const code = (signErr as { code?: number })?.code;
