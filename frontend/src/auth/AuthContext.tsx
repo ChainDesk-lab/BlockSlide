@@ -2,15 +2,14 @@
 
 import { createContext, useContext } from "react";
 
-export type AuthType = "minipay" | "web3auth" | null;
+export type AuthType = "minipay" | "web3auth" | "magic" | null;
 
 /**
  * Uniform auth surface consumed by the app, regardless of whether the user is
- * inside MiniPay (injected wallet) or on a regular browser (Web3Auth email /
- * external wallet). The matching bridge component (MiniPayBridge or
- * Web3AuthBridge) fills this in from the underlying SDK so that App,
- * LoginScreen and WalletButton never call Web3Auth hooks directly — which
- * matters because the MiniPay tree has no Web3AuthProvider.
+ * inside MiniPay (injected wallet) or on a regular browser (Magic email link /
+ * Web3Auth / external wallet). The matching bridge component (MiniPayBridge,
+ * MagicBridge, or Web3AuthBridge) fills this in from the underlying SDK so
+ * that App, LoginScreen and WalletButton never call SDK hooks directly.
  */
 export interface AuthValue {
   /** Fully authenticated: a usable wallet address is connected. */
@@ -22,7 +21,8 @@ export interface AuthValue {
   loading: boolean;
   error: string | null;
   authType: AuthType;
-  login: () => void | Promise<void>;
+  /** Login function - Magic requires email parameter */
+  login: (email?: string) => void | Promise<void>;
   logout: () => void | Promise<void>;
 }
 

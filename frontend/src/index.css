@@ -1364,6 +1364,34 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   gap: 14px;
 }
 
+.login-email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-email-form__input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.login-email-form__input:focus {
+  outline: none;
+  border-color: #845ef7;
+  box-shadow: 0 0 12px rgba(132, 94, 247, 0.15);
+}
+
+.login-email-form__input::placeholder {
+  color: var(--text-muted);
+}
+
 .login-option {
   display: flex;
   align-items: center;

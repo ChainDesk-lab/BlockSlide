@@ -1,14 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Web3AuthProvider } from "@web3auth/modal/react";
-import { WagmiProvider as Web3AuthWagmiProvider } from "@web3auth/modal/react/wagmi";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { web3AuthContextConfig } from "../src/web3auth";
 import { miniPayWagmiConfig } from "../src/auth/miniPayWagmi";
 import { MiniPayBridge } from "../src/auth/MiniPayBridge";
-import { Web3AuthBridge } from "../src/auth/Web3AuthBridge";
+import { MagicBridge } from "../src/auth/MagicBridge";
 import { NoGasProvider } from "../src/contexts/NoGasContext";
 import App from "../src/App";
 
@@ -87,18 +84,16 @@ export default function AppRoot() {
     );
   }
 
-  // Regular browser: Web3Auth (email passwordless + external wallets).
+  // Regular browser: Magic.link (frictionless email login via magic links).
   return (
-    <Web3AuthProvider config={web3AuthContextConfig}>
+    <WagmiProvider config={miniPayWagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <Web3AuthWagmiProvider>
-          <Web3AuthBridge>
-            <NoGasProvider>
-              <App />
-            </NoGasProvider>
-          </Web3AuthBridge>
-        </Web3AuthWagmiProvider>
+        <MagicBridge>
+          <NoGasProvider>
+            <App />
+          </NoGasProvider>
+        </MagicBridge>
       </QueryClientProvider>
-    </Web3AuthProvider>
+    </WagmiProvider>
   );
 }
