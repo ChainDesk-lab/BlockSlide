@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BaseError, ContractFunctionRevertedError, encodeFunctionData, keccak256, toHex } from "viem";
 import { signTransaction } from "viem/actions";
 import {
-  useAccount,
   useBalance,
   useChainId,
   usePublicClient,
@@ -16,6 +15,7 @@ import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
+import { useContractAddress } from "./useContractData";
 
 const LOW_GAS_THRESHOLD = 5_000_000_000_000_000n; // 0.005 CELO
 
@@ -29,7 +29,7 @@ export type SessionPhase =
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function useGameSession() {
-  const { address } = useAccount();
+  const address = useContractAddress();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
   const { triggerNoGas } = useNoGas();

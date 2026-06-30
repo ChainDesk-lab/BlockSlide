@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
-import { useAccount, useReadContract, usePublicClient, useWalletClient } from "wagmi";
+import { useCallback, useEffect, useState } from "react";
+import { useWalletClient } from "wagmi";
 import { ClaimSDK, IdentitySDK } from "@goodsdks/citizen-sdk";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
+import { useAuth } from "../auth/AuthContext";
+import { useContractAddress, useContractPublicClient } from "../hooks/useContractData";
 import { CoinIcon } from "./icons";
 import { G_DOLLAR_ADDRESS } from "../lib/constants";
 import { erc20Abi, formatUnits } from "viem";
@@ -16,8 +18,9 @@ interface ClaimState {
 }
 
 export default function ClaimUBI() {
-  const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
+  const { isConnected } = useAuth();
+  const address = useContractAddress();
+  const publicClient = useContractPublicClient();
   const { data: walletClient } = useWalletClient();
 
   // Use unified GoodDollar identity hook
@@ -41,24 +44,8 @@ export default function ClaimUBI() {
   const [balance, setBalance] = useState<string>("0");
   const [countdown, setCountdown] = useState<string>("");
 
-  // Fetch G$ (ERC-20) balance with manual refetch. wagmi v3 removed the `token`
-  // option from useBalance, so read balanceOf directly. G$ uses 18 decimals.
-  const { data: balanceRaw, refetch: refetchBalance } = useReadContract({
-    address: G_DOLLAR_ADDRESS,
-    abi: erc20Abi,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
-
-  useEffect(() => {
-    if (balanceRaw !== undefined) {
-      setBalance(formatUnits(balanceRaw, 18));
-    }
-  }, [balanceRaw]);
-
-  // Manual balance fetch after claim
-  const fetchBalanceManual = async () => {
+  // Fetch G$ (ERC-20) balance. G$ uses 18 decimals.
+  const fetchBalance = useCallback(async () => {
     if (!address || !publicClient) return;
 
     try {
@@ -69,19 +56,16 @@ export default function ClaimUBI() {
         args: [address as `0x${string}`],
       });
 
-      const decimals = await publicClient.readContract({
-        address: G_DOLLAR_ADDRESS as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "decimals",
-      });
-
-      const formatted = (Number(balance) / Math.pow(10, Number(decimals))).toString();
+      const formatted = formatUnits(balance as bigint, 18);
       setBalance(formatted);
     } catch (err) {
       console.error("Error fetching balance:", err);
-      refetchBalance();
     }
-  };
+  }, [address, publicClient]);
+
+  useEffect(() => {
+    fetchBalance();
+  }, [fetchBalance]);
 
   // Check entitlement status using GoodDollar SDK
   useEffect(() => {
@@ -225,8 +209,7 @@ export default function ClaimUBI() {
 
       // Fetch updated balance immediately
       setTimeout(() => {
-        fetchBalanceManual();
-        refetchBalance();
+        fetchBalance();
       }, 1000);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";

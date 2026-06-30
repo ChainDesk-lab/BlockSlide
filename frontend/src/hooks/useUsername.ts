@@ -7,32 +7,65 @@ import {
 } from "viem";
 import { signTransaction } from "viem/actions";
 import {
-  useAccount,
-  usePublicClient,
-  useReadContract,
   useWalletClient,
 } from "wagmi";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
+import { useContractAddress, useContractPublicClient } from "./useContractData";
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 /** Read + set the connected wallet's on-chain display name. */
 export function useUsername() {
-  const { address } = useAccount();
-  const { triggerNoGas } = useNoGas();
-  const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
+  const address = useContractAddress();
+  const publicClient = useContractPublicClient();
   const { data: walletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
+  const { triggerNoGas } = useNoGas();
 
-  const { data: current, refetch, isLoading: isReading } = useReadContract({
-    address: GAME2048_ADDRESS,
-    abi: GAME2048_ABI,
-    functionName: "usernames",
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
+  const [current, setCurrent] = useState<string | undefined>();
+  const [isReading, setIsReading] = useState(false);
+
+  // Read username from contract whenever address changes
+  useEffect(() => {
+    if (!address || !publicClient) return;
+
+    const readUsername = async () => {
+      setIsReading(true);
+      try {
+        const result = await publicClient.readContract({
+          address: GAME2048_ADDRESS,
+          abi: GAME2048_ABI,
+          functionName: "usernames",
+          args: [address],
+        });
+        setCurrent(result as string);
+      } catch (err) {
+        console.error("Error reading username:", err);
+        setCurrent("");
+      } finally {
+        setIsReading(false);
+      }
+    };
+
+    readUsername();
+  }, [address, publicClient]);
+
+  const refetch = useCallback(async () => {
+    if (!address || !publicClient) return;
+    try {
+      const result = await publicClient.readContract({
+        address: GAME2048_ADDRESS,
+        abi: GAME2048_ABI,
+        functionName: "usernames",
+        args: [address],
+      });
+      setCurrent(result as string);
+    } catch (err) {
+      console.error("Error refetching username:", err);
+    }
+  }, [address, publicClient]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { maxUint256 } from "viem";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED } from "../lib/constants";
+import { useContractAddress } from "./useContractData";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | null;
 
 export function useShop() {
-  const { address } = useAccount();
+  const address = useContractAddress();
   const enabled = !!address && CONTRACT_DEPLOYED;
 
   const { writeContractAsync } = useWriteContract();
