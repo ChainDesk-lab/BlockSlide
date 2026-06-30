@@ -237,8 +237,10 @@ export default function App() {
       </header>
 
       <main className="main">
-        {/* GoodDollar identity gate — shown when connected but not verified */}
-        <IdentityGate status={identityStatus} onRefresh={refetchIdentity} onStarted={markIdentityPending} />
+        {/* Identity gate modal — shown only when trying to claim without verification */}
+        {view === "game" && gameEnded && identityStatus !== "verified" && (
+          <IdentityGate status={identityStatus} onRefresh={refetchIdentity} onStarted={markIdentityPending} />
+        )}
 
         {/* Wrong-chain only — this actually blocks onchain play */}
         {isWrongChain && (
@@ -335,6 +337,7 @@ export default function App() {
               }
               isPending={isPending}
               isWrongChain={isWrongChain}
+              identityStatus={identityStatus}
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
             />

@@ -11,8 +11,8 @@ import {
   useWaitForTransactionReceipt,
   useWalletClient,
 } from "wagmi";
-import { GAME2048_ABI, IDENTITY_ABI } from "../lib/abi";
-import { GAME2048_ADDRESS, IDENTITY_ADDRESS, TARGET_CHAIN } from "../lib/constants";
+import { GAME2048_ABI } from "../lib/abi";
+import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
@@ -64,14 +64,6 @@ export function useGameSession() {
   });
 
   const contractDeployed = GAME2048_ADDRESS !== ZERO_ADDRESS;
-
-  const { data: isVerified, isLoading: isVerifiedLoading } = useReadContract({
-    address: IDENTITY_ADDRESS,
-    abi: IDENTITY_ABI,
-    functionName: "isWhitelisted",
-    args: address ? [address] : undefined,
-    query: { enabled: !!address && contractDeployed && !isWrongChain },
-  });
 
   const { data: onChainSession, refetch: refetchSession } = useReadContract({
     address: GAME2048_ADDRESS,
@@ -237,16 +229,6 @@ export function useGameSession() {
         return;
       }
 
-      if (isVerifiedLoading) {
-        setError("Checking your GoodDollar verification — please wait a moment and try again.");
-        return;
-      }
-
-      if (isVerified !== true) {
-        setError("You need to complete GoodDollar face verification before playing on-chain. Use the verification banner above.");
-        return;
-      }
-
       const SESSION_TIMEOUT_SECS = 2n * 3600n;
       if (
         onChainSession?.active &&
@@ -280,7 +262,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, isWrongChain, celoBalance, isVerified, isVerifiedLoading, onChainSession, walletClient, signAndBroadcast, triggerNoGas],
+    [address, contractDeployed, isWrongChain, celoBalance, onChainSession, walletClient, signAndBroadcast, triggerNoGas],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
