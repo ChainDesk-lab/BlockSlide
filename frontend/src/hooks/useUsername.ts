@@ -6,14 +6,11 @@ import {
   toHex,
 } from "viem";
 import { signTransaction } from "viem/actions";
-import {
-  useWalletClient,
-} from "wagmi";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
-import { useContractAddress, useContractPublicClient } from "./useContractData";
+import { useContractAddress, useContractPublicClient, useContractWalletClient } from "./useContractData";
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -21,7 +18,7 @@ export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 export function useUsername() {
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
-  const { data: walletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
+  const walletClient = useContractWalletClient();
   const { triggerNoGas } = useNoGas();
 
   const [current, setCurrent] = useState<string | undefined>();
