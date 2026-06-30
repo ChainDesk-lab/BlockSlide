@@ -1751,3 +1751,101 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   .username-card__input { min-height: 44px; }
   .username-modal__input { min-height: 44px; }
 }
+
+/* ─── Wallet Button ─────────────────────────────────────────────────────── */
+.wallet-button-container {
+  position: relative;
+}
+
+.wallet-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.wallet-button:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.wallet-button__balance {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.wallet-button__address {
+  font-family: monospace;
+  opacity: 0.8;
+}
+
+.wallet-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  min-width: 280px;
+}
+
+.wallet-dropdown__content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wallet-dropdown__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wallet-dropdown__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.wallet-dropdown__value {
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.wallet-dropdown__value code {
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.btn--danger {
+  background: #dc2626;
+  color: white;
+  border-color: #dc2626;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.btn--danger:hover {
+  background: #991b1b;
+  border-color: #991b1b;
+}

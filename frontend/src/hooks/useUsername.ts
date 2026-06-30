@@ -141,54 +141,31 @@ export function useUsername() {
 
         let hash: `0x${string}`;
         try {
-          let signed: string;
-
-          // For Magic.link, use its RPC provider directly for signing
+          // For Magic.link, skip eth_signTransaction (not reliable) and go straight to eth_sendTransaction
           if (authType === "magic" && isMagicConfigured) {
-            try {
-              const magic = getMagic();
-              const provider = magic.rpcProvider as any;
-              signed = await provider.request({
-                method: "eth_signTransaction",
-                params: [{ ...base, type: "eip1559" }],
-              });
-            } catch (magicErr) {
-              console.error("Magic signing failed, attempting fallback:", magicErr);
-              // Fallback to eth_sendTransaction if eth_signTransaction fails
-              const magic = getMagic();
-              const provider = magic.rpcProvider as any;
-              hash = await provider.request({
-                method: "eth_sendTransaction",
-                params: [{
-                  from: address,
-                  to: GAME2048_ADDRESS,
-                  data,
-                  gas: toHex(120_000n),
-                  maxFeePerGas: toHex(500_000_000_000n),
-                  maxPriorityFeePerGas: toHex(2_500_000_000n),
-                  chainId: toHex(TARGET_CHAIN.id),
-                  type: "0x2",
-                  ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
-                }],
-              }) as `0x${string}`;
+            const magic = getMagic();
+            const provider = magic.rpcProvider as any;
 
-              const receipt = await publicClient.waitForTransactionReceipt({ hash });
-              if (receipt.status === "reverted") {
-                setError("Transaction reverted — that name may already be taken.");
-              } else {
-                setSavedName(trimmed);
-                await refetch();
-              }
-              setIsSaving(false);
-              return;
-            }
+            hash = await provider.request({
+              method: "eth_sendTransaction",
+              params: [{
+                from: address,
+                to: GAME2048_ADDRESS,
+                data,
+                gas: toHex(120_000n),
+                maxFeePerGas: toHex(500_000_000_000n),
+                maxPriorityFeePerGas: toHex(2_500_000_000n),
+                chainId: toHex(TARGET_CHAIN.id),
+                type: "0x2",
+                ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
+              }],
+            }) as `0x${string}`;
           } else {
             // For other auth types, use viem's signTransaction
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            signed = await (signTransaction as any)(wagmiWalletClient, { ...base, type: "eip1559" });
+            const signed = await (signTransaction as any)(wagmiWalletClient, { ...base, type: "eip1559" });
+            hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
           }
-
-          hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
         } catch (signErr: unknown) {
           const msg = ((signErr as Error)?.message ?? "").toLowerCase();
           const code = (signErr as { code?: number })?.code;
