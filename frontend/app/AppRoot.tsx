@@ -69,7 +69,7 @@ export default function AppRoot() {
     );
   }
 
-  // Inside MiniPay: plain wagmi + injected connector, no Web3Auth at all.
+  // Inside MiniPay: plain wagmi + injected connector.
   if (isMiniPay) {
     return (
       <WagmiProvider config={miniPayWagmiConfig}>
@@ -84,7 +84,7 @@ export default function AppRoot() {
     );
   }
 
-  // Regular browser: Magic.link (frictionless email login via magic links).
+  // Regular browser: Magic.link (email-based authentication).
   return (
     <WagmiProvider config={miniPayWagmiConfig}>
       <QueryClientProvider client={queryClient}>

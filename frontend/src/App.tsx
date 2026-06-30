@@ -125,14 +125,14 @@ export default function App() {
   const stuckActive = phase === "active" && !state;
 
   // Auth gate — 3-state, to avoid a login loop. The two signals are independent
-  // (see Web3AuthBridge): `isConnected` is the SDK's auth truth; `address` is
+  // (see MagicBridge): `isConnected` is the SDK's auth truth; `address` is
   // the wagmi account, which the SDK syncs a tick LATER. If we collapsed this to
   // `!isConnected || !address → LoginScreen`, the address-pending window would
-  // render LoginScreen, whose button re-fires connect() → infinite loop.
+  // render LoginScreen, whose button re-fires login() → infinite loop.
   //   - not connected            → LoginScreen (also covers SDK still booting:
   //                                 LoginScreen shows its own "Getting ready…")
   //   - connected, address pending → FinishingSignIn (spinner, never the login
-  //                                 button — so nothing can re-trigger connect)
+  //                                 button — so nothing can re-trigger login)
   //   - connected + address       → the app
   if (!isConnected) {
     return <LoginScreen />;

@@ -162,9 +162,9 @@ export function useGameSession() {
         const msg = ((signErr as Error)?.message ?? "").toLowerCase();
         const code = (signErr as { code?: number })?.code;
         const name = (signErr as { name?: string })?.name ?? "";
-        // Not every provider exposes eth_signTransaction. Web3Auth rejects it as
-        // unauthorized (EIP-1193 4100); others report method-not-found (-32601)
-        // or "not supported". In all these cases fall back to eth_sendTransaction.
+        // Not every provider exposes eth_signTransaction. Some reject it as
+        // unauthorized (4100), others report method-not-found (-32601), or "not
+        // supported". In all cases, fall back to eth_sendTransaction.
         const isUnsupported =
           name === "MethodNotSupportedRpcError" ||
           name === "UnauthorizedProviderError" ||

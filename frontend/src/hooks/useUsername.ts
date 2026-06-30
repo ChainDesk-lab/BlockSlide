@@ -114,8 +114,8 @@ export function useUsername() {
           const msg = ((signErr as Error)?.message ?? "").toLowerCase();
           const code = (signErr as { code?: number })?.code;
           const name = (signErr as { name?: string })?.name ?? "";
-          // See useGameSession: Web3Auth rejects eth_signTransaction as
-          // unauthorized (4100); fall back to eth_sendTransaction.
+          // See useGameSession: some providers reject eth_signTransaction;
+          // fall back to eth_sendTransaction.
           const unsupported =
             name === "MethodNotSupportedRpcError" ||
             name === "UnauthorizedProviderError" ||
