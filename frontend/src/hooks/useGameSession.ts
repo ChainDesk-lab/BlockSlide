@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BaseError, ContractFunctionRevertedError, encodeFunctionData, keccak256, toHex } from "viem";
 import { signTransaction } from "viem/actions";
 import {
-  useAccount,
   useBalance,
   useChainId,
   usePublicClient,
@@ -16,6 +15,7 @@ import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
+import { useContractAddress } from "./useContractData";
 
 const LOW_GAS_THRESHOLD = 5_000_000_000_000_000n; // 0.005 CELO
 
@@ -29,7 +29,7 @@ export type SessionPhase =
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function useGameSession() {
-  const { address } = useAccount();
+  const address = useContractAddress();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
   const { triggerNoGas } = useNoGas();
@@ -162,9 +162,9 @@ export function useGameSession() {
         const msg = ((signErr as Error)?.message ?? "").toLowerCase();
         const code = (signErr as { code?: number })?.code;
         const name = (signErr as { name?: string })?.name ?? "";
-        // Not every provider exposes eth_signTransaction. Web3Auth rejects it as
-        // unauthorized (EIP-1193 4100); others report method-not-found (-32601)
-        // or "not supported". In all these cases fall back to eth_sendTransaction.
+        // Not every provider exposes eth_signTransaction. Some reject it as
+        // unauthorized (4100), others report method-not-found (-32601), or "not
+        // supported". In all cases, fall back to eth_sendTransaction.
         const isUnsupported =
           name === "MethodNotSupportedRpcError" ||
           name === "UnauthorizedProviderError" ||

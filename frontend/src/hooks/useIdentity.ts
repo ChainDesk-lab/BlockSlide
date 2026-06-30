@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { zeroAddress } from "viem";
-import { useAccount, useReadContract } from "wagmi";
 import { IDENTITY_ABI } from "../lib/abi";
 import { IDENTITY_ADDRESS } from "../lib/constants";
+import { useContractAddress, useContractPublicClient } from "./useContractData";
 
 export type IdentityStatus =
   | "no-wallet"   // wallet not connected
@@ -29,15 +29,54 @@ const PENDING_TTL_MS = 30 * 60 * 1000; // 30 minutes
  * failure, and to remember an in-progress face verification ("pending").
  */
 export function useIdentity() {
-  const { address } = useAccount();
+  const address = useContractAddress();
+  const publicClient = useContractPublicClient();
 
-  const { data, isLoading, refetch } = useReadContract({
-    address: IDENTITY_ADDRESS,
-    abi: IDENTITY_ABI,
-    functionName: "getWhitelistedRoot",
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  });
+  const [data, setData] = useState<string | undefined>();
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Read identity status whenever address changes
+  useEffect(() => {
+    if (!address || !publicClient) {
+      setData(undefined);
+      return;
+    }
+
+    const readIdentity = async () => {
+      setIsLoading(true);
+      try {
+        const result = await publicClient.readContract({
+          address: IDENTITY_ADDRESS,
+          abi: IDENTITY_ABI,
+          functionName: "getWhitelistedRoot",
+          args: [address],
+        });
+        setData(result as string);
+      } catch (err) {
+        console.error("Error reading identity:", err);
+        setData(undefined);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    readIdentity();
+  }, [address, publicClient]);
+
+  const refetch = useCallback(async () => {
+    if (!address || !publicClient) return;
+    try {
+      const result = await publicClient.readContract({
+        address: IDENTITY_ADDRESS,
+        abi: IDENTITY_ABI,
+        functionName: "getWhitelistedRoot",
+        args: [address],
+      });
+      setData(result as string);
+    } catch (err) {
+      console.error("Error refetching identity:", err);
+    }
+  }, [address, publicClient]);
 
   const onChainVerified = !!data && data !== zeroAddress;
 

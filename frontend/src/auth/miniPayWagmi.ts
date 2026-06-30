@@ -3,13 +3,13 @@ import { injected } from "wagmi/connectors";
 import { celo } from "wagmi/chains";
 
 // ── MiniPay wagmi config ─────────────────────────────────────────────────────
-// Ported from FocusPet (the sibling Celo Mini App). Inside MiniPay there is no
-// Web3Auth / Privy — the wallet is the injected `window.ethereum` provider, so
-// we use a plain wagmi config with a single injected connector and auto-connect.
+// Ported from FocusPet (the sibling Celo Mini App). Inside MiniPay, the wallet
+// is the injected `window.ethereum` provider, so we use a plain wagmi config
+// with a single injected connector and auto-connect.
 
-// Wipe any stale wagmi (and old Privy/Web3Auth) connector sessions before
-// createConfig runs, so they can't load and override the MiniPay injected
-// connector. Mirrors FocusPet. Only runs inside MiniPay.
+// Wipe any stale wagmi connector sessions before createConfig runs, so they
+// can't load and override the MiniPay injected connector. Mirrors FocusPet.
+// Only runs inside MiniPay.
 if (typeof window !== "undefined" && (window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay) {
   try {
     Object.keys(localStorage)

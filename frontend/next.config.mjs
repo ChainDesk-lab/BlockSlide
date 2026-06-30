@@ -3,10 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   // No ESLint config ships with this project; don't fail the build on it.
   eslint: { ignoreDuringBuilds: true },
-  // Web3Auth's email/social login opens a popup and polls `popup.closed` to
-  // detect completion. Under a restrictive COOP the opener loses access to the
-  // popup and the flow hangs ("silent login loop"). `same-origin-allow-popups`
-  // is Web3Auth's recommended setting — it keeps the opener↔popup link intact.
+  // Allow popups for auth flows that need them. `same-origin-allow-popups`
+  // permits authentication popups while keeping opener↔popup links intact.
   // We deliberately do NOT set Cross-Origin-Embedder-Policy: enabling COEP would
   // require CORP headers on every cross-origin asset and break image/RPC loads.
   async headers() {
