@@ -28,10 +28,10 @@ export function MagicBridge({ children }: { children: ReactNode }) {
         const isLoggedIn = await magic.user.isLoggedIn();
 
         if (isLoggedIn) {
-          // Get user's wallet address
+          // Get user's wallet address via the provider
           const provider = magic.rpcProvider;
           const accounts = await (provider as any).request({
-            method: "eth_accounts",
+            method: "eth_requestAccounts",
           });
           if (accounts && accounts.length > 0) {
             setAddress(accounts[0] as `0x${string}`);
@@ -67,10 +67,10 @@ export function MagicBridge({ children }: { children: ReactNode }) {
       });
 
       if (didToken) {
-        // Get wallet address
+        // Get wallet address via the provider
         const provider = magic.rpcProvider;
         const accounts = await (provider as any).request({
-          method: "eth_accounts",
+          method: "eth_requestAccounts",
         });
         if (accounts && accounts.length > 0) {
           setAddress(accounts[0] as `0x${string}`);
