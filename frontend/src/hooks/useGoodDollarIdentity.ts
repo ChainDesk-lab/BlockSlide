@@ -50,7 +50,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       setError(null);
 
       // Initialize SDK for on-chain status check
-      // For Magic.link, we use a simplified SDK config since we only need to read
+      // For Magic, we use a simplified SDK config since we only need to read
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: authType === "magic" ? undefined : (wagmiWalletClient as any),
