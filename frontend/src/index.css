@@ -1314,6 +1314,96 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   color: var(--text);
 }
 
+/* Current user's row — highlighted */
+.leaderboard__entry--current-user {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Inline input for editing username in leaderboard */
+.leaderboard__name-input {
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+.leaderboard__name-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.leaderboard__name-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Action buttons (edit/save/cancel) */
+.leaderboard__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.leaderboard__action-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+}
+.leaderboard__action-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+.leaderboard__action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.leaderboard__action-btn--edit:hover {
+  background: var(--accent);
+}
+.leaderboard__action-btn--save {
+  background: color-mix(in srgb, var(--green) 20%, var(--surface-2));
+}
+.leaderboard__action-btn--save:hover:not(:disabled) {
+  background: var(--green);
+  border-color: var(--green);
+}
+.leaderboard__action-btn--cancel {
+  background: color-mix(in srgb, #f44336 20%, var(--surface-2));
+}
+.leaderboard__action-btn--cancel:hover:not(:disabled) {
+  background: #f44336;
+  border-color: #f44336;
+  color: var(--surface);
+}
+
+/* Error message in leaderboard */
+.leaderboard__error {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #f44336 15%, var(--surface));
+  border: 1px solid color-mix(in srgb, #f44336 40%, transparent);
+  color: #d32f2f;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
 /* ─── Login Screen ────────────────────────────────────────────────────────── */
 .login-screen {
   width: 100%;

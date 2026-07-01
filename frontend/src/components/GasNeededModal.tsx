@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAccount } from "wagmi";
+import { useAuth } from "../auth/AuthContext";
 
 interface Props {
   onClose: () => void;
@@ -9,7 +9,7 @@ interface Props {
 // New email/social-login wallets start empty, so we surface the address with a
 // one-tap copy and tell the user to top up — clearer than a failed transaction.
 export default function GasNeededModal({ onClose }: Props) {
-  const { address } = useAccount();
+  const { address } = useAuth();
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {

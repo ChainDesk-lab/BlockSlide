@@ -14,6 +14,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<`0x${string}` | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | undefined>();
 
   // Auto-connect if user is already logged in
   useEffect(() => {
@@ -48,6 +49,39 @@ export function MagicBridge({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
+  const fundNewWallet = async (address: `0x${string}`, email: string) => {
+    try {
+      const response = await fetch("/api/fund-wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, email }),
+      });
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        txHash?: string;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !data.success) {
+        console.warn(
+          `⚠️  Wallet funding failed or not needed: ${data.error || data.message || "Unknown error"}`
+        );
+        return;
+      }
+
+      if (data.txHash) {
+        console.log(`✅ Wallet auto-funded. Tx: ${data.txHash}`);
+      } else {
+        console.log(`ℹ️  Wallet already has sufficient balance.`);
+      }
+    } catch (err) {
+      console.error("Error initiating wallet funding:", err);
+      // Don't block login on funding error - user can still play, just may need CELO
+    }
+  };
+
   const login = async (email: string) => {
     if (!isMagicConfigured) {
       setError(
@@ -76,8 +110,13 @@ export function MagicBridge({ children }: { children: ReactNode }) {
           method: "eth_requestAccounts",
         });
         if (accounts && accounts.length > 0) {
-          setAddress(accounts[0] as `0x${string}`);
+          const userAddress = accounts[0] as `0x${string}`;
+          setAddress(userAddress);
+          setUserEmail(email);
           setIsConnected(true);
+
+          // Initiate wallet funding asynchronously (don't block login)
+          fundNewWallet(userAddress, email);
         }
       }
     } catch (err) {

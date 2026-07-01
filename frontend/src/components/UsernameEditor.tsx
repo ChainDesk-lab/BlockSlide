@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useAccount } from "wagmi";
+import { useAuth } from "../auth/AuthContext";
 import { useUsername, USERNAME_RE } from "../hooks/useUsername";
 
 export default function UsernameEditor() {
-  const { isConnected } = useAccount();
+  const { isConnected } = useAuth();
   const { username, isSaving, error, savedName, save, clearFeedback } = useUsername();
 
   const [editing, setEditing] = useState(false);
