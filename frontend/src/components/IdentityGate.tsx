@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
 import { IdentityStatus } from "../hooks/useIdentity";
 import { useAuth } from "../auth/AuthContext";
@@ -10,6 +11,25 @@ interface Props {
 }
 
 export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
+  const { address } = useAuth();
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  // Track dismissed state per wallet in localStorage
+  const dismissKey = address ? `blockslide_identity_dismissed_${address.toLowerCase()}` : null;
+
+  useEffect(() => {
+    if (dismissKey) {
+      const dismissed = localStorage.getItem(dismissKey) === "true";
+      setIsDismissed(dismissed);
+    }
+  }, [dismissKey]);
+
+  const handleDismiss = () => {
+    setIsDismissed(true);
+    if (dismissKey) {
+      localStorage.setItem(dismissKey, "true");
+    }
+  };
   // Use unified GoodDollar identity hook
   const {
     isVerifying,
@@ -24,6 +44,11 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
     onStarted(); // Mark as pending in useIdentity hook
     await startGoodDollarVerification(); // Start SDK-based verification
   };
+
+  // Don’t show if user dismissed
+  if (isDismissed) {
+    return null;
+  }
 
   // GoodDollar enforces one face = one wallet. If a user already verified on
   // another wallet, scanning again here returns "found your twin" and can never
@@ -49,7 +74,16 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
   );
 
   return (
-    <div className="identity-gate" role="alert">
+    <div className="identity-gate identity-gate--non-blocking" role="alert">
+      <button
+        className="identity-gate__close"
+        onClick={handleDismiss}
+        aria-label="Dismiss verification prompt"
+        title="You can verify anytime from the claim section"
+      >
+        ✕
+      </button>
+
       <div className="identity-gate__icon">
         {status === "loading" ? (
           <span className="spinner identity-gate__spinner" aria-hidden="true" />

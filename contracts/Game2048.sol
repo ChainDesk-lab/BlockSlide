@@ -151,7 +151,8 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     // ─── Game ─────────────────────────────────────────────────────────────────
 
-    /// Start a new game session. Caller must be a GoodDollar-verified human.
+    /// Start a new game session. No wallet verification required at this stage.
+    /// Verification is only required when submitting the score to claim rewards.
     /// @param seedHash keccak256(seed) — seed drives tile spawning client-side
     function startSession(bytes32 seedHash) external {
         Session storage session = sessions[msg.sender];
