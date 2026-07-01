@@ -37,7 +37,7 @@ async function fetchLeaderboard(): Promise<PlayerRow[]> {
 export default function Leaderboard() {
   const configured = SUBGRAPH_URL.length > 0;
   const { address } = useAuth();
-  const { username, isSaving, error, savedName, save, clearFeedback } = useUsername();
+  const { isSaving, error, save, clearFeedback } = useUsername();
 
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");

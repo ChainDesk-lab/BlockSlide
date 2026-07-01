@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { miniPayWagmiConfig } from "../src/auth/miniPayWagmi";
 import { MiniPayBridge } from "../src/auth/MiniPayBridge";
 import { MagicBridge } from "../src/auth/MagicBridge";
+import { AuthSelectionProvider } from "../src/contexts/AuthSelectionContext";
 import { NoGasProvider } from "../src/contexts/NoGasContext";
 import { ToastProvider } from "../src/contexts/ToastContext";
 import ToastContainer from "../src/components/ToastContainer";
@@ -71,37 +72,43 @@ export default function AppRoot() {
     );
   }
 
-  // Inside MiniPay: plain wagmi + injected connector.
+  // Inside MiniPay: plain wagmi + injected connector (wallet-only, no tabs).
   if (isMiniPay) {
     return (
       <ToastProvider>
-        <WagmiProvider config={miniPayWagmiConfig}>
-          <QueryClientProvider client={queryClient}>
-            <MiniPayBridge>
-              <NoGasProvider>
-                <ToastContainer />
-                <App />
-              </NoGasProvider>
-            </MiniPayBridge>
-          </QueryClientProvider>
-        </WagmiProvider>
+        <AuthSelectionProvider defaultAuth="wallet">
+          <WagmiProvider config={miniPayWagmiConfig}>
+            <QueryClientProvider client={queryClient}>
+              <MiniPayBridge>
+                <NoGasProvider>
+                  <ToastContainer />
+                  <App />
+                </NoGasProvider>
+              </MiniPayBridge>
+            </QueryClientProvider>
+          </WagmiProvider>
+        </AuthSelectionProvider>
       </ToastProvider>
     );
   }
 
-  // Regular browser: Magic.link (email-based authentication).
+  // Regular browser: both email and wallet signup options via tabs
   return (
     <ToastProvider>
-      <WagmiProvider config={miniPayWagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          <MagicBridge>
-            <NoGasProvider>
-              <ToastContainer />
-              <App />
-            </NoGasProvider>
-          </MagicBridge>
-        </QueryClientProvider>
-      </WagmiProvider>
+      <AuthSelectionProvider>
+        <WagmiProvider config={miniPayWagmiConfig}>
+          <QueryClientProvider client={queryClient}>
+            <MiniPayBridge>
+              <MagicBridge>
+                <NoGasProvider>
+                  <ToastContainer />
+                  <App />
+                </NoGasProvider>
+              </MagicBridge>
+            </MiniPayBridge>
+          </QueryClientProvider>
+        </WagmiProvider>
+      </AuthSelectionProvider>
     </ToastProvider>
   );
 }

@@ -33,14 +33,17 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const contractPublicClient = useContractPublicClient();
 
   // Helper to create wallet client on-demand (not memoized to avoid dependency issues)
-  const createWalletClientForAuth = () => {
+  // Note: only called after addressToVerify has been verified as non-undefined
+  const createWalletClientForAuth = (addr?: `0x${string}`) => {
     if (authType === "magic") {
       try {
         const magic = getMagic();
         // Create viem wallet client from Magic's EIP-1193 provider
+        // Include the account so the SDK knows which address to sign with
         return createWalletClient({
           chain: TARGET_CHAIN,
           transport: custom(magic.rpcProvider as any),
+          account: addr,
         });
       } catch (err) {
         console.error("Failed to create Magic wallet client:", err);
@@ -70,7 +73,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       setError(null);
 
       // Initialize SDK for on-chain status check
-      const walletClient = createWalletClientForAuth();
+      const walletClient = createWalletClientForAuth(addressToVerify);
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
@@ -114,7 +117,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
     try {
       // Initialize SDK with wallet and public clients
-      const walletClient = createWalletClientForAuth();
+      const walletClient = createWalletClientForAuth(addressToVerify);
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,

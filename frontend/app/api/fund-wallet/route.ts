@@ -23,7 +23,6 @@ import { privateKeyToAccount } from "viem/accounts";
 
 const FUNDING_AMOUNT = "0.05"; // 0.05 CELO = ~50 tx worth of gas
 const FUNDING_WALLET_KEY = process.env.FUNDING_WALLET_PRIVATE_KEY;
-const TREASURY_WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"; // Will be set from env or from code
 
 // Track funded wallets in memory (in production, use a database)
 // This prevents accidental duplicate funding due to retry logic

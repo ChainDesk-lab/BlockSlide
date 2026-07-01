@@ -1,45 +1,91 @@
-import { useState } from "react";
-import { useAuth, authErrMessage } from "../auth/AuthContext";
+import { useState, useEffect } from "react";
+import { authErrMessage } from "../auth/AuthContext";
+import { useCleanAuth } from "../hooks/useCleanAuth";
+import { useAuthSelection } from "../contexts/AuthSelectionContext";
+import { useAccount } from "wagmi";
 import { BoltIcon } from "./icons";
+import WalletSelector from "./WalletSelector";
 
 export default function LoginScreen() {
-  const { isReady, loading, error: authError, login, authType } = useAuth();
+  const { isReady, loading, error: authError, login } = useCleanAuth();
+  const { selectedAuth, setSelectedAuth } = useAuthSelection();
+  const { isConnected: wagmiConnected } = useAccount();
   const [caughtError, setCaughtError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
+  const [isMiniPayEnv, setIsMiniPayEnv] = useState(false);
+  const [showWalletSelector, setShowWalletSelector] = useState(false);
+
+  // Detect if we're inside MiniPay app (wallet-only mode)
+  useEffect(() => {
+    const flagged = () =>
+      (window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay === true;
+    setIsMiniPayEnv(flagged());
+  }, []);
+
+  // Show wallet selector when wallet tab selected in browser mode (non-MiniPay)
+  // Also reset all state when switching tabs for a clean experience
+  useEffect(() => {
+    if (selectedAuth === "wallet" && !isMiniPayEnv) {
+      setShowWalletSelector(true);
+      // Clear email when switching to wallet
+      setEmail("");
+    } else {
+      // Close modal and clear state when switching away from wallet tab
+      setShowWalletSelector(false);
+    }
+    // Always clear error state when switching tabs
+    setCaughtError(null);
+  }, [selectedAuth, isMiniPayEnv]);
+
+  // Auto-sign in once wallet is connected
+  useEffect(() => {
+    if (wagmiConnected && selectedAuth === "wallet" && isReady && !loading) {
+      handleSignIn();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wagmiConnected, isReady, loading]);
 
   // Surface whichever error is present.
   const error = caughtError ?? authError;
 
-  const isMiniPay = authType === "minipay";
-  const isMagic = authType === "magic";
   // Busy while the SDK/connector is still booting OR a connect is in flight.
   const busy = loading || !isReady;
 
+  // In browser (not MiniPay), show tabs to let user choose auth method
+  const showAuthTabs = !isMiniPayEnv;
+
   const handleSignIn = async () => {
-    if (!isReady) return;
+    console.log("📌 handleSignIn called", { isReady, selectedAuth, email: email ? "***" : "empty", wagmiConnected });
+
+    if (!isReady) {
+      console.log("⚠️ Not ready yet, returning");
+      return;
+    }
+
     setCaughtError(null);
     try {
-      if (isMagic) {
-        // Magic: pass email to login
+      if (selectedAuth === "email") {
+        console.log("📧 Email auth path");
+        // Email auth: pass email to login
         if (!email.trim()) {
+          console.log("⚠️ Email is empty");
           setCaughtError("Please enter your email");
           return;
         }
+        console.log("🚀 Calling login() with email");
         await login(email.trim());
-      } else {
-        // MiniPay: no email needed
+        console.log("✨ Login completed");
+      } else if (selectedAuth === "wallet" && wagmiConnected) {
+        console.log("💰 Wallet auth path");
+        // Wallet auth: wagmi handles connection, just call login
         await login();
+      } else {
+        console.log("⚠️ No valid auth path: selectedAuth=" + selectedAuth + ", wagmiConnected=" + wagmiConnected);
       }
     } catch (err) {
       const message = authErrMessage(err) ?? "Failed to sign in";
-      console.error("Login error:", err);
+      console.error("🔴 Login error:", err);
       setCaughtError(message);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !busy && email.trim()) {
-      handleSignIn();
     }
   };
 
@@ -54,57 +100,102 @@ export default function LoginScreen() {
           </p>
         </div>
 
+        {/* Auth method tabs (browser only, not in MiniPay) */}
+        {showAuthTabs && (
+          <div className="login-tabs">
+            <button
+              className={`login-tab ${selectedAuth === "email" ? "login-tab--active" : ""}`}
+              onClick={() => setSelectedAuth("email")}
+              disabled={busy}
+            >
+              Email
+            </button>
+            <button
+              className={`login-tab ${selectedAuth === "wallet" ? "login-tab--active" : ""}`}
+              onClick={() => setSelectedAuth("wallet")}
+              disabled={busy}
+            >
+              Wallet
+            </button>
+          </div>
+        )}
+
         {/* Sign-in action */}
         <div className="login-options">
-          {isMagic && (
-            <div className="login-email-form">
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyPress={handleKeyPress}
-                disabled={busy}
-                className="login-email-form__input"
-                autoComplete="email"
-                required
-              />
-            </div>
+          {selectedAuth === "email" && (
+            <>
+              <div className="login-email-form">
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !busy && email.trim() && handleSignIn()}
+                  disabled={busy}
+                  className="login-email-form__input"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+              <button
+                className="login-option login-option--wallet"
+                onClick={handleSignIn}
+                disabled={busy || !email.trim()}
+                aria-busy={busy}
+              >
+                <span className="login-option__icon">
+                  {busy ? (
+                    <span className="spinner" aria-hidden="true" />
+                  ) : (
+                    <BoltIcon size={26} />
+                  )}
+                </span>
+                <div className="login-option__text">
+                  <h2 className="login-option__title">
+                    {loading ? "Signing in…" : !isReady ? "Getting ready…" : "Continue with Email"}
+                  </h2>
+                  <p className="login-option__description">
+                    We'll send you a magic link to sign in instantly
+                  </p>
+                </div>
+                <span className="login-option__arrow">→</span>
+              </button>
+            </>
           )}
-          <button
-            className="login-option login-option--wallet"
-            onClick={handleSignIn}
-            disabled={busy || (isMagic && !email.trim())}
-            aria-busy={busy}
-          >
-            <span className="login-option__icon">
-              {busy ? (
-                <span className="spinner" aria-hidden="true" />
-              ) : (
-                <BoltIcon size={26} />
-              )}
-            </span>
-            <div className="login-option__text">
-              <h2 className="login-option__title">
-                {isMiniPay
-                  ? busy
-                    ? "Connecting to MiniPay…"
-                    : "Connect MiniPay"
-                  : loading
-                    ? "Signing in…"
-                    : !isReady
-                      ? "Getting ready…"
-                      : "Continue with Email"}
-              </h2>
-              <p className="login-option__description">
-                {isMiniPay
-                  ? "Connect your MiniPay wallet to play"
-                  : "We'll send you a magic link to sign in instantly"}
-              </p>
-            </div>
-            <span className="login-option__arrow">→</span>
-          </button>
+
+          {selectedAuth === "wallet" && (
+            <button
+              className="login-option login-option--wallet"
+              onClick={() => setShowWalletSelector(true)}
+              disabled={busy}
+              aria-busy={busy}
+            >
+              <span className="login-option__icon">
+                {busy ? (
+                  <span className="spinner" aria-hidden="true" />
+                ) : (
+                  <BoltIcon size={26} />
+                )}
+              </span>
+              <div className="login-option__text">
+                <h2 className="login-option__title">
+                  {busy ? "Signing in…" : !wagmiConnected ? "Connect Wallet" : "Continue"}
+                </h2>
+                <p className="login-option__description">
+                  {isMiniPayEnv
+                    ? "Connect your MiniPay wallet to play"
+                    : "Connect your Web3 wallet to play"}
+                </p>
+              </div>
+              <span className="login-option__arrow">→</span>
+            </button>
+          )}
         </div>
+
+        {/* Wallet Selector Modal */}
+        {showWalletSelector && (
+          <WalletSelector onClose={() => setShowWalletSelector(false)} />
+        )}
 
         {/* Error State */}
         {error && (

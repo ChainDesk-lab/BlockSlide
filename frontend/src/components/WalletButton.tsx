@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { useContractPublicClient } from "../hooks/useContractData";
+import { useGDollarBalance } from "../hooks/useGDollarBalance";
 import { formatUnits } from "viem";
 
 export default function WalletButton() {
   const { address, logout, authType } = useAuth();
   const publicClient = useContractPublicClient();
+  const { balance: gDollarBalance, refetch: refetchGDollar } = useGDollarBalance();
   const [celoBalance, setCeloBalance] = useState<string>("0");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -29,6 +31,18 @@ export default function WalletButton() {
     const interval = setInterval(fetchBalance, 10000);
     return () => clearInterval(interval);
   }, [address, publicClient]);
+
+  // Listen for score submissions and refetch G$ balance
+  useEffect(() => {
+    const handleScoreSubmitted = async () => {
+      // Wait a moment for the transaction to be fully processed
+      await new Promise((r) => setTimeout(r, 1500));
+      await refetchGDollar();
+    };
+
+    window.addEventListener("scoreSubmitted", handleScoreSubmitted);
+    return () => window.removeEventListener("scoreSubmitted", handleScoreSubmitted);
+  }, [refetchGDollar]);
 
   if (!address) return null;
 
@@ -62,6 +76,13 @@ export default function WalletButton() {
               <label className="wallet-dropdown__label">CELO Balance</label>
               <div className="wallet-dropdown__value">
                 {balanceShort} Ⓒ
+              </div>
+            </div>
+
+            <div className="wallet-dropdown__section">
+              <label className="wallet-dropdown__label">G$ Balance</label>
+              <div className="wallet-dropdown__value">
+                {gDollarBalance ? parseFloat(gDollarBalance).toFixed(2) : "0.00"} G$
               </div>
             </div>
 

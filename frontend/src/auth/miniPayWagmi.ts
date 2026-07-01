@@ -1,5 +1,5 @@
 import { http, createConfig, fallback } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { injected, walletConnect, metaMask } from "wagmi/connectors";
 import { celo } from "wagmi/chains";
 
 // ── MiniPay wagmi config ─────────────────────────────────────────────────────
@@ -45,6 +45,11 @@ const transport = fallback([
 
 export const miniPayWagmiConfig = createConfig({
   chains: [celo],
-  connectors: [miniPayConnector],
+  connectors: [
+    miniPayConnector,
+    injected(), // MetaMask and other browser wallets
+    metaMask(),
+    walletConnect({ projectId: "blockslide-celo" }), // WalletConnect v2
+  ],
   transports: { [celo.id]: transport },
 });
