@@ -1,6 +1,7 @@
 import { useAccount } from "wagmi";
 import { useShop } from "../hooks/useShop";
 import { ShieldIcon, BoltIcon, FlameIcon } from "./icons";
+import { IconBadge } from "./IconBadge";
 
 function fmtG(val: bigint | undefined): string {
   if (val === undefined) return "…";
@@ -105,7 +106,7 @@ export default function Shop() {
         {/* Streak Shield */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <span className="shop-item__icon shop-item__icon--shield"><ShieldIcon size={18} /></span>
+            <IconBadge icon={<ShieldIcon size={18} />} size="sm" />
             <div>
               <p className="shop-item__name">Streak Shield</p>
               <p className="shop-item__price">{fmtG(shieldPrice)}</p>
@@ -125,7 +126,7 @@ export default function Shop() {
         {/* 2x XP Boost */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <span className="shop-item__icon shop-item__icon--bolt"><BoltIcon size={18} /></span>
+            <IconBadge icon={<BoltIcon size={18} />} size="sm" />
             <div>
               <p className="shop-item__name">2x XP Boost</p>
               <p className="shop-item__price">{fmtG(boost2xPrice)}</p>
@@ -145,7 +146,7 @@ export default function Shop() {
         {/* 5x XP Boost */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <span className="shop-item__icon shop-item__icon--flame"><FlameIcon size={18} /></span>
+            <IconBadge icon={<FlameIcon size={18} />} size="sm" />
             <div>
               <p className="shop-item__name">5x XP Boost</p>
               <p className="shop-item__price">{fmtG(boost5xPrice)}</p>
