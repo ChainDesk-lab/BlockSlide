@@ -32,8 +32,8 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { data: wagmiWalletClient } = useWalletClient();
   const contractPublicClient = useContractPublicClient();
 
-  // Get or create wallet client based on auth type
-  const getWalletClient = useCallback(() => {
+  // Helper to create wallet client on-demand (not memoized to avoid dependency issues)
+  const createWalletClientForAuth = () => {
     if (authType === "magic") {
       try {
         const magic = getMagic();
@@ -48,7 +48,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       }
     }
     return wagmiWalletClient;
-  }, [authType, wagmiWalletClient]);
+  };
 
   const [isVerified, setIsVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +70,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       setError(null);
 
       // Initialize SDK for on-chain status check
-      const walletClient = getWalletClient();
+      const walletClient = createWalletClientForAuth();
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
@@ -93,7 +93,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     } finally {
       setIsLoading(false);
     }
-  }, [addressToVerify, contractPublicClient, getWalletClient]);
+  }, [addressToVerify, contractPublicClient, authType]);
 
   // Initial verification status check
   useEffect(() => {
@@ -114,7 +114,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
     try {
       // Initialize SDK with wallet and public clients
-      const walletClient = getWalletClient();
+      const walletClient = createWalletClientForAuth();
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
@@ -212,7 +212,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
       setIsVerifying(false);
     }
-  }, [addressToVerify, contractPublicClient, getWalletClient, checkVerificationStatus]);
+  }, [addressToVerify, contractPublicClient, authType, checkVerificationStatus]);
 
   const recheckVerification = useCallback(async () => {
     await checkVerificationStatus();
