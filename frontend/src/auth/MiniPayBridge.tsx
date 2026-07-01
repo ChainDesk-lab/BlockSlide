@@ -44,6 +44,7 @@ export function MiniPayBridge({ children }: { children: ReactNode }) {
     address,
     isReady: true,
     loading: connecting,
+    isFundingWallet: false, // MiniPay doesn't need wallet funding
     // Auto-connect hiccups are transient and self-heal via retries; only
     // surface an error once we've exhausted them.
     error: connectError && attempt > 4 ? "Couldn't connect to MiniPay — reopen the app." : null,

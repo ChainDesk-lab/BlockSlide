@@ -15,6 +15,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | undefined>();
+  const [isFundingWallet, setIsFundingWallet] = useState(false);
 
   // Auto-connect if user is already logged in
   useEffect(() => {
@@ -50,6 +51,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
   }, []);
 
   const fundNewWallet = async (address: `0x${string}`, email: string) => {
+    setIsFundingWallet(true);
     try {
       const response = await fetch("/api/fund-wallet", {
         method: "POST",
@@ -68,17 +70,23 @@ export function MagicBridge({ children }: { children: ReactNode }) {
         console.warn(
           `⚠️  Wallet funding failed or not needed: ${data.error || data.message || "Unknown error"}`
         );
+        setIsFundingWallet(false);
         return;
       }
 
       if (data.txHash) {
         console.log(`✅ Wallet auto-funded. Tx: ${data.txHash}`);
+        // For new wallets with tx, wait a moment for the tx to be mined
+        // This ensures the balance is updated before user tries to sign username tx
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       } else {
         console.log(`ℹ️  Wallet already has sufficient balance.`);
       }
     } catch (err) {
       console.error("Error initiating wallet funding:", err);
       // Don't block login on funding error - user can still play, just may need CELO
+    } finally {
+      setIsFundingWallet(false);
     }
   };
 
@@ -115,8 +123,9 @@ export function MagicBridge({ children }: { children: ReactNode }) {
           setUserEmail(email);
           setIsConnected(true);
 
-          // Initiate wallet funding asynchronously (don't block login)
-          fundNewWallet(userAddress, email);
+          // Initiate wallet funding and await completion before considering login fully done
+          // This prevents race condition where user tries to sign username tx before wallet is funded
+          await fundNewWallet(userAddress, email);
         }
       }
     } catch (err) {
@@ -155,6 +164,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
     address,
     isReady,
     loading,
+    isFundingWallet,
     error,
     authType: "magic",
     login: async (email?: string) => {
