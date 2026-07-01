@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useWalletClient } from "wagmi";
 import { IdentitySDK } from "@goodsdks/citizen-sdk";
+import { createWalletClient, custom } from "viem";
 import { TARGET_CHAIN } from "../lib/constants";
 import { useAuth } from "../auth/AuthContext";
 import { useContractPublicClient } from "./useContractData";
+import { getMagic } from "../magic";
 
 interface UseGoodDollarIdentityResult {
   isVerified: boolean;
@@ -30,6 +32,24 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { data: wagmiWalletClient } = useWalletClient();
   const contractPublicClient = useContractPublicClient();
 
+  // Get or create wallet client based on auth type
+  const getWalletClient = useCallback(() => {
+    if (authType === "magic") {
+      try {
+        const magic = getMagic();
+        // Create viem wallet client from Magic's EIP-1193 provider
+        return createWalletClient({
+          chain: TARGET_CHAIN,
+          transport: custom(magic.rpcProvider as any),
+        });
+      } catch (err) {
+        console.error("Failed to create Magic wallet client:", err);
+        return undefined;
+      }
+    }
+    return wagmiWalletClient;
+  }, [authType, wagmiWalletClient]);
+
   const [isVerified, setIsVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -50,10 +70,10 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       setError(null);
 
       // Initialize SDK for on-chain status check
-      // For Magic, we use a simplified SDK config since we only need to read
+      const walletClient = getWalletClient();
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
-        walletClient: authType === "magic" ? undefined : (wagmiWalletClient as any),
+        walletClient: walletClient as any,
         env: "production",
       });
 
@@ -73,7 +93,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     } finally {
       setIsLoading(false);
     }
-  }, [addressToVerify, contractPublicClient, wagmiWalletClient, authType]);
+  }, [addressToVerify, contractPublicClient, getWalletClient]);
 
   // Initial verification status check
   useEffect(() => {
@@ -94,9 +114,10 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
     try {
       // Initialize SDK with wallet and public clients
+      const walletClient = getWalletClient();
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
-        walletClient: authType === "magic" ? undefined : (wagmiWalletClient as any),
+        walletClient: walletClient as any,
         env: "production",
       });
 
@@ -191,7 +212,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
       setIsVerifying(false);
     }
-  }, [addressToVerify, contractPublicClient, wagmiWalletClient, authType, checkVerificationStatus]);
+  }, [addressToVerify, contractPublicClient, getWalletClient, checkVerificationStatus]);
 
   const recheckVerification = useCallback(async () => {
     await checkVerificationStatus();
