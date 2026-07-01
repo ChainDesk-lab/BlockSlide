@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { useWalletClient } from "wagmi";
 import { ClaimSDK, IdentitySDK } from "@goodsdks/citizen-sdk";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
 import { useGDollarBalance } from "../hooks/useGDollarBalance";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../contexts/ToastContext";
-import { useContractAddress, useContractPublicClient } from "../hooks/useContractData";
+import { useContractAddress, useContractPublicClient, useContractWalletClient } from "../hooks/useContractData";
 import { CoinIcon } from "./icons";
 
 interface ClaimState {
@@ -21,7 +20,7 @@ export default function ClaimUBI() {
   const { isConnected } = useAuth();
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
-  const { data: walletClient } = useWalletClient();
+  const walletClient = useContractWalletClient();
   const { showToast } = useToast();
 
   // Use unified GoodDollar identity hook
@@ -74,7 +73,7 @@ export default function ClaimUBI() {
       try {
         setState((prev) => ({ ...prev, error: null }));
 
-        if (!publicClient || !walletClient?.account) {
+        if (!publicClient || !walletClient) {
           return;
         }
 
@@ -158,7 +157,7 @@ export default function ClaimUBI() {
       return;
     }
 
-    if (!publicClient || !walletClient?.account) {
+    if (!publicClient || !walletClient) {
       setState((prev) => ({ ...prev, error: "Wallet not ready" }));
       return;
     }
@@ -206,7 +205,9 @@ export default function ClaimUBI() {
       // Show success toast
       showToast("✓ Daily G$ claimed! Check your balance.", "success");
 
-      // Fetch updated balance after claim confirms
+      // Wait a moment for the transaction to be fully processed on-chain,
+      // then refetch the balance to display the updated amount
+      await new Promise((r) => setTimeout(r, 1500));
       await refetchBalance();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";
