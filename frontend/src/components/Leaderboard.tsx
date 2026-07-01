@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../auth/AuthContext";
+import { useUsername } from "../hooks/useUsername";
 
 // Goldsky subgraph GraphQL endpoint. Set NEXT_PUBLIC_SUBGRAPH_URL after deploying
 // the subgraph in /subgraph (see its README/deploy step).
@@ -33,6 +36,11 @@ async function fetchLeaderboard(): Promise<PlayerRow[]> {
 
 export default function Leaderboard() {
   const configured = SUBGRAPH_URL.length > 0;
+  const { address } = useAuth();
+  const { isSaving, error, save, clearFeedback } = useUsername();
+
+  const [editingAddress, setEditingAddress] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["leaderboard"],
@@ -44,6 +52,27 @@ export default function Leaderboard() {
 
   const entries = data ?? [];
   const showEmpty = configured && !isLoading && (isError || entries.length === 0);
+
+  const handleEditClick = (addr: string, currentName: string | null) => {
+    setEditingAddress(addr);
+    setEditValue(currentName?.trim() || "");
+    clearFeedback();
+  };
+
+  const handleSave = async () => {
+    if (!editValue.trim()) return;
+    await save(editValue.trim());
+    if (!error) {
+      setEditingAddress(null);
+      setEditValue("");
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingAddress(null);
+    setEditValue("");
+    clearFeedback();
+  };
 
   return (
     <div className="leaderboard">
@@ -63,11 +92,34 @@ export default function Leaderboard() {
         <ol className="leaderboard__list">
           {entries.map((entry, i) => {
             const name = entry.username?.trim() || generatedName(entry.id);
+            const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
+            const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
+
             return (
-              <li key={entry.id} className="leaderboard__entry">
+              <li
+                key={entry.id}
+                className={`leaderboard__entry ${isCurrentUser ? "leaderboard__entry--current-user" : ""}`}
+              >
                 <span className="leaderboard__rank">{i + 1}</span>
                 <div className="leaderboard__player">
-                  <span className="leaderboard__name">{name}</span>
+                  {isEditingThis ? (
+                    <input
+                      className="leaderboard__name-input"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder="your_name"
+                      maxLength={20}
+                      autoFocus
+                      spellCheck={false}
+                      disabled={isSaving}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSave();
+                        if (e.key === "Escape") handleCancel();
+                      }}
+                    />
+                  ) : (
+                    <span className="leaderboard__name">{name}</span>
+                  )}
                   <span className="leaderboard__addr" title={entry.id}>
                     {shortAddr(entry.id)}
                   </span>
@@ -75,10 +127,48 @@ export default function Leaderboard() {
                 <span className="leaderboard__score">
                   {Number(entry.xp).toLocaleString()} XP
                 </span>
+                {isCurrentUser && (
+                  <div className="leaderboard__actions">
+                    {isEditingThis ? (
+                      <>
+                        <button
+                          className="leaderboard__action-btn leaderboard__action-btn--save"
+                          onClick={handleSave}
+                          disabled={isSaving || !editValue.trim()}
+                          title="Save username"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          className="leaderboard__action-btn leaderboard__action-btn--cancel"
+                          onClick={handleCancel}
+                          disabled={isSaving}
+                          title="Cancel"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="leaderboard__action-btn leaderboard__action-btn--edit"
+                        onClick={() => handleEditClick(entry.id, entry.username)}
+                        title="Change username"
+                      >
+                        ✎
+                      </button>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
         </ol>
+      )}
+
+      {editingAddress && error && (
+        <div className="leaderboard__error">
+          {error}
+        </div>
       )}
     </div>
   );

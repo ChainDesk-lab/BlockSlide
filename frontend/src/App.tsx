@@ -22,7 +22,7 @@ import { sounds } from "./lib/sounds";
 type View = "home" | "game" | "leaderboard" | "shop";
 
 export default function App() {
-  const { address, isConnected } = useAuth();
+  const { address, isConnected, isFundingWallet } = useAuth();
   const { status: identityStatus, refetch: refetchIdentity, markPending: markIdentityPending } = useIdentity();
 
   // Which screen is showing. Game state/hooks live at this level so navigating
@@ -71,7 +71,7 @@ export default function App() {
   }, [address]);
 
   const showUsernameModal =
-    !!address && !isWrongChain && !usernameLoading && !username && !usernameModalDismissed;
+    !!address && !isWrongChain && !usernameLoading && !username && !usernameModalDismissed && !isFundingWallet;
 
   // ── Sound toggle ───────────────────────────────────────────────────────────
   const [soundEnabled, setSoundEnabled] = useState(sounds.enabled);
@@ -144,6 +144,26 @@ export default function App() {
   return (
     <div className="app">
       {showHowToPlay && <HowToPlay onClose={closeHowToPlay} />}
+      {isFundingWallet && (
+        <div
+          className="htp-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Setting up wallet"
+        >
+          <div className="htp-modal">
+            <p className="htp-label">⚡ Setting up</p>
+            <h2 className="username-modal__title">Preparing your wallet</h2>
+            <p className="username-modal__desc">
+              We're auto-funding your new wallet with a small amount of CELO for gas so you can save your username and play right away.
+            </p>
+            <div className="setup-spinner-container">
+              <span className="spinner" aria-hidden="true" />
+              <p className="setup-spinner-text">This usually takes a few seconds…</p>
+            </div>
+          </div>
+        </div>
+      )}
       {showUsernameModal && (
         <UsernameModal
           onClose={() => {

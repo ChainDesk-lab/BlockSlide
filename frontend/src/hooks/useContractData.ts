@@ -3,7 +3,7 @@ import { celo } from "wagmi/chains";
 import { useAuth } from "../auth/AuthContext";
 import { isMagicConfigured, getMagic } from "../magic";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 /**
  * Get the correct address for contract operations based on auth type.
@@ -21,21 +21,26 @@ export function useContractAddress() {
 
 /**
  * Get the correct public client for contract reads based on auth type.
- * For Magic.link, uses Magic's RPC provider.
+ * For Magic.link, uses Magic's RPC provider (memoized to prevent recreating on every render).
  * For MiniPay, uses wagmi's public client.
  */
 export function useContractPublicClient() {
   const { authType } = useAuth();
   const wagmiClient = usePublicClient({ chainId: celo.id });
 
-  if (authType === "magic" && isMagicConfigured) {
-    // Use Magic's RPC provider directly
-    return createPublicClient({
-      chain: celo,
-      transport: http("https://forno.celo.org"),
-    });
-  }
-  return wagmiClient;
+  // Memoize the Magic public client to prevent recreating it on every render
+  // which would cause dependent callbacks to be recreated and trigger infinite loops
+  const magicClient = useMemo(() => {
+    if (authType === "magic" && isMagicConfigured) {
+      return createPublicClient({
+        chain: celo,
+        transport: http("https://forno.celo.org"),
+      });
+    }
+    return null;
+  }, [authType]);
+
+  return magicClient || wagmiClient;
 }
 
 /**

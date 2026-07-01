@@ -19,6 +19,8 @@ export interface AuthValue {
   isReady: boolean;
   /** A login attempt is in flight. */
   loading: boolean;
+  /** For new Magic.link wallets: funding transaction is in progress. */
+  isFundingWallet?: boolean;
   error: string | null;
   authType: AuthType;
   /** Login function - Magic requires email parameter */

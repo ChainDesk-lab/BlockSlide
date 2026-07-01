@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { AuthContext, type AuthValue } from "./AuthContext";
 import { miniPayConnector } from "./miniPayWagmi";
+import { useAuthSelection } from "../contexts/AuthSelectionContext";
 
 /**
  * Publishes MiniPay (injected) state to the shared AuthContext and drives
@@ -11,8 +12,10 @@ import { miniPayConnector } from "./miniPayWagmi";
  * window.ethereum asynchronously and the first connect() can silently reject,
  * so we retry at 0.8s, then 1s/2s/3s/4s. Must be rendered inside the MiniPay
  * <WagmiProvider>.
+ * Only provides AuthContext when "wallet" auth type is selected in dual-auth mode.
  */
 export function MiniPayBridge({ children }: { children: ReactNode }) {
+  const { selectedAuth } = useAuthSelection();
   const { address, isConnected, connector } = useAccount();
   const { connect, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
@@ -44,6 +47,7 @@ export function MiniPayBridge({ children }: { children: ReactNode }) {
     address,
     isReady: true,
     loading: connecting,
+    isFundingWallet: false, // MiniPay doesn't need wallet funding
     // Auto-connect hiccups are transient and self-heal via retries; only
     // surface an error once we've exhausted them.
     error: connectError && attempt > 4 ? "Couldn't connect to MiniPay — reopen the app." : null,
@@ -56,6 +60,11 @@ export function MiniPayBridge({ children }: { children: ReactNode }) {
       disconnect();
     },
   };
+
+  // Only provide AuthContext if wallet auth is selected (or if we're in MiniPay-only mode)
+  if (selectedAuth !== "wallet") {
+    return <>{children}</>;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

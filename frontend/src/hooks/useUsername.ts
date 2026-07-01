@@ -141,69 +141,95 @@ export function useUsername() {
 
         let hash: `0x${string}`;
         try {
-          let signed: string;
-
-          // For Magic.link, use its RPC provider directly for signing
+          // For Magic.link, use sendTransaction with timeout
           if (authType === "magic" && isMagicConfigured) {
-            try {
-              const magic = getMagic();
-              const provider = magic.rpcProvider as any;
-              signed = await provider.request({
-                method: "eth_signTransaction",
-                params: [{ ...base, type: "eip1559" }],
-              });
-            } catch (magicErr) {
-              console.error("Magic signing failed, attempting fallback:", magicErr);
-              // Fallback to eth_sendTransaction if eth_signTransaction fails
-              const magic = getMagic();
-              const provider = magic.rpcProvider as any;
-              hash = await provider.request({
-                method: "eth_sendTransaction",
-                params: [{
-                  from: address,
-                  to: GAME2048_ADDRESS,
-                  data,
-                  gas: toHex(120_000n),
-                  maxFeePerGas: toHex(500_000_000_000n),
-                  maxPriorityFeePerGas: toHex(2_500_000_000n),
-                  chainId: toHex(TARGET_CHAIN.id),
-                  type: "0x2",
-                  ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
-                }],
-              }) as `0x${string}`;
+            const magic = getMagic();
+            const provider = magic.rpcProvider as any;
 
-              const receipt = await publicClient.waitForTransactionReceipt({ hash });
-              if (receipt.status === "reverted") {
-                setError("Transaction reverted — that name may already be taken.");
-              } else {
-                setSavedName(trimmed);
-                await refetch();
+            // Add timeout to prevent infinite hanging
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Transaction request timed out after 30 seconds. Check wallet for pending transactions or insufficient gas.")), 30000)
+            );
+
+            try {
+              hash = await Promise.race([
+                provider.request({
+                  method: "eth_sendTransaction",
+                  params: [{
+                    from: address,
+                    to: GAME2048_ADDRESS,
+                    data,
+                    gas: "0x1d4c0", // 120000 in hex
+                    maxFeePerGas: "0x7428000000", // 500 Gwei in hex
+                    maxPriorityFeePerGas: "0x95a0f200", // 2.5 Gwei in hex
+                    chainId: "0xa4ec", // Celo mainnet
+                    type: "0x2",
+                    ...(nonce !== undefined ? { nonce: `0x${nonce.toString(16)}` } : {}),
+                  }],
+                }),
+                timeoutPromise,
+              ]) as `0x${string}`;
+
+              console.log("Transaction sent:", hash);
+            } catch (timeoutErr) {
+              // If timeout, provide helpful message
+              if ((timeoutErr as Error).message.includes("timed out")) {
+                triggerNoGas(); // Show the gas modal
+                setError("Transaction is taking too long. You may need CELO for gas. Please check your wallet.");
+                setIsSaving(false);
+                return;
               }
-              setIsSaving(false);
-              return;
+              throw timeoutErr;
             }
           } else {
             // For other auth types, use viem's signTransaction
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            signed = await (signTransaction as any)(wagmiWalletClient, { ...base, type: "eip1559" });
+            const signed = await (signTransaction as any)(wagmiWalletClient, { ...base, type: "eip1559" });
+            hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
           }
-
-          hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
         } catch (signErr: unknown) {
-          const msg = ((signErr as Error)?.message ?? "").toLowerCase();
+          const errMessage = (signErr as Error)?.message ?? String(signErr);
+          const msg = errMessage.toLowerCase();
           const code = (signErr as { code?: number })?.code;
           const name = (signErr as { name?: string })?.name ?? "";
-          // See useGameSession: some providers reject eth_signTransaction;
-          // fall back to eth_sendTransaction.
+
+          console.error("Transaction error:", { msg, code, name, errMessage });
+
+          // For Magic.link, provide specific error guidance
+          if (authType === "magic") {
+            if (msg.includes("insufficient balance") || msg.includes("insufficient funds") || msg.includes("insufficient gas")) {
+              triggerNoGas();
+              setError("You need CELO in your wallet to pay for gas. A small amount (0.01 CELO) is enough.");
+              setIsSaving(false);
+              return;
+            }
+            if (msg.includes("user denied") || msg.includes("user rejected") || msg.includes("cancelled")) {
+              setError("Transaction was cancelled. Your username was not saved.");
+              setIsSaving(false);
+              return;
+            }
+            if (msg.includes("timed out") || msg.includes("timeout")) {
+              setError("Request timed out. Please try again.");
+              setIsSaving(false);
+              return;
+            }
+            // Generic Magic.link error
+            setError("Failed to save username. Please try again or check your wallet.");
+            setIsSaving(false);
+            return;
+          }
+
+          // For other auth types, try fallback to eth_sendTransaction
           const unsupported =
             name === "MethodNotSupportedRpcError" ||
             name === "UnauthorizedProviderError" ||
             code === 4100 ||
             code === -32601 ||
             msg.includes("not supported") ||
-            msg.includes("authoriz") ||
-            msg.includes("eth_signtransaction");
+            msg.includes("authoriz");
+
           if (!unsupported) throw signErr;
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           hash = await (wagmiWalletClient as any).request({
             method: "eth_sendTransaction",

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { usePublicClient, useWalletClient } from "wagmi";
+import { useWalletClient } from "wagmi";
 import { IdentitySDK } from "@goodsdks/citizen-sdk";
+import { createWalletClient, custom } from "viem";
 import { TARGET_CHAIN } from "../lib/constants";
+import { useAuth } from "../auth/AuthContext";
+import { useContractPublicClient } from "./useContractData";
+import { getMagic } from "../magic";
 
 interface UseGoodDollarIdentityResult {
   isVerified: boolean;
@@ -24,17 +28,42 @@ interface UseGoodDollarIdentityResult {
  * - Post-verification status recheck
  */
 export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
-  const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
+  const { authType, address: magicAddress } = useAuth();
+  const { data: wagmiWalletClient } = useWalletClient();
+  const contractPublicClient = useContractPublicClient();
+
+  // Helper to create wallet client on-demand (not memoized to avoid dependency issues)
+  // Note: only called after addressToVerify has been verified as non-undefined
+  const createWalletClientForAuth = (addr?: `0x${string}`) => {
+    if (authType === "magic") {
+      try {
+        const magic = getMagic();
+        // Create viem wallet client from Magic's EIP-1193 provider
+        // Include the account so the SDK knows which address to sign with
+        return createWalletClient({
+          chain: TARGET_CHAIN,
+          transport: custom(magic.rpcProvider as any),
+          account: addr,
+        });
+      } catch (err) {
+        console.error("Failed to create Magic wallet client:", err);
+        return undefined;
+      }
+    }
+    return wagmiWalletClient;
+  };
 
   const [isVerified, setIsVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Get the address to verify - Magic or wagmi
+  const addressToVerify = authType === "magic" ? magicAddress : wagmiWalletClient?.account?.address;
+
   // Check on-chain verification status
   const checkVerificationStatus = useCallback(async () => {
-    if (!publicClient || !walletClient?.account) {
+    if (!addressToVerify || !contractPublicClient) {
       setIsLoading(false);
       return;
     }
@@ -44,8 +73,9 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       setError(null);
 
       // Initialize SDK for on-chain status check
+      const walletClient = createWalletClientForAuth(addressToVerify);
       const sdk = new IdentitySDK({
-        publicClient: publicClient as any,
+        publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
         env: "production",
       });
@@ -56,9 +86,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       // unverified wallets). `.isWhitelisted` also correctly recognises a wallet
       // LINKED to a verified root — GoodDollar allows one identity across
       // multiple wallets, so a connected account reads as whitelisted too.
-      const { isWhitelisted } = await sdk.getWhitelistedRoot(
-        walletClient.account.address,
-      );
+      const { isWhitelisted } = await sdk.getWhitelistedRoot(addressToVerify);
 
       setIsVerified(isWhitelisted);
     } catch (err) {
@@ -68,7 +96,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     } finally {
       setIsLoading(false);
     }
-  }, [publicClient, walletClient]);
+  }, [addressToVerify, contractPublicClient, authType]);
 
   // Initial verification status check
   useEffect(() => {
@@ -76,7 +104,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   }, [checkVerificationStatus]);
 
   const startVerification = useCallback(async () => {
-    if (!publicClient || !walletClient?.account) {
+    if (!addressToVerify || !contractPublicClient) {
       setError("Wallet not connected");
       return;
     }
@@ -89,8 +117,9 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
     try {
       // Initialize SDK with wallet and public clients
+      const walletClient = createWalletClientForAuth(addressToVerify);
       const sdk = new IdentitySDK({
-        publicClient: publicClient as any,
+        publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
         env: "production",
       });
@@ -186,7 +215,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
       setIsVerifying(false);
     }
-  }, [publicClient, walletClient, checkVerificationStatus]);
+  }, [addressToVerify, contractPublicClient, authType, checkVerificationStatus]);
 
   const recheckVerification = useCallback(async () => {
     await checkVerificationStatus();
