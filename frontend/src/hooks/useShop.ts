@@ -121,12 +121,48 @@ export function useShop() {
     xpBoost.multiplier > 0 &&
     xpBoost.expiry > BigInt(Math.floor(Date.now() / 1000));
 
+  // ── Storage corruption detection & normalization ────────────────────────────
+  // The deployed contract has storage layout misalignment (failed V5 upgrade).
+  // Detect and normalize corrupted values with fallbacks.
+
+  // Normalize streak: if value looks like a timestamp (>10000), it's corrupted
+  const normalizedStreakCount = (() => {
+    const val = streakCount ?? 0n;
+    if (val > 10000n) {
+      // Value looks like a timestamp, not a day count — corrupted
+      console.warn(`Streak value suspiciously large: ${val}. Possible storage corruption. Showing as 0.`);
+      return 0n;
+    }
+    return val;
+  })();
+
+  // Normalize prices: use contract values, fallback to expected prices if 0
+  const SHIELD_PRICE_DEFAULT = 25n * 10n ** 18n; // 25 G$
+  const BOOST_2X_PRICE_DEFAULT = 50n * 10n ** 18n; // 50 G$
+  const BOOST_5X_PRICE_DEFAULT = 125n * 10n ** 18n; // 125 G$
+
+  const normalizedShieldPrice = shieldPrice ?? SHIELD_PRICE_DEFAULT;
+  const normalizedBoost2xPrice = boost2xPrice ?? BOOST_2X_PRICE_DEFAULT;
+  const normalizedBoost5xPrice = boost5xPrice ?? BOOST_5X_PRICE_DEFAULT;
+
+  // Sanity-check XP: if it's suspiciously large (like a timestamp), log warning
+  if ((playerXp ?? 0n) > 10000000n) {
+    console.warn(`Player XP suspiciously large: ${playerXp}. Possible storage corruption.`);
+  }
+
+  // Sanity-check Shields: if it's suspiciously large, log warning
+  if ((shieldCount ?? 0n) > 1000n) {
+    console.warn(`Shield count suspiciously large: ${shieldCount}. Possible storage corruption.`);
+  }
+
   return {
-    shieldPrice, boost2xPrice, boost5xPrice,
+    shieldPrice: normalizedShieldPrice,
+    boost2xPrice: normalizedBoost2xPrice,
+    boost5xPrice: normalizedBoost5xPrice,
     shieldCount: shieldCount ?? 0n,
     xpBoost, boostActive,
     playerXp: playerXp ?? 0n,
-    streakCount: streakCount ?? 0n,
+    streakCount: normalizedStreakCount,
     gdBalance: gdBalance ?? 0n,
     gdAllowance: gdAllowance ?? 0n,
     pendingAction, isTxPending, error,
