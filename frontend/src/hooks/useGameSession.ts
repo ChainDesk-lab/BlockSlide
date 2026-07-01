@@ -116,7 +116,14 @@ export function useGameSession() {
     }
 
     if (pendingActionRef.current === "start") setPhase("active");
-    else if (pendingActionRef.current === "submit") setPhase("done");
+    else if (pendingActionRef.current === "submit") {
+      setPhase("done");
+      // Emit event to notify other components to refetch balances after milestone rewards are paid
+      const event = new CustomEvent("scoreSubmitted", {
+        detail: { txHash, timestamp: Date.now() },
+      });
+      window.dispatchEvent(event);
+    }
     pendingActionRef.current = null;
     setIsPending(false);
     refetchSession();

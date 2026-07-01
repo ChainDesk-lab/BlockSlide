@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useWalletClient } from "wagmi";
 import { ClaimSDK, IdentitySDK } from "@goodsdks/citizen-sdk";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
+import { useGDollarBalance } from "../hooks/useGDollarBalance";
 import { useAuth } from "../auth/AuthContext";
 import { useContractAddress, useContractPublicClient } from "../hooks/useContractData";
 import { CoinIcon } from "./icons";
-import { G_DOLLAR_ADDRESS } from "../lib/constants";
-import { erc20Abi, formatUnits } from "viem";
+import { erc20Abi } from "viem";
 
 interface ClaimState {
   isEntitled: boolean;
@@ -32,6 +32,9 @@ export default function ClaimUBI() {
     startVerification,
   } = useGoodDollarIdentity();
 
+  // Use separate hook for G$ balance refetching
+  const { balance, refetch: refetchBalance } = useGDollarBalance();
+
   const [state, setState] = useState<ClaimState>({
     isEntitled: false,
     isClaiming: false,
@@ -41,31 +44,23 @@ export default function ClaimUBI() {
     txHash: null,
   });
 
-  const [balance, setBalance] = useState<string>("0");
   const [countdown, setCountdown] = useState<string>("");
 
-  // Fetch G$ (ERC-20) balance. G$ uses 18 decimals.
-  const fetchBalance = useCallback(async () => {
-    if (!address || !publicClient) return;
+  // Listen for score submission events and refetch balance (milestone rewards)
+  useEffect(() => {
+    const handleScoreSubmitted = async () => {
+      // Wait a moment for the transaction to be fully processed
+      await new Promise((r) => setTimeout(r, 1500));
+      await refetchBalance();
+    };
 
-    try {
-      const balance = await publicClient.readContract({
-        address: G_DOLLAR_ADDRESS as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        args: [address as `0x${string}`],
-      });
-
-      const formatted = formatUnits(balance as bigint, 18);
-      setBalance(formatted);
-    } catch (err) {
-      console.error("Error fetching balance:", err);
-    }
-  }, [address, publicClient]);
+    window.addEventListener("scoreSubmitted", handleScoreSubmitted);
+    return () => window.removeEventListener("scoreSubmitted", handleScoreSubmitted);
+  }, [refetchBalance]);
 
   useEffect(() => {
-    fetchBalance();
-  }, [fetchBalance]);
+    refetchBalance();
+  }, [refetchBalance]);
 
   // Check entitlement status using GoodDollar SDK
   useEffect(() => {
@@ -207,10 +202,8 @@ export default function ClaimUBI() {
         nextClaimTime: status.nextClaimTime || null,
       }));
 
-      // Fetch updated balance immediately
-      setTimeout(() => {
-        fetchBalance();
-      }, 1000);
+      // Fetch updated balance after claim confirms
+      await refetchBalance();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";
 
