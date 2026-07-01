@@ -14,6 +14,7 @@ import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
+import { useToast } from "../contexts/ToastContext";
 import { useContractAddress, useContractWalletClient } from "./useContractData";
 
 const LOW_GAS_THRESHOLD = 5_000_000_000_000_000n; // 0.005 CELO
@@ -32,6 +33,7 @@ export function useGameSession() {
   const chainId = useChainId();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
   const { triggerNoGas } = useNoGas();
+  const { showToast } = useToast();
 
   // Public client uses our transport (ankr first) — for nonce reads and broadcast.
   const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
@@ -118,6 +120,7 @@ export function useGameSession() {
     if (pendingActionRef.current === "start") setPhase("active");
     else if (pendingActionRef.current === "submit") {
       setPhase("done");
+      showToast("✓ Score submitted! Check your rewards.", "success");
       // Emit event to notify other components to refetch balances after milestone rewards are paid
       const event = new CustomEvent("scoreSubmitted", {
         detail: { txHash, timestamp: Date.now() },
@@ -127,7 +130,7 @@ export function useGameSession() {
     pendingActionRef.current = null;
     setIsPending(false);
     refetchSession();
-  }, [txConfirmed, txWaitError, txWaitErrorObj, txReceipt, txHash, refetchSession]);
+  }, [txConfirmed, txWaitError, txWaitErrorObj, txReceipt, txHash, refetchSession, showToast]);
 
   // ── Core transaction helper ───────────────────────────────────────────────
   const signAndBroadcast = useCallback(async (

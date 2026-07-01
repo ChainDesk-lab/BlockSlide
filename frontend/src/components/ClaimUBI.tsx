@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useWalletClient } from "wagmi";
 import { ClaimSDK, IdentitySDK } from "@goodsdks/citizen-sdk";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
 import { useGDollarBalance } from "../hooks/useGDollarBalance";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../contexts/ToastContext";
 import { useContractAddress, useContractPublicClient } from "../hooks/useContractData";
 import { CoinIcon } from "./icons";
-import { erc20Abi } from "viem";
 
 interface ClaimState {
   isEntitled: boolean;
@@ -22,6 +22,7 @@ export default function ClaimUBI() {
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
   const { data: walletClient } = useWalletClient();
+  const { showToast } = useToast();
 
   // Use unified GoodDollar identity hook
   const {
@@ -202,6 +203,9 @@ export default function ClaimUBI() {
         nextClaimTime: status.nextClaimTime || null,
       }));
 
+      // Show success toast
+      showToast("✓ Daily G$ claimed! Check your balance.", "success");
+
       // Fetch updated balance after claim confirms
       await refetchBalance();
     } catch (err) {
@@ -220,6 +224,7 @@ export default function ClaimUBI() {
           error: errorMsg,
           isClaiming: false,
         }));
+        showToast(`❌ ${errorMsg}`, "error");
       }
     }
   };
