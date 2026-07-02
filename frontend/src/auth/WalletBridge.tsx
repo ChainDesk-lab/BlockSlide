@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useAccount, useDisconnect } from "wagmi";
 import { AuthContext, type AuthValue } from "./AuthContext";
 
@@ -9,7 +9,7 @@ import { AuthContext, type AuthValue } from "./AuthContext";
  * Handles browser-based wallet connections without MiniPay.
  */
 export function WalletBridge({ children }: { children: ReactNode }) {
-  const { address, isConnected, connector } = useAccount();
+  const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
 
   const value: AuthValue = {
