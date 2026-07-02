@@ -1666,10 +1666,13 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  z-index: 0;
 }
 
 .wallet-selector-dialog {
   position: relative;
+  z-index: 1;
+  pointer-events: auto;
   width: 100%;
   max-width: 480px;
   background: var(--surface);
@@ -1743,6 +1746,46 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-size: 0.95rem;
   color: var(--text-muted);
   margin: 0;
+}
+
+.wallet-selector-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius);
+  margin: 10px 0;
+  font-size: 0.9rem;
+  color: #b91c1c;
+  line-height: 1.4;
+}
+
+.wallet-selector-error__icon {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.wallet-selector-error__text {
+  flex: 1;
+}
+
+.wallet-selector-error__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+  margin: -2px -8px -2px 0;
+}
+
+.wallet-selector-error__close:hover {
+  color: #7f1d1d;
 }
 
 .wallet-selector-options {
@@ -1845,6 +1888,15 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-size: 0.85rem;
   color: var(--text-muted);
   margin: 0;
+  line-height: 1.4;
+}
+
+.wallet-selector-help--note {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .wallet-selector-link {
