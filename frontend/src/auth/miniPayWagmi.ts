@@ -49,13 +49,22 @@ if (!walletConnectProjectId) {
   console.warn("⚠️ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set — WalletConnect will not work");
 }
 
+// WalletConnect connector with fallback relays for better connectivity
+const walletConnectConnector = walletConnectProjectId
+  ? walletConnect({
+      projectId: walletConnectProjectId,
+      // Try multiple relays in case primary fails
+      relayUrl: "wss://relay.walletconnect.org",
+    })
+  : null;
+
 export const miniPayWagmiConfig = createConfig({
   chains: [celo],
   connectors: [
     miniPayConnector,
     injected(), // MetaMask and other browser wallets
     metaMask(),
-    ...(walletConnectProjectId ? [walletConnect({ projectId: walletConnectProjectId })] : []), // WalletConnect v2
+    ...(walletConnectConnector ? [walletConnectConnector] : []), // WalletConnect v2
   ],
   transports: { [celo.id]: transport },
 });

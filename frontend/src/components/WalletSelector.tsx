@@ -51,9 +51,27 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
           clearTimeout(timeoutId);
           console.error(`[WalletSelector] Connection error:`, error);
           setConnectingTo(null);
-          setError(
-            error instanceof Error ? error.message : "Failed to connect wallet"
-          );
+
+          // Provide user-friendly error messages for common failure modes
+          let errorMessage = "Failed to connect wallet";
+          const errorStr = error instanceof Error ? error.message : String(error);
+
+          if (
+            errorStr.includes("relay") ||
+            errorStr.includes("websocket") ||
+            errorStr.toLowerCase().includes("connection")
+          ) {
+            errorMessage =
+              "Network error connecting to WalletConnect relay. Check your internet connection or try MetaMask instead.";
+          } else if (errorStr.includes("not installed")) {
+            errorMessage = `${connectorName} is not installed. Please install it first.`;
+          } else if (errorStr.includes("User rejected")) {
+            errorMessage = "Connection cancelled by user";
+          } else if (errorStr) {
+            errorMessage = errorStr;
+          }
+
+          setError(errorMessage);
         },
       }
     );
@@ -163,6 +181,9 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
             >
               Get MetaMask
             </a>
+          </p>
+          <p className="wallet-selector-help wallet-selector-help--note">
+            <strong>Having connection issues?</strong> If WalletConnect fails, try MetaMask instead. Some networks may block WebSocket connections.
           </p>
         </div>
       </div>

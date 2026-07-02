@@ -1888,6 +1888,15 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-size: 0.85rem;
   color: var(--text-muted);
   margin: 0;
+  line-height: 1.4;
+}
+
+.wallet-selector-help--note {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .wallet-selector-link {
