@@ -31,12 +31,15 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     setError(null);
 
     // Disconnect current connector if switching to a different one
-    // Must wait for disconnect to complete before attempting new connection
+    // wagmi requires disconnecting before connecting a different connector
     if (connectedConnector && connectedConnector.id !== connector.id) {
+      console.log(`[WalletSelector] Current connector: ${connectedConnector.id}, Target: ${connector.id}`);
       console.log(`[WalletSelector] Disconnecting ${connectedConnector.name} before connecting ${connectorName}`);
       disconnect();
-      // Give disconnect time to complete before attempting new connection
-      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Wait for disconnect to fully complete before attempting new connection
+      // 500ms is safe for wagmi's internal state to update
+      await new Promise((resolve) => setTimeout(resolve, 500));
       console.log(`[WalletSelector] Disconnection complete, now connecting ${connectorName}`);
     }
 
