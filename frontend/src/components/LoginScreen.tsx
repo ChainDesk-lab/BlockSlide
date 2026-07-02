@@ -12,20 +12,12 @@ export default function LoginScreen() {
   const { isConnected: wagmiConnected } = useAccount();
   const [caughtError, setCaughtError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [isMiniPayEnv, setIsMiniPayEnv] = useState(false);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
 
-  // Detect if we're inside MiniPay app (wallet-only mode)
-  useEffect(() => {
-    const flagged = () =>
-      (window.ethereum as { isMiniPay?: boolean } | undefined)?.isMiniPay === true;
-    setIsMiniPayEnv(flagged());
-  }, []);
-
-  // Show wallet selector when wallet tab selected in browser mode (non-MiniPay)
+  // Show wallet selector when wallet tab selected
   // Also reset all state when switching tabs for a clean experience
   useEffect(() => {
-    if (selectedAuth === "wallet" && !isMiniPayEnv) {
+    if (selectedAuth === "wallet") {
       setShowWalletSelector(true);
       // Clear email when switching to wallet
       setEmail("");
@@ -35,7 +27,7 @@ export default function LoginScreen() {
     }
     // Always clear error state when switching tabs
     setCaughtError(null);
-  }, [selectedAuth, isMiniPayEnv]);
+  }, [selectedAuth]);
 
   // Auto-sign in once wallet is connected
   useEffect(() => {
@@ -51,8 +43,8 @@ export default function LoginScreen() {
   // Busy while the SDK/connector is still booting OR a connect is in flight.
   const busy = loading || !isReady;
 
-  // In browser (not MiniPay), show tabs to let user choose auth method
-  const showAuthTabs = !isMiniPayEnv;
+  // Show tabs to let user choose auth method
+  const showAuthTabs = true;
 
   const handleSignIn = async () => {
     console.log("📌 handleSignIn called", { isReady, selectedAuth, email: email ? "***" : "empty", wagmiConnected });
@@ -182,9 +174,7 @@ export default function LoginScreen() {
                   {busy ? "Signing in…" : !wagmiConnected ? "Connect Wallet" : "Continue"}
                 </h2>
                 <p className="login-option__description">
-                  {isMiniPayEnv
-                    ? "Connect your MiniPay wallet to play"
-                    : "Connect your Web3 wallet to play"}
+                  Connect your Web3 wallet to play
                 </p>
               </div>
               <span className="login-option__arrow">→</span>

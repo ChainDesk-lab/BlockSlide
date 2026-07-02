@@ -1,9 +1,9 @@
 import { ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { miniPayWagmiConfig } from "./miniPayWagmi";
-import { MiniPayBridge } from "./MiniPayBridge";
+import { wagmiConfig } from "./wagmiConfig";
 import { MagicBridge } from "./MagicBridge";
+import { WalletBridge } from "./WalletBridge";
 import { AuthSelectionProvider } from "../contexts/AuthSelectionContext";
 
 const queryClient = new QueryClient();
@@ -15,15 +15,16 @@ interface DualAuthBridgeProps {
 export function DualAuthBridge({ children }: DualAuthBridgeProps) {
   return (
     <AuthSelectionProvider>
-      <WagmiProvider config={miniPayWagmiConfig}>
+      <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          {/* Nest Magic inside MiniPay so both AuthContexts are available.
-              useCleanAuth() handles filtering to the correct one based on selectedAuth. */}
-          <MiniPayBridge>
+          {/* Both auth bridges provide AuthContext so components can use useAuth()
+              regardless of which auth method is selected. useCleanAuth() filters
+              to use only the selected provider. */}
+          <WalletBridge>
             <MagicBridge>
               {children}
             </MagicBridge>
-          </MiniPayBridge>
+          </WalletBridge>
         </QueryClientProvider>
       </WagmiProvider>
     </AuthSelectionProvider>
