@@ -17,7 +17,7 @@ import { useNoGas } from "../contexts/NoGasContext";
 import { useToast } from "../contexts/ToastContext";
 import { useContractAddress, useContractWalletClient } from "./useContractData";
 
-const LOW_GAS_THRESHOLD = 5_000_000_000_000_000n; // 0.005 CELO
+const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
 
 export type SessionPhase =
   | "idle"        // no wallet / no active session

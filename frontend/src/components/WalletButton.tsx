@@ -89,7 +89,7 @@ export default function WalletButton() {
             <div className="wallet-dropdown__section">
               <label className="wallet-dropdown__label">Auth Method</label>
               <div className="wallet-dropdown__value">
-                {authType === "magic" ? "Magic.link Email" : authType === "minipay" ? "MiniPay Wallet" : "Unknown"}
+                {authType === "magic" ? "Magic.link Email" : authType === "minipay" ? "Web3 Wallet" : "Unknown"}
               </div>
             </div>
 

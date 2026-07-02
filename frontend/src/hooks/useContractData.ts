@@ -7,7 +7,7 @@ import { useCallback, useMemo } from "react";
 
 /**
  * Get the correct address for contract operations based on auth type.
- * For Magic.link, uses the Magic address. For MiniPay, uses wagmi address.
+ * For Magic.link, uses the Magic address. For Web3 wallets, uses wagmi address.
  */
 export function useContractAddress() {
   const { address: wagmiAddress } = useAccount();
@@ -22,7 +22,7 @@ export function useContractAddress() {
 /**
  * Get the correct public client for contract reads based on auth type.
  * For Magic.link, uses Magic's RPC provider (memoized to prevent recreating on every render).
- * For MiniPay, uses wagmi's public client.
+ * For Web3 wallets, uses wagmi's public client.
  */
 export function useContractPublicClient() {
   const { authType } = useAuth();
@@ -46,7 +46,7 @@ export function useContractPublicClient() {
 /**
  * Get the correct wallet client for signing transactions based on auth type.
  * For Magic.link, returns a compatible object that works with viem's signTransaction.
- * For MiniPay, returns wagmi's wallet client.
+ * For Web3 wallets, returns wagmi's wallet client.
  */
 export function useContractWalletClient() {
   const { authType } = useAuth();

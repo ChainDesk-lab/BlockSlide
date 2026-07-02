@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useConnect, useConnectors, useAccount } from "wagmi";
+import { useConnect, useConnectors, useAccount, useDisconnect } from "wagmi";
 
 interface WalletSelectorProps {
   onClose: () => void;
@@ -7,12 +7,13 @@ interface WalletSelectorProps {
 
 export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { connect } = useConnect();
+  const { disconnect } = useDisconnect();
   const connectors = useConnectors();
-  const { isConnecting } = useAccount();
+  const { isConnecting, connector: connectedConnector } = useAccount();
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleConnectWallet = (connectorName: string) => {
+  const handleConnectWallet = async (connectorName: string) => {
     // Find connector with case-insensitive match
     const connector = connectors.find(
       (c) => c.name.toLowerCase().includes(connectorName.toLowerCase())
@@ -28,6 +29,19 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
 
     setConnectingTo(connectorName);
     setError(null);
+
+    // Disconnect current connector if switching to a different one
+    // wagmi requires disconnecting before connecting a different connector
+    if (connectedConnector && connectedConnector.id !== connector.id) {
+      console.log(`[WalletSelector] Current connector: ${connectedConnector.id}, Target: ${connector.id}`);
+      console.log(`[WalletSelector] Disconnecting ${connectedConnector.name} before connecting ${connectorName}`);
+      disconnect();
+
+      // Wait for disconnect to fully complete before attempting new connection
+      // 500ms is safe for wagmi's internal state to update
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      console.log(`[WalletSelector] Disconnection complete, now connecting ${connectorName}`);
+    }
 
     // Set a timeout to reset connecting state if connection hangs
     const timeoutId = setTimeout(() => {
@@ -63,6 +77,14 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
           ) {
             errorMessage =
               "Network error connecting to WalletConnect relay. Check your internet connection or try MetaMask instead.";
+          } else if (errorStr.includes("Provider not found")) {
+            if (connectorName.toLowerCase().includes("metamask")) {
+              errorMessage = "MetaMask is not installed. Install it from https://metamask.io";
+            } else if (connectorName.toLowerCase().includes("walletconnect")) {
+              errorMessage = "WalletConnect failed to connect. Check your internet and try again.";
+            } else {
+              errorMessage = "No Web3 wallet found. Install MetaMask or another Web3 wallet.";
+            }
           } else if (errorStr.includes("not installed")) {
             errorMessage = `${connectorName} is not installed. Please install it first.`;
           } else if (errorStr.includes("User rejected")) {
