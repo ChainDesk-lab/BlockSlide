@@ -13,7 +13,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleConnectWallet = (connectorName: string) => {
+  const handleConnectWallet = async (connectorName: string) => {
     // Find connector with case-insensitive match
     const connector = connectors.find(
       (c) => c.name.toLowerCase().includes(connectorName.toLowerCase())
@@ -31,9 +31,13 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     setError(null);
 
     // Disconnect current connector if switching to a different one
+    // Must wait for disconnect to complete before attempting new connection
     if (connectedConnector && connectedConnector.id !== connector.id) {
       console.log(`[WalletSelector] Disconnecting ${connectedConnector.name} before connecting ${connectorName}`);
       disconnect();
+      // Give disconnect time to complete before attempting new connection
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      console.log(`[WalletSelector] Disconnection complete, now connecting ${connectorName}`);
     }
 
     // Set a timeout to reset connecting state if connection hangs
