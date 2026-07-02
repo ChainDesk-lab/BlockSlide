@@ -795,7 +795,6 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   justify-content: center;
 }
 
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn:not(:disabled):hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
@@ -804,6 +803,16 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .btn--primary   { background: var(--accent); color: #fff; }
 .btn--secondary { background: #1e63ff;        color: #fff; }
+
+/* Disabled/completed state — muted appearance, not clickable-looking */
+.btn--disabled {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.btn--disabled:hover { transform: none; box-shadow: none; }
 
 .btn--xs {
   padding: 5px 14px;

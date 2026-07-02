@@ -213,7 +213,7 @@ export default function ClaimUBI() {
 
       // Refetch balance, with retry if it still shows 0
       const newBalance = await refetchBalance();
-      if (newBalance === "0" && gdBalance === undefined) {
+      if (newBalance === "0") {
         // Balance still 0 after claim — wait and retry once more
         await new Promise((r) => setTimeout(r, 2000));
         await refetchBalance();
@@ -336,7 +336,7 @@ export default function ClaimUBI() {
             )}
           </div>
         </div>
-        <button className="btn btn--primary" disabled>
+        <button className="btn btn--disabled">
           Already Claimed Today
         </button>
       </section>
