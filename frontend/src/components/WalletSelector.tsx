@@ -10,30 +10,53 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const connectors = useConnectors();
   const { isConnecting } = useAccount();
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleConnectWallet = (connectorName: string) => {
+    // Find connector with case-insensitive match
     const connector = connectors.find(
       (c) => c.name.toLowerCase().includes(connectorName.toLowerCase())
     );
 
-    if (connector) {
-      setConnectingTo(connectorName);
-      connect(
-        { connector },
-        {
-          onSuccess: () => {
-            // Keep modal open briefly while connection completes
-            setTimeout(() => {
-              onClose();
-            }, 500);
-          },
-          onError: (error) => {
-            console.error("Connection error:", error);
-            setConnectingTo(null);
-          },
-        }
-      );
+    if (!connector) {
+      console.error(`[WalletSelector] Connector not found: ${connectorName}`, {
+        available: connectors.map((c) => c.name),
+      });
+      setError(`${connectorName} wallet not found`);
+      return;
     }
+
+    setConnectingTo(connectorName);
+    setError(null);
+
+    // Set a timeout to reset connecting state if connection hangs
+    const timeoutId = setTimeout(() => {
+      console.warn(`[WalletSelector] Connection to ${connectorName} timed out after 30s`);
+      setConnectingTo(null);
+      setError(`Connection to ${connectorName} timed out. Please try again.`);
+    }, 30000);
+
+    connect(
+      { connector },
+      {
+        onSuccess: () => {
+          clearTimeout(timeoutId);
+          console.log(`[WalletSelector] Successfully connected to ${connectorName}`);
+          // Keep modal open briefly while connection completes
+          setTimeout(() => {
+            onClose();
+          }, 500);
+        },
+        onError: (error) => {
+          clearTimeout(timeoutId);
+          console.error(`[WalletSelector] Connection error:`, error);
+          setConnectingTo(null);
+          setError(
+            error instanceof Error ? error.message : "Failed to connect wallet"
+          );
+        },
+      }
+    );
   };
 
   const handleClose = () => {
@@ -84,6 +107,20 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
           <p className="wallet-selector-description">
             Select a wallet to sign in to BlockSlide
           </p>
+
+          {error && (
+            <div className="wallet-selector-error">
+              <span className="wallet-selector-error__icon">⚠️</span>
+              <span className="wallet-selector-error__text">{error}</span>
+              <button
+                className="wallet-selector-error__close"
+                onClick={() => setError(null)}
+                aria-label="Dismiss error"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           <div className="wallet-selector-options">
             {walletOptions.map((option) => (
