@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useAuthSelection } from "../contexts/AuthSelectionContext";
 import { useContractPublicClient } from "../hooks/useContractData";
 import { useGDollarBalance } from "../hooks/useGDollarBalance";
 import { formatUnits } from "viem";
 
 export default function WalletButton() {
   const { address, logout, authType } = useAuth();
+  const { setSelectedAuth } = useAuthSelection();
   const publicClient = useContractPublicClient();
   const { balance: gDollarBalance, refetch: refetchGDollar } = useGDollarBalance();
   const [celoBalance, setCeloBalance] = useState<string>("0");
@@ -95,9 +97,11 @@ export default function WalletButton() {
 
             <button
               className="btn btn--sm btn--danger"
-              onClick={() => {
+              onClick={async () => {
                 setIsOpen(false);
-                logout();
+                // Reset to email auth tab and clear all state on logout
+                setSelectedAuth("email");
+                await logout();
               }}
             >
               Sign Out

@@ -182,10 +182,21 @@ export function MagicBridge({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      console.log("[MagicBridge] Starting logout...");
       const magic = getMagic();
       await magic.user.logout();
       setIsConnected(false);
       setAddress(undefined);
+
+      // Also clear any wagmi localStorage state in case user previously connected a wallet
+      // This prevents "Connector already connected" errors if they switch to wallet auth
+      const wagmiKeys = Object.keys(localStorage).filter((key) => key.startsWith("wagmi."));
+      wagmiKeys.forEach((key) => {
+        localStorage.removeItem(key);
+        console.log(`[MagicBridge] Cleared localStorage: ${key}`);
+      });
+
+      console.log("[MagicBridge] Logout complete");
     } catch (err) {
       console.error("Magic logout error:", err);
     }

@@ -32,6 +32,16 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     setConnectingTo(connectorName);
     setError(null);
 
+    // Check if this connector is already connected
+    if (connectedConnector?.id === connector.id) {
+      console.log(`[WalletSelector] Already connected to ${connectorName}, closing modal`);
+      // Already connected to this wallet, just close the modal
+      setTimeout(() => {
+        onClose();
+      }, 300);
+      return;
+    }
+
     // Disconnect current connector if switching to a different one
     // wagmi requires disconnecting before connecting a different connector
     if (connectedConnector && connectedConnector.id !== connector.id) {
@@ -71,6 +81,19 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
           // Provide user-friendly error messages for common failure modes
           let errorMessage = "Failed to connect wallet";
           const errorStr = error instanceof Error ? error.message : String(error);
+
+          // Handle "Connector already connected" - try force-disconnect and retry
+          if (errorStr.includes("Connector already connected")) {
+            console.warn(`[WalletSelector] Connector already connected, attempting force-disconnect...`);
+            // Force disconnect to clear stale state
+            disconnect();
+            setTimeout(() => {
+              // Retry the connection after disconnect
+              console.log(`[WalletSelector] Retrying connection after force-disconnect`);
+              handleConnectWallet(connectorName);
+            }, 500);
+            return;
+          }
 
           if (
             errorStr.includes("relay") ||
@@ -154,13 +177,29 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
             <div className="wallet-selector-error">
               <span className="wallet-selector-error__icon">⚠️</span>
               <span className="wallet-selector-error__text">{error}</span>
-              <button
-                className="wallet-selector-error__close"
-                onClick={() => setError(null)}
-                aria-label="Dismiss error"
-              >
-                ✕
-              </button>
+              <div className="wallet-selector-error__actions">
+                {error.includes("already") && (
+                  <button
+                    className="wallet-selector-error__reset"
+                    onClick={() => {
+                      console.log("[WalletSelector] User triggered manual disconnect");
+                      disconnect();
+                      setError(null);
+                      setConnectingTo(null);
+                    }}
+                    aria-label="Reset connection"
+                  >
+                    Reset Connection
+                  </button>
+                )}
+                <button
+                  className="wallet-selector-error__close"
+                  onClick={() => setError(null)}
+                  aria-label="Dismiss error"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )}
 
