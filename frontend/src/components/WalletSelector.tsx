@@ -11,7 +11,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
   const connectors = useConnectors();
-  const { isConnecting, connector: connectedConnector } = useAccount();
+  const { isConnecting, connector: connectedConnector, isConnected, address } = useAccount();
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,27 +32,55 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     setConnectingTo(connectorName);
     setError(null);
 
-    // Check if this connector is already connected
-    if (connectedConnector?.id === connector.id) {
-      console.log(`[WalletSelector] Already connected to ${connectorName}, closing modal`);
-      // Already connected to this wallet, just close the modal
+    // Check if this connector has a LIVE connection (not just a stale connector object)
+    // Must have both isConnected=true AND address present to be considered a real connection
+    const hasLiveConnection =
+      connectedConnector?.id === connector.id && isConnected && address;
+
+    if (hasLiveConnection) {
+      console.log(
+        `[WalletSelector] User is already connected to ${connectorName} with address ${address}`
+      );
+      // Already genuinely connected to this wallet - close modal without reconnecting
       setTimeout(() => {
         onClose();
       }, 300);
       return;
     }
 
-    // Disconnect current connector if switching to a different one
+    // If connector exists but NO real address (stale state), force clean disconnect first
+    if (connectedConnector?.id === connector.id && !address) {
+      console.warn(
+        `[WalletSelector] Stale connection detected: connector=${connectorName} but no address. Force disconnecting...`
+      );
+      disconnect();
+      // Wait for stale state to clear
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      console.log(`[WalletSelector] Stale state cleared, proceeding with connect for ${connectorName}`);
+    }
+
+    // Disconnect current connector if switching to a DIFFERENT one
     // wagmi requires disconnecting before connecting a different connector
-    if (connectedConnector && connectedConnector.id !== connector.id) {
-      console.log(`[WalletSelector] Current connector: ${connectedConnector.id}, Target: ${connector.id}`);
-      console.log(`[WalletSelector] Disconnecting ${connectedConnector.name} before connecting ${connectorName}`);
+    if (
+      connectedConnector &&
+      connectedConnector.id !== connector.id &&
+      isConnected &&
+      address
+    ) {
+      console.log(
+        `[WalletSelector] Switching from ${connectedConnector.id} to ${connector.id}`
+      );
+      console.log(
+        `[WalletSelector] Disconnecting ${connectedConnector.name} before connecting ${connectorName}`
+      );
       disconnect();
 
       // Wait for disconnect to fully complete before attempting new connection
       // 500ms is safe for wagmi's internal state to update
       await new Promise((resolve) => setTimeout(resolve, 500));
-      console.log(`[WalletSelector] Disconnection complete, now connecting ${connectorName}`);
+      console.log(
+        `[WalletSelector] Disconnection complete, now connecting ${connectorName}`
+      );
     }
 
     // Set a timeout to reset connecting state if connection hangs
