@@ -2,8 +2,7 @@ import { ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { wagmiConfig } from "./wagmiConfig";
-import { MagicBridge } from "./MagicBridge";
-import { WalletBridge } from "./WalletBridge";
+import { UnifiedAuthBridge } from "./UnifiedAuthBridge";
 import { AuthSelectionProvider } from "../contexts/AuthSelectionContext";
 
 const queryClient = new QueryClient();
@@ -17,14 +16,11 @@ export function DualAuthBridge({ children }: DualAuthBridgeProps) {
     <AuthSelectionProvider>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          {/* Both auth bridges provide AuthContext so components can use useAuth()
-              regardless of which auth method is selected. useCleanAuth() filters
-              to use only the selected provider. */}
-          <WalletBridge>
-            <MagicBridge>
-              {children}
-            </MagicBridge>
-          </WalletBridge>
+          {/* A single bridge provides AuthContext, exposing wallet OR magic
+              state based on the selected auth method. This replaces the old
+              nested WalletBridge > MagicBridge, where the inner bridge shadowed
+              the outer one so wallet connections were never visible to useAuth(). */}
+          <UnifiedAuthBridge>{children}</UnifiedAuthBridge>
         </QueryClientProvider>
       </WagmiProvider>
     </AuthSelectionProvider>
