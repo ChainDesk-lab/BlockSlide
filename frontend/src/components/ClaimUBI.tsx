@@ -206,10 +206,18 @@ export default function ClaimUBI() {
       // Show success toast
       showToast("✓ Daily G$ claimed! Check your balance.", "success");
 
-      // Wait a moment for the transaction to be fully processed on-chain,
-      // then refetch the balance to display the updated amount
-      await new Promise((r) => setTimeout(r, 1500));
-      await refetchBalance();
+      // Wait for the transaction to be fully processed on-chain.
+      // Celo blocks are ~5s, plus indexing time — use longer delay to be safe.
+      // Also try refetching multiple times in case first attempt hits cache.
+      await new Promise((r) => setTimeout(r, 3000));
+
+      // Refetch balance, with retry if it still shows 0
+      const newBalance = await refetchBalance();
+      if (newBalance === "0" && gdBalance === undefined) {
+        // Balance still 0 after claim — wait and retry once more
+        await new Promise((r) => setTimeout(r, 2000));
+        await refetchBalance();
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";
 
