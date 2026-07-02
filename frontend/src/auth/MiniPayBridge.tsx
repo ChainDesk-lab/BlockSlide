@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { AuthContext, type AuthValue } from "./AuthContext";
 import { miniPayConnector } from "./miniPayWagmi";
-import { useAuthSelection } from "../contexts/AuthSelectionContext";
 
 /**
  * Publishes MiniPay (injected) state to the shared AuthContext and drives
@@ -15,7 +14,6 @@ import { useAuthSelection } from "../contexts/AuthSelectionContext";
  * Only provides AuthContext when "wallet" auth type is selected in dual-auth mode.
  */
 export function MiniPayBridge({ children }: { children: ReactNode }) {
-  const { selectedAuth } = useAuthSelection();
   const { address, isConnected, connector } = useAccount();
   const { connect, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
@@ -61,10 +59,7 @@ export function MiniPayBridge({ children }: { children: ReactNode }) {
     },
   };
 
-  // Only provide AuthContext if wallet auth is selected (or if we're in MiniPay-only mode)
-  if (selectedAuth !== "wallet") {
-    return <>{children}</>;
-  }
-
+  // Always provide AuthContext so nested components can use useAuth()
+  // useCleanAuth() filters to only use this if selectedAuth === "wallet"
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

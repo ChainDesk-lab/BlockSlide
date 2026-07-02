@@ -17,17 +17,13 @@ export function DualAuthBridge({ children }: DualAuthBridgeProps) {
     <AuthSelectionProvider>
       <WagmiProvider config={miniPayWagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          {/* MiniPay bridge with wallet auth */}
+          {/* Nest Magic inside MiniPay so both AuthContexts are available.
+              useCleanAuth() handles filtering to the correct one based on selectedAuth. */}
           <MiniPayBridge>
-            <div style={{ display: "none" }}>
+            <MagicBridge>
               {children}
-            </div>
+            </MagicBridge>
           </MiniPayBridge>
-
-          {/* Magic bridge with email auth */}
-          <MagicBridge>
-            {children}
-          </MagicBridge>
         </QueryClientProvider>
       </WagmiProvider>
     </AuthSelectionProvider>

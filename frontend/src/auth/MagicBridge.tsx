@@ -3,7 +3,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { AuthContext, type AuthValue } from "./AuthContext";
 import { getMagic, isMagicConfigured } from "../magic";
-import { useAuthSelection } from "../contexts/AuthSelectionContext";
 
 /**
  * Magic.link bridge - handles email authentication via magic links.
@@ -11,7 +10,6 @@ import { useAuthSelection } from "../contexts/AuthSelectionContext";
  * Only provides AuthContext when "email" auth type is selected in dual-auth mode.
  */
 export function MagicBridge({ children }: { children: ReactNode }) {
-  const { selectedAuth } = useAuthSelection();
   const [isReady, setIsReady] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [address, setAddress] = useState<`0x${string}` | undefined>();
@@ -211,10 +209,7 @@ export function MagicBridge({ children }: { children: ReactNode }) {
     logout,
   };
 
-  // Only provide AuthContext if email auth is selected (or if we're in MiniPay-only mode)
-  if (selectedAuth !== "email") {
-    return <>{children}</>;
-  }
-
+  // Always provide AuthContext so nested components can use useAuth()
+  // useCleanAuth() filters to only use this if selectedAuth === "email"
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
