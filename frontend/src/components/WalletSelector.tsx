@@ -77,6 +77,14 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
           ) {
             errorMessage =
               "Network error connecting to WalletConnect relay. Check your internet connection or try MetaMask instead.";
+          } else if (errorStr.includes("Provider not found")) {
+            if (connectorName.toLowerCase().includes("metamask")) {
+              errorMessage = "MetaMask is not installed. Install it from https://metamask.io";
+            } else if (connectorName.toLowerCase().includes("walletconnect")) {
+              errorMessage = "WalletConnect failed to connect. Check your internet and try again.";
+            } else {
+              errorMessage = "No Web3 wallet found. Install MetaMask or another Web3 wallet.";
+            }
           } else if (errorStr.includes("not installed")) {
             errorMessage = `${connectorName} is not installed. Please install it first.`;
           } else if (errorStr.includes("User rejected")) {
