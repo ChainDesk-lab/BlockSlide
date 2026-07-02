@@ -1273,7 +1273,6 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 /* ─── Leaderboard ────────────────────────────────────────────────────────── */
 .leaderboard {
   width: 100%;
-  max-width: 480px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
