@@ -153,47 +153,72 @@ export default function ClaimUBI() {
   }, [state.nextClaimTime]);
 
   const handleClaim = async () => {
+    console.log("[CLAIM] Button clicked - starting claim flow");
+
     if (!address || !isVerified) {
+      console.log("[CLAIM] Pre-condition failed - address or not verified", { address, isVerified });
       setState((prev) => ({ ...prev, error: "Please verify your identity first" }));
       return;
     }
 
+    console.log("[CLAIM] Address verified", { address });
+
     if (!publicClient || !walletClient) {
+      console.log("[CLAIM] Pre-condition failed - missing publicClient or walletClient", {
+        hasPublicClient: !!publicClient,
+        hasWalletClient: !!walletClient
+      });
       setState((prev) => ({ ...prev, error: "Wallet not ready" }));
       return;
     }
 
+    console.log("[CLAIM] Wallet clients ready");
+
     try {
+      console.log("[CLAIM] Setting isClaiming state to true");
       setState((prev) => ({ ...prev, isClaiming: true, error: null }));
 
       // Initialize IdentitySDK
+      console.log("[CLAIM] Initializing IdentitySDK...");
       const identitySDK = await IdentitySDK.init({
         publicClient: publicClient as any,
         walletClient: walletClient as any,
         env: "production",
       });
+      console.log("[CLAIM] IdentitySDK initialized successfully");
 
       // Initialize ClaimSDK
+      console.log("[CLAIM] Initializing ClaimSDK...");
       const claimSDK = await ClaimSDK.init({
         publicClient: publicClient as any,
         walletClient: walletClient as any,
         identitySDK,
         env: "production",
       });
+      console.log("[CLAIM] ClaimSDK initialized successfully");
 
       // Execute claim with SDK - requests wallet signature for on-chain transaction
+      console.log("[CLAIM] Calling claimSDK.claim() - about to submit transaction...");
       const receipt = await claimSDK.claim();
+      console.log("[CLAIM] Transaction submitted, receipt:", receipt);
+
+      console.log("[CLAIM] Receipt received:", receipt);
 
       if (!receipt?.transactionHash) {
+        console.log("[CLAIM] ERROR: No transaction hash in receipt");
         throw new Error("Claim transaction did not return a hash");
       }
 
       const txHash = receipt.transactionHash;
+      console.log("[CLAIM] Transaction hash:", txHash);
 
       // Get updated claim status
+      console.log("[CLAIM] Fetching updated claim status...");
       const status = await claimSDK.getWalletClaimStatus();
+      console.log("[CLAIM] Claim status updated:", status);
 
       // Successful claim - show success message inline
+      console.log("[CLAIM] SUCCESS - setting success state");
       setState((prev) => ({
         ...prev,
         success: true,
@@ -209,16 +234,22 @@ export default function ClaimUBI() {
       // Wait for the transaction to be fully processed on-chain.
       // Celo blocks are ~5s, plus indexing time — use longer delay to be safe.
       // Also try refetching multiple times in case first attempt hits cache.
+      console.log("[CLAIM] Waiting 3s for on-chain confirmation...");
       await new Promise((r) => setTimeout(r, 3000));
 
       // Refetch balance, with retry if it still shows 0
+      console.log("[CLAIM] Refetching balance...");
       const newBalance = await refetchBalance();
+      console.log("[CLAIM] New balance:", newBalance);
       if (newBalance === "0") {
         // Balance still 0 after claim — wait and retry once more
+        console.log("[CLAIM] Balance still 0, retrying after 2s...");
         await new Promise((r) => setTimeout(r, 2000));
         await refetchBalance();
       }
+      console.log("[CLAIM] Claim flow completed successfully");
     } catch (err) {
+      console.log("[CLAIM] CAUGHT ERROR:", err);
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";
 
       // Check if user rejected the transaction
@@ -227,8 +258,10 @@ export default function ClaimUBI() {
         errorMsg.toLowerCase().includes("denied") ||
         errorMsg.toLowerCase().includes("cancel")
       ) {
+        console.log("[CLAIM] User rejected transaction - hiding error");
         setState((prev) => ({ ...prev, error: null, isClaiming: false }));
       } else {
+        console.log("[CLAIM] Error occurred - showing to user:", errorMsg);
         setState((prev) => ({
           ...prev,
           error: errorMsg,

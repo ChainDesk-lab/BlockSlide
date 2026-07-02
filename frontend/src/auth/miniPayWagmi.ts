@@ -43,13 +43,19 @@ const transport = fallback([
   http("https://rpc.ankr.com/celo"),
 ]);
 
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+
+if (!walletConnectProjectId) {
+  console.warn("⚠️ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set — WalletConnect will not work");
+}
+
 export const miniPayWagmiConfig = createConfig({
   chains: [celo],
   connectors: [
     miniPayConnector,
     injected(), // MetaMask and other browser wallets
     metaMask(),
-    walletConnect({ projectId: "blockslide-celo" }), // WalletConnect v2
+    ...(walletConnectProjectId ? [walletConnect({ projectId: walletConnectProjectId })] : []), // WalletConnect v2
   ],
   transports: { [celo.id]: transport },
 });

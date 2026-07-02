@@ -223,6 +223,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 /* ─── Username card ──────────────────────────────────────────────────────── */
 .username-card {
   width: 100%;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1273,7 +1274,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 /* ─── Leaderboard ────────────────────────────────────────────────────────── */
 .leaderboard {
   width: 100%;
-  max-width: 480px;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);

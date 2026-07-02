@@ -182,7 +182,7 @@ export default function App() {
           title="Home"
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setView("home"); }}
         >
-          <h1 className="header__logo">2048</h1>
+          <h1 className="header__logo">BlockSlide</h1>
         </div>
         <div className="header__right">
           <span className="tooltip" data-tip="Home">
