@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { useContractAddress, useContractPublicClient, useContractWalletClient } from "../hooks/useContractData";
 import { CoinIcon } from "./icons";
+import { IconBadge } from "./IconBadge";
 
 interface ClaimState {
   isEntitled: boolean;
@@ -205,10 +206,18 @@ export default function ClaimUBI() {
       // Show success toast
       showToast("✓ Daily G$ claimed! Check your balance.", "success");
 
-      // Wait a moment for the transaction to be fully processed on-chain,
-      // then refetch the balance to display the updated amount
-      await new Promise((r) => setTimeout(r, 1500));
-      await refetchBalance();
+      // Wait for the transaction to be fully processed on-chain.
+      // Celo blocks are ~5s, plus indexing time — use longer delay to be safe.
+      // Also try refetching multiple times in case first attempt hits cache.
+      await new Promise((r) => setTimeout(r, 3000));
+
+      // Refetch balance, with retry if it still shows 0
+      const newBalance = await refetchBalance();
+      if (newBalance === "0") {
+        // Balance still 0 after claim — wait and retry once more
+        await new Promise((r) => setTimeout(r, 2000));
+        await refetchBalance();
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to claim G$";
 
@@ -327,7 +336,7 @@ export default function ClaimUBI() {
             )}
           </div>
         </div>
-        <button className="btn btn--primary" disabled>
+        <button className="btn btn--disabled">
           Already Claimed Today
         </button>
       </section>
@@ -337,9 +346,7 @@ export default function ClaimUBI() {
   return (
     <section className={`daily-claim daily-claim--ready ${state.success ? "daily-claim--success" : ""}`}>
       <div className="daily-claim__info">
-        <span className="daily-claim__icon">
-          <CoinIcon size={22} />
-        </span>
+        <IconBadge icon={<CoinIcon size={22} />} size="lg" />
         <div className="daily-claim__text">
           <h3 className="daily-claim__title">Claim Daily G$</h3>
           {state.success ? (

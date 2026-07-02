@@ -1,5 +1,6 @@
 import ClaimUBI from "./ClaimUBI";
 import { BoltIcon, FlameIcon, GamepadIcon, TrophyIcon } from "./icons";
+import { IconBadge } from "./IconBadge";
 
 interface HomeProps {
   onPlay: () => void;
@@ -57,9 +58,7 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
       <section className="features">
         {FEATURES.map(({ Icon, title, text }) => (
           <div className="feature-card" key={title}>
-            <span className="feature-card__icon">
-              <Icon size={22} />
-            </span>
+            <IconBadge icon={<Icon size={22} />} size="md" />
             <h3 className="feature-card__title">{title}</h3>
             <p className="feature-card__text">{text}</p>
           </div>

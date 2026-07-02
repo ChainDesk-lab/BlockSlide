@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CoinIcon } from "./icons";
+import { IconBadge } from "./IconBadge";
 
 // GoodDollar UBI claim page. Change this if you prefer a different claim URL.
 const CLAIM_URL = "https://wallet.gooddollar.org/";
@@ -26,9 +27,7 @@ export default function DailyClaim() {
   return (
     <section className="daily-claim">
       <div className="daily-claim__info">
-        <span className="daily-claim__icon">
-          <CoinIcon size={22} />
-        </span>
+        <IconBadge icon={<CoinIcon size={22} />} size="lg" />
         <div className="daily-claim__text">
           <h3 className="daily-claim__title">Claim Daily G$</h3>
           <p className={`daily-claim__status ${visitedToday ? "daily-claim__status--done" : ""}`}>

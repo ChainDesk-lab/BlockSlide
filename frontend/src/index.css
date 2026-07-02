@@ -24,20 +24,20 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 
 /* ─── Tile palette ────────────────────────────────────────────────────────── */
-/* Vivid "sky → space" spectrum. Same colours in both modes — tiles are the
-   bright elements that pop against the board. */
+/* Brand-aligned gradient: light lavender → saturated purple → hot pink → orange.
+   Progresses from pastel lows through brand colors to vivid highs. */
 :root {
-  --t2:    #7ec8f0; --t2-fg:    #0a2d40;
-  --t4:    #00c9a7; --t4-fg:    #002b23;
-  --t8:    #ffc300; --t8-fg:    #3a2800;
-  --t16:   #ff7a00; --t16-fg:   #fff;
-  --t32:   #ff2f55; --t32-fg:   #fff;
-  --t64:   #ff1cac; --t64-fg:   #fff;
-  --t128:  #b400f5; --t128-fg:  #fff;
-  --t256:  #6930e8; --t256-fg:  #fff;
-  --t512:  #1e63ff; --t512-fg:  #fff;
-  --t1024: #00b4e0; --t1024-fg: #fff;
-  --t2048: #ff4d00; --t2048-fg: #fff;
+  --t2:    #f5eff9; --t2-fg:    #2a2722;
+  --t4:    #e8daf4; --t4-fg:    #3a3430;
+  --t8:    #dcc7ee; --t8-fg:    #4a4440;
+  --t16:   #cf9fe6; --t16-fg:   #fff;
+  --t32:   #c375dc; --t32-fg:   #fff;
+  --t64:   #b64fd2; --t64-fg:   #fff;
+  --t128:  #845ef7; --t128-fg:  #fff;
+  --t256:  #7047e0; --t256-fg:  #fff;
+  --t512:  #5c3fd0; --t512-fg:  #fff;
+  --t1024: #ff1cac; --t1024-fg: #fff;
+  --t2048: #ff7a00; --t2048-fg: #fff;
 }
 
 /* ─── App shell ──────────────────────────────────────────────────────────── */
@@ -68,21 +68,14 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 .header__left { display: flex; align-items: baseline; gap: 10px; cursor: pointer; }
 
 .header__logo {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: 900;
   letter-spacing: -0.04em;
   background: linear-gradient(135deg, #845ef7 0%, #ff1cac 50%, #ff7a00 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-.header__sub {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  line-height: 1;
 }
 
 .header__right {
@@ -371,6 +364,36 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   box-shadow: var(--shadow);
 }
 
+/* ─── Unified Icon Badge ─────────────────────────────────────────────────── */
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+  flex-shrink: 0;
+}
+
+.icon-badge--sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.icon-badge--md {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  margin-bottom: 4px;
+}
+
+.icon-badge--lg {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
 /* Feature cards */
 .features {
   display: grid;
@@ -394,17 +417,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   box-shadow: var(--shadow-lg);
 }
 
-.feature-card__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
-  margin-bottom: 4px;
-}
+/* Removed: feature-card__icon — now uses icon-badge component */
 
 .feature-card__title { font-size: 1rem; font-weight: 800; }
 .feature-card__text  { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; }
@@ -425,17 +438,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .daily-claim__info { display: flex; align-items: center; gap: 14px; min-width: 0; }
 
-.daily-claim__icon {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
-}
+/* Removed: daily-claim__icon — now uses icon-badge component */
 
 .daily-claim__title  { font-size: 1.05rem; font-weight: 800; }
 .daily-claim__status { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
@@ -785,7 +788,6 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   justify-content: center;
 }
 
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn:not(:disabled):hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
@@ -794,6 +796,16 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .btn--primary   { background: var(--accent); color: #fff; }
 .btn--secondary { background: #1e63ff;        color: #fff; }
+
+/* Disabled/completed state — muted appearance, not clickable-looking */
+.btn--disabled {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.btn--disabled:hover { transform: none; box-shadow: none; }
 
 .btn--xs {
   padding: 5px 14px;
@@ -1198,18 +1210,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   gap: 10px;
 }
 
-.shop-item__icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.shop-item__icon--shield { background: #dbeafe; color: #1d4ed8; }
-.shop-item__icon--bolt   { background: #fef9c3; color: #ca8a04; }
-.shop-item__icon--flame  { background: #fee2e2; color: #dc2626; }
+/* Removed: shop-item__icon — now uses icon-badge component */
 
 .shop-item__name {
   font-size: 0.9rem;
