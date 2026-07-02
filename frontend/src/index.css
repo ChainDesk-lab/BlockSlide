@@ -1772,6 +1772,31 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   flex: 1;
 }
 
+.wallet-selector-error__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wallet-selector-error__reset {
+  background: none;
+  border: none;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 8px;
+  margin: 0;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+
+.wallet-selector-error__reset:hover {
+  color: #7f1d1d;
+}
+
 .wallet-selector-error__close {
   flex-shrink: 0;
   background: none;
