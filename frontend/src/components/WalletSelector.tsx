@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useConnect, useConnectors, useAccount } from "wagmi";
+import { useConnect, useConnectors, useAccount, useDisconnect } from "wagmi";
 
 interface WalletSelectorProps {
   onClose: () => void;
@@ -7,8 +7,9 @@ interface WalletSelectorProps {
 
 export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { connect } = useConnect();
+  const { disconnect } = useDisconnect();
   const connectors = useConnectors();
-  const { isConnecting } = useAccount();
+  const { isConnecting, connector: connectedConnector } = useAccount();
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +29,12 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
 
     setConnectingTo(connectorName);
     setError(null);
+
+    // Disconnect current connector if switching to a different one
+    if (connectedConnector && connectedConnector.id !== connector.id) {
+      console.log(`[WalletSelector] Disconnecting ${connectedConnector.name} before connecting ${connectorName}`);
+      disconnect();
+    }
 
     // Set a timeout to reset connecting state if connection hangs
     const timeoutId = setTimeout(() => {
