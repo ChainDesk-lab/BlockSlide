@@ -1666,10 +1666,13 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  z-index: 0;
 }
 
 .wallet-selector-dialog {
   position: relative;
+  z-index: 1;
+  pointer-events: auto;
   width: 100%;
   max-width: 480px;
   background: var(--surface);
