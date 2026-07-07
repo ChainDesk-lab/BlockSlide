@@ -247,6 +247,8 @@ export default function ClaimUBI() {
         await new Promise((r) => setTimeout(r, 2000));
         await refetchBalance();
       }
+      // Notify other components (e.g. WalletButton) that G$ balance has changed
+      window.dispatchEvent(new Event("gdBalanceChanged"));
       console.log("[CLAIM] Claim flow completed successfully");
     } catch (err) {
       console.log("[CLAIM] CAUGHT ERROR:", err);
