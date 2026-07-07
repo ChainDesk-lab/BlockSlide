@@ -183,47 +183,66 @@ export function useGameSession() {
 
       let hash: `0x${string}`;
 
-      try {
-        // Primary path: eth_signTransaction (pure crypto, wallet makes zero RPC
-        // calls) then we broadcast via ankr — forno never involved.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const signedTx = await (signTransaction as any)(walletClient, { ...txBase, type: "eip1559" });
-        hash = await publicClient.sendRawTransaction({ serializedTransaction: signedTx });
-      } catch (signErr: unknown) {
-        const msg = ((signErr as Error)?.message ?? "").toLowerCase();
-        const code = (signErr as { code?: number })?.code;
-        const name = (signErr as { name?: string })?.name ?? "";
-        // Not every provider exposes eth_signTransaction. Some reject it as
-        // unauthorized (4100), others report method-not-found (-32601), or "not
-        // supported". In all cases, fall back to eth_sendTransaction.
-        const isUnsupported =
-          name === "MethodNotSupportedRpcError" ||
-          name === "UnauthorizedProviderError" ||
-          code === 4100 ||
-          code === -32601 ||
-          msg.includes("not supported") ||
-          msg.includes("authoriz") ||
-          msg.includes("eth_signtransaction");
+      // Magic.link (email wallet) holds private keys server-side and doesn't
+      // expose eth_signTransaction. Go straight to eth_sendTransaction with a
+      // simple legacy-style tx (gasPrice only, no EIP-1559 fields, no explicit
+      // nonce) so Magic's provider can apply chain defaults without confusion.
+      const isMagicWallet = (walletClient as any)?.key === "magic";
 
-        if (!isUnsupported) throw signErr;
-
-        // Fallback: wallet doesn't support eth_signTransaction (e.g. Coinbase Wallet).
-        // Use eth_sendTransaction directly — wallet handles signing + broadcast via
-        // its own RPC (which is not forno, so the signing prompt appears normally).
+      if (isMagicWallet) {
         hash = await (walletClient as any).request({
           method: "eth_sendTransaction",
           params: [{
-            from:                 address,
-            to:                   GAME2048_ADDRESS,
+            from:     address,
+            to:       GAME2048_ADDRESS,
             data,
-            gas:                  toHex(gas),
-            maxFeePerGas:         toHex(500_000_000_000n),
-            maxPriorityFeePerGas: toHex(2_500_000_000n),
-            chainId:              toHex(TARGET_CHAIN.id),
-            type:                 "0x2",
-            ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
+            gas:      toHex(gas),
+            gasPrice: toHex(5_000_000_000n), // 5 Gwei — well above Celo's 0.025 Gwei minimum
           }],
         }) as `0x${string}`;
+      } else {
+        try {
+          // Primary path: eth_signTransaction (pure crypto, wallet makes zero RPC
+          // calls) then we broadcast via ankr — forno never involved.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const signedTx = await (signTransaction as any)(walletClient, { ...txBase, type: "eip1559" });
+          hash = await publicClient.sendRawTransaction({ serializedTransaction: signedTx });
+        } catch (signErr: unknown) {
+          const msg = ((signErr as Error)?.message ?? "").toLowerCase();
+          const code = (signErr as { code?: number })?.code;
+          const name = (signErr as { name?: string })?.name ?? "";
+          // Not every provider exposes eth_signTransaction. Some reject it as
+          // unauthorized (4100), others report method-not-found (-32601), or "not
+          // supported". In all cases, fall back to eth_sendTransaction.
+          const isUnsupported =
+            name === "MethodNotSupportedRpcError" ||
+            name === "UnauthorizedProviderError" ||
+            code === 4100 ||
+            code === -32601 ||
+            msg.includes("not supported") ||
+            msg.includes("authoriz") ||
+            msg.includes("eth_signtransaction");
+
+          if (!isUnsupported) throw signErr;
+
+          // Fallback: wallet doesn't support eth_signTransaction (e.g. Coinbase Wallet).
+          // Use eth_sendTransaction directly — wallet handles signing + broadcast via
+          // its own RPC (which is not forno, so the signing prompt appears normally).
+          hash = await (walletClient as any).request({
+            method: "eth_sendTransaction",
+            params: [{
+              from:                 address,
+              to:                   GAME2048_ADDRESS,
+              data,
+              gas:                  toHex(gas),
+              maxFeePerGas:         toHex(500_000_000_000n),
+              maxPriorityFeePerGas: toHex(2_500_000_000n),
+              chainId:              toHex(TARGET_CHAIN.id),
+              type:                 "0x2",
+              ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
+            }],
+          }) as `0x${string}`;
+        }
       }
 
       setTxHash(hash);
@@ -511,8 +530,10 @@ function parseContractError(error: Error): string {
     return "Your wallet doesn't support transaction signing. Try MetaMask on Celo Mainnet.";
   if (msg.includes("resource not available") || msg.includes("too many errors"))
     return "Celo RPC unavailable. Check your wallet's Celo RPC is set to https://rpc.ankr.com/celo";
-  if (msg.includes("chain") || msg.includes("network"))
-    return "Network error — make sure your wallet is on Celo mainnet.";
+  if (msg.includes("chain"))
+    return "Wrong network — please switch to Celo mainnet in your wallet settings.";
+  if (msg.includes("network"))
+    return "Network connection error. Please check your internet and try again.";
 
   return `Transaction failed: ${msg.slice(0, 120)}`;
 }
