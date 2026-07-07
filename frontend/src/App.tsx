@@ -49,6 +49,7 @@ export default function App() {
     reset,
     sessionExpiresAt,
     sessionExpired,
+    sessionStuck,
     switchToTargetChain,
   } = useGameSession();
 
@@ -342,6 +343,9 @@ export default function App() {
             {error && (
               <div className="error-banner" role="alert">
                 {error}
+                {sessionStuck && sessionExpiresAt && !sessionExpired && (
+                  <SessionCountdown expiresAt={sessionExpiresAt} />
+                )}
               </div>
             )}
 
