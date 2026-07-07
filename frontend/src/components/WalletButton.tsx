@@ -34,16 +34,21 @@ export default function WalletButton() {
     return () => clearInterval(interval);
   }, [address, publicClient]);
 
-  // Listen for score submissions and refetch G$ balance
+  // Refetch G$ balance after any event that changes it:
+  // scoreSubmitted = game milestone reward paid
+  // gdBalanceChanged = UBI claim or shop purchase completed
   useEffect(() => {
-    const handleScoreSubmitted = async () => {
-      // Wait a moment for the transaction to be fully processed
+    const handleChange = async () => {
       await new Promise((r) => setTimeout(r, 1500));
       await refetchGDollar();
     };
 
-    window.addEventListener("scoreSubmitted", handleScoreSubmitted);
-    return () => window.removeEventListener("scoreSubmitted", handleScoreSubmitted);
+    window.addEventListener("scoreSubmitted", handleChange);
+    window.addEventListener("gdBalanceChanged", handleChange);
+    return () => {
+      window.removeEventListener("scoreSubmitted", handleChange);
+      window.removeEventListener("gdBalanceChanged", handleChange);
+    };
   }, [refetchGDollar]);
 
   if (!address) return null;

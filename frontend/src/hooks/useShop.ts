@@ -65,8 +65,12 @@ export function useShop() {
     try {
       const hash = await fn();
       setTxHash(hash);
-      // Refetch after a short wait for the node to index
-      setTimeout(refetchAll, 3000);
+      // Refetch after a short wait for the node to index, then notify other
+      // components (e.g. WalletButton) that the G$ balance has changed.
+      setTimeout(() => {
+        refetchAll();
+        window.dispatchEvent(new Event("gdBalanceChanged"));
+      }, 3000);
     } catch (e: any) {
       const msg: string = e?.shortMessage ?? e?.message ?? "Transaction failed";
       if (!msg.toLowerCase().includes("rejected") && !msg.toLowerCase().includes("denied")) {

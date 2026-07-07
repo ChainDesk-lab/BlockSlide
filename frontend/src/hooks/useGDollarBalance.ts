@@ -1,12 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { erc20Abi, formatUnits } from "viem";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
 import { G_DOLLAR_ADDRESS } from "../lib/constants";
 
-/**
- * Hook to fetch and refetch G$ (GoodDollar) ERC-20 balance.
- * Provides refetch function for manual cache invalidation after transactions.
- */
 export function useGDollarBalance() {
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
@@ -35,6 +31,13 @@ export function useGDollarBalance() {
       setIsLoading(false);
     }
   }, [address, publicClient]);
+
+  // Auto-fetch on mount and poll every 30s so balance stays current
+  useEffect(() => {
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchBalance]);
 
   return {
     balance,
