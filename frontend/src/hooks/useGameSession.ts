@@ -190,6 +190,15 @@ export function useGameSession() {
       const isMagicWallet = (walletClient as any)?.key === "magic";
 
       if (isMagicWallet) {
+        // Fetch live gas price immediately before broadcast — never send a stale hardcoded value.
+        // Celo's base fee floats (currently ~200 Gwei); add 20% buffer so we clear it
+        // even if it ticks up between the fetch and when the block is mined.
+        let gasPrice = 300_000_000_000n; // 300 Gwei safe fallback if live fetch fails
+        try {
+          const liveGasPrice = await publicClient.getGasPrice();
+          gasPrice = liveGasPrice + liveGasPrice / 5n; // live + 20%
+        } catch { /* use fallback */ }
+
         hash = await (walletClient as any).request({
           method: "eth_sendTransaction",
           params: [{
@@ -197,7 +206,7 @@ export function useGameSession() {
             to:       GAME2048_ADDRESS,
             data,
             gas:      toHex(gas),
-            gasPrice: toHex(5_000_000_000n), // 5 Gwei — well above Celo's 0.025 Gwei minimum
+            gasPrice: toHex(gasPrice),
           }],
         }) as `0x${string}`;
       } else {
@@ -315,12 +324,14 @@ export function useGameSession() {
         );
       } catch (e) {
         if (isInsufficientGasError(e)) triggerNoGas();
-        setError(parseContractError(e as Error));
+        const errMsg = parseContractError(e as Error);
+        setError(errMsg);
+        if (!errMsg.includes("rejected")) showToast(errMsg, "error");
         setPhase("idle");
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, isWrongChain, celoBalance, onChainSession, walletClient, signAndBroadcast, triggerNoGas],
+    [address, contractDeployed, isWrongChain, celoBalance, onChainSession, walletClient, signAndBroadcast, triggerNoGas, showToast],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -440,12 +451,14 @@ export function useGameSession() {
         );
       } catch (e) {
         if (isInsufficientGasError(e)) triggerNoGas();
-        setError(parseContractError(e as Error));
+        const errMsg = parseContractError(e as Error);
+        setError(errMsg);
+        if (!errMsg.includes("rejected")) showToast(errMsg, "error");
         setPhase("active");
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, celoBalance, walletClient, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas],
+    [address, contractDeployed, celoBalance, walletClient, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast],
   );
 
   const reset = useCallback(() => {
@@ -530,6 +543,8 @@ function parseContractError(error: Error): string {
     return "Your wallet doesn't support transaction signing. Try MetaMask on Celo Mainnet.";
   if (msg.includes("resource not available") || msg.includes("too many errors"))
     return "Celo RPC unavailable. Check your wallet's Celo RPC is set to https://rpc.ankr.com/celo";
+  if (msg.includes("fee cap") || msg.includes("base fee"))
+    return "Gas price too low for the current network. Please try again in a moment.";
   if (msg.includes("chain"))
     return "Wrong network — please switch to Celo mainnet in your wallet settings.";
   if (msg.includes("network"))
