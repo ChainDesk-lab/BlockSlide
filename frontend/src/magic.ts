@@ -49,7 +49,11 @@ export function getMagic(): Magic {
     try {
       magicInstance = new Magic(apiKey, {
         network: {
-          rpcUrl: "https://forno.celo.org",
+          // ankr is more reliable than forno.celo.org for transaction broadcast.
+          // Magic signs on its servers then broadcasts via this RPC — forno's
+          // rate-limits and intermittent outages cause "network" errors for
+          // eth_sendTransaction, which email users see as a false chain error.
+          rpcUrl: "https://rpc.ankr.com/celo",
           chainId: 42220,
         },
       });

@@ -34,7 +34,7 @@ export function useContractPublicClient() {
     if (authType === "magic" && isMagicConfigured) {
       return createPublicClient({
         chain: celo,
-        transport: http("https://forno.celo.org"),
+        transport: http("https://rpc.ankr.com/celo"),
       });
     }
     return null;

@@ -184,21 +184,20 @@ export function useGameSession() {
       let hash: `0x${string}`;
 
       // Magic.link (email wallet) holds private keys server-side and doesn't
-      // expose eth_signTransaction — skip straight to eth_sendTransaction and
-      // omit type/chainId so Magic's provider can apply them from its own config.
+      // expose eth_signTransaction. Go straight to eth_sendTransaction with a
+      // simple legacy-style tx (gasPrice only, no EIP-1559 fields, no explicit
+      // nonce) so Magic's provider can apply chain defaults without confusion.
       const isMagicWallet = (walletClient as any)?.key === "magic";
 
       if (isMagicWallet) {
         hash = await (walletClient as any).request({
           method: "eth_sendTransaction",
           params: [{
-            from:                 address,
-            to:                   GAME2048_ADDRESS,
+            from:     address,
+            to:       GAME2048_ADDRESS,
             data,
-            gas:                  toHex(gas),
-            maxFeePerGas:         toHex(500_000_000_000n),
-            maxPriorityFeePerGas: toHex(2_500_000_000n),
-            ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
+            gas:      toHex(gas),
+            gasPrice: toHex(5_000_000_000n), // 5 Gwei — well above Celo's 0.025 Gwei minimum
           }],
         }) as `0x${string}`;
       } else {
