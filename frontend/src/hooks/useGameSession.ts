@@ -19,6 +19,12 @@ import { useContractAddress, useContractWalletClient } from "./useContractData";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
 
+// Durable, session-scoped copy of the committed seed. Kept separate from the
+// game-state seed (blockslide_game_*) so a board reset, remount, or "play
+// locally" can't orphan the on-chain session — submitScore can always recover
+// the seed that matches the committed hash from here.
+const SESSION_SEED_KEY = (addr: string) => `blockslide_session_seed_${addr.toLowerCase()}`;
+
 export type SessionPhase =
   | "idle"        // no wallet / no active session
   | "starting"    // waiting for startSession tx
@@ -56,6 +62,9 @@ export function useGameSession() {
   const [phase, setPhase] = useState<SessionPhase>("idle");
   const pendingActionRef = useRef<"start" | "submit" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // True when an active session can't be submitted because its seed is
+  // unrecoverable on this device — the only escape is waiting for it to expire.
+  const [sessionStuck, setSessionStuck] = useState(false);
 
   const isWrongChain = !!address && chainId !== TARGET_CHAIN.id;
 
@@ -91,6 +100,12 @@ export function useGameSession() {
     }
   }, [address, onChainSession?.active]);
 
+  // Clear the stuck flag once the on-chain session is no longer active
+  // (submitted, expired-and-cleared, or replaced by a new session).
+  useEffect(() => {
+    if (!onChainSession?.active) setSessionStuck(false);
+  }, [onChainSession?.active]);
+
   useEffect(() => {
     if (!pendingActionRef.current) return;
     // Handle both outcomes from useWaitForTransactionReceipt:
@@ -120,6 +135,13 @@ export function useGameSession() {
     if (pendingActionRef.current === "start") setPhase("active");
     else if (pendingActionRef.current === "submit") {
       setPhase("done");
+      setSessionStuck(false);
+      // Session is spent — drop the durable committed-seed copy.
+      try {
+        if (address && typeof localStorage !== "undefined") {
+          localStorage.removeItem(SESSION_SEED_KEY(address));
+        }
+      } catch { /* ignore */ }
       showToast("✓ Score submitted! Check your rewards.", "success");
       // Emit event to notify other components to refetch balances after milestone rewards are paid
       const event = new CustomEvent("scoreSubmitted", {
@@ -130,7 +152,7 @@ export function useGameSession() {
     pendingActionRef.current = null;
     setIsPending(false);
     refetchSession();
-  }, [txConfirmed, txWaitError, txWaitErrorObj, txReceipt, txHash, refetchSession, showToast]);
+  }, [txConfirmed, txWaitError, txWaitErrorObj, txReceipt, txHash, refetchSession, showToast, address]);
 
   // ── Core transaction helper ───────────────────────────────────────────────
   const signAndBroadcast = useCallback(async (
@@ -255,8 +277,16 @@ export function useGameSession() {
 
       const seed = generateSeed();
       setError(null);
+      setSessionStuck(false);
       pendingActionRef.current = "start";
       setPhase("starting");
+      // Durably persist the committed seed *before* handing it to the game, so a
+      // later board reset / remount / "play locally" can't orphan this session.
+      try {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(SESSION_SEED_KEY(address), seed);
+        }
+      } catch { /* storage unavailable — submit falls back to the live game seed */ }
       onSeedReady(seed);
 
       try {
@@ -309,9 +339,36 @@ export function useGameSession() {
         return;
       }
 
-      if (keccak256(seed) !== session.seedHash) {
-        setError("Seed mismatch — the game seed changed since your session started. Start a new game.");
-        return;
+      // Prefer the seed the game handed us; if it doesn't match the committed
+      // hash (board was reset / remounted / "played locally"), recover the seed
+      // durably stored at startSession. Only a genuinely lost seed — storage
+      // wiped, or a different browser/device — is unrecoverable.
+      let submitSeed = seed;
+      if (keccak256(submitSeed) !== session.seedHash) {
+        let recovered: `0x${string}` | null = null;
+        try {
+          const stored =
+            typeof localStorage !== "undefined"
+              ? localStorage.getItem(SESSION_SEED_KEY(address))
+              : null;
+          if (
+            stored &&
+            stored.startsWith("0x") &&
+            keccak256(stored as `0x${string}`) === session.seedHash
+          ) {
+            recovered = stored as `0x${string}`;
+          }
+        } catch { /* storage unavailable */ }
+
+        if (recovered) {
+          submitSeed = recovered;
+        } else {
+          setError(
+            "This game session can't be submitted — its seed was lost on this device (browser storage was cleared, or you started on a different browser/device).",
+          );
+          setSessionStuck(true);
+          return;
+        }
       }
 
       // Build the exact args we'll submit, clamped to the contract's accepted
@@ -325,7 +382,7 @@ export function useGameSession() {
         BigInt(Math.max(Math.round(gameState.score) || 0, 0)),
         highestTile,
         BigInt(moveCount),
-        seed,
+        submitSeed,
         BigInt(comboMoves),
       ] as const;
 
@@ -376,6 +433,7 @@ export function useGameSession() {
     setPhase("idle");
     pendingActionRef.current = null;
     setError(null);
+    setSessionStuck(false);
     resetWrite();
   }, [resetWrite]);
 
@@ -403,6 +461,7 @@ export function useGameSession() {
     onChainSession,
     sessionExpiresAt,
     sessionExpired,
+    sessionStuck,
     switchToTargetChain,
   };
 }
