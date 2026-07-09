@@ -1,34 +1,57 @@
 import { useState } from "react";
-import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
-import type { LeaderboardPlayer } from "../hooks/useLeaderboard";
 
-interface LeaderboardProps {
-  players: LeaderboardPlayer[];
-  isLoading: boolean;
-  isError: boolean;
-  configured: boolean;
-  /** Adds this number to each row's index when computing its rank label.
-   *  Default 0 — first row shows rank 1. */
-  rankOffset?: number;
-  /** When true, renders a "See more →" link to /leaderboard at the bottom. */
-  showSeeMore?: boolean;
+// Goldsky subgraph GraphQL endpoint. Set NEXT_PUBLIC_SUBGRAPH_URL after deploying
+// the subgraph in /subgraph (see its README/deploy step).
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
+
+interface PlayerRow {
+  id: string; // wallet address
+  xp: string; // BigInt as string
+  username: string | null;
 }
 
-export default function Leaderboard({
-  players,
-  isLoading,
-  isError,
-  configured,
-  rankOffset = 0,
-  showSeeMore = false,
-}: LeaderboardProps) {
+// All registered players, ranked by XP (earners on top; 0-XP users below).
+const QUERY = `{
+  players(first: 10, orderBy: xp, orderDirection: desc) {
+    id
+    xp
+    username
+  }
+}`;
+
+async function fetchLeaderboard(): Promise<PlayerRow[]> {
+  const res = await fetch(SUBGRAPH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: QUERY }),
+  });
+  if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
+  const json = (await res.json()) as { data?: { players?: PlayerRow[] }; errors?: unknown };
+  if (json.errors) throw new Error("Subgraph returned errors");
+  return json.data?.players ?? [];
+}
+
+export default function Leaderboard() {
+  const configured = SUBGRAPH_URL.length > 0;
   const { address } = useAuth();
   const { isSaving, error, save, clearFeedback } = useUsername();
 
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["leaderboard"],
+    queryFn: fetchLeaderboard,
+    enabled: configured,
+    refetchInterval: 30_000, // pick up new scores
+    staleTime: 15_000,
+  });
+
+  const entries = data ?? [];
+  const showEmpty = configured && !isLoading && (isError || entries.length === 0);
 
   const handleEditClick = (addr: string, currentName: string | null) => {
     setEditingAddress(addr);
@@ -51,8 +74,6 @@ export default function Leaderboard({
     clearFeedback();
   };
 
-  const showEmpty = configured && !isLoading && (isError || players.length === 0);
-
   return (
     <div className="leaderboard">
       <h3 className="leaderboard__title">Top Players</h3>
@@ -67,22 +88,19 @@ export default function Leaderboard({
         <p className="leaderboard__empty">No scores yet. Be the first to play.</p>
       )}
 
-      {players.length > 0 && (
+      {entries.length > 0 && (
         <ol className="leaderboard__list">
-          {players.map((entry, i) => {
-            const rank = rankOffset + i + 1;
+          {entries.map((entry, i) => {
             const name = entry.username?.trim() || generatedName(entry.id);
-            const isCurrentUser =
-              address && entry.id.toLowerCase() === address.toLowerCase();
-            const isEditingThis =
-              editingAddress?.toLowerCase() === entry.id.toLowerCase();
+            const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
+            const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
 
             return (
               <li
                 key={entry.id}
                 className={`leaderboard__entry ${isCurrentUser ? "leaderboard__entry--current-user" : ""}`}
               >
-                <span className="leaderboard__rank">{rank}</span>
+                <span className="leaderboard__rank">{i + 1}</span>
                 <div className="leaderboard__player">
                   {isEditingThis ? (
                     <input
@@ -148,14 +166,8 @@ export default function Leaderboard({
       )}
 
       {editingAddress && error && (
-        <div className="leaderboard__error">{error}</div>
-      )}
-
-      {showSeeMore && (
-        <div className="leaderboard__footer">
-          <Link href="/leaderboard" className="leaderboard__see-more">
-            See more →
-          </Link>
+        <div className="leaderboard__error">
+          {error}
         </div>
       )}
     </div>
@@ -166,6 +178,7 @@ function shortAddr(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+// Deterministic friendly name when a player hasn't claimed an on-chain username.
 function generatedName(addr: string): string {
   return `Player-${addr.slice(-4).toUpperCase()}`;
 }
