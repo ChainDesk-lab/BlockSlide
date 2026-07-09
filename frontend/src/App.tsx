@@ -16,6 +16,7 @@ import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon,
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
+import { useLeaderboard } from "./hooks/useLeaderboard";
 import { useUsername } from "./hooks/useUsername";
 import { sounds } from "./lib/sounds";
 
@@ -73,6 +74,11 @@ export default function App() {
 
   const showUsernameModal =
     !!address && !isWrongChain && !usernameLoading && !username && !usernameModalDismissed && !isFundingWallet;
+
+  // Leaderboard data — fetched once here, shared between game view (snippet)
+  // and leaderboard view. Single react-query instance avoids duplicate requests.
+  const { players: lbPlayers, isLoading: lbLoading, isError: lbError, configured: lbConfigured } =
+    useLeaderboard(10);
 
   // ── Sound toggle ───────────────────────────────────────────────────────────
   const [soundEnabled, setSoundEnabled] = useState(sounds.enabled);
@@ -364,6 +370,17 @@ export default function App() {
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
             />
+
+            {/* Leaderboard — last section of the game view */}
+            <div className="game-view__leaderboard">
+              <Leaderboard
+                players={lbPlayers}
+                isLoading={lbLoading}
+                isError={lbError}
+                configured={lbConfigured}
+                showSeeMore
+              />
+            </div>
           </div>
         )}
 
@@ -374,7 +391,13 @@ export default function App() {
               <TrophyIcon size={26} /> Leaderboard
             </h2>
             <UsernameEditor />
-            <Leaderboard />
+            <Leaderboard
+              players={lbPlayers}
+              isLoading={lbLoading}
+              isError={lbError}
+              configured={lbConfigured}
+              showSeeMore
+            />
           </div>
         )}
 
