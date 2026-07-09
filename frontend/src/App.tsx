@@ -364,6 +364,10 @@ export default function App() {
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
             />
+
+            <div className="game-view__leaderboard">
+              <Leaderboard limit={5} showSeeMore />
+            </div>
           </div>
         )}
 

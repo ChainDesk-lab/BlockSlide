@@ -2406,3 +2406,139 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
     transform: translateX(0);
   }
 }
+
+/* ─── Leaderboard footer / see-more / load-more ─────────────────────────── */
+.leaderboard__footer {
+  display: flex;
+  justify-content: center;
+  padding: 16px 20px 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.leaderboard__see-more {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  transition: background 150ms ease, opacity 150ms ease;
+}
+.leaderboard__see-more:hover {
+  background: rgba(132, 94, 247, 0.08);
+}
+
+.leaderboard__load-more {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 7px 20px;
+  cursor: pointer;
+  transition: background 150ms ease, opacity 150ms ease;
+}
+.leaderboard__load-more:hover:not(:disabled) {
+  background: rgba(132, 94, 247, 0.08);
+}
+.leaderboard__load-more:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ─── Mini-leaderboard inside game view ─────────────────────────────────── */
+.game-view__leaderboard {
+  width: 100%;
+  max-width: 480px;
+  margin: 16px auto 0;
+}
+.game-view__leaderboard .leaderboard {
+  padding: 16px;
+}
+.game-view__leaderboard .leaderboard__title {
+  font-size: 0.9rem;
+}
+
+/* ─── Your-rank bar (full leaderboard page) ─────────────────────────────── */
+.rank-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 16px;
+  max-width: 600px;
+}
+.rank-bar--loading,
+.rank-bar--unranked {
+  border-color: var(--border);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.rank-bar__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.rank-bar__value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--accent);
+  flex: 1;
+}
+.rank-bar__xp {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* ─── Full leaderboard page ──────────────────────────────────────────────── */
+.leaderboard-page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 24px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.leaderboard-page__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 20px;
+}
+.leaderboard-page__back {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition: background 150ms ease;
+}
+.leaderboard-page__back:hover {
+  background: rgba(132, 94, 247, 0.08);
+}
+.leaderboard-page__title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.leaderboard-page .leaderboard {
+  width: 100%;
+  max-width: 600px;
+}
+.leaderboard-page .rank-bar {
+  width: 100%;
+  max-width: 600px;
+}

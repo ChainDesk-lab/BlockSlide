@@ -1,20 +1,12 @@
 "use client";
 
-import { DualAuthBridge } from "../src/auth/DualAuthBridge";
-import { NoGasProvider } from "../src/contexts/NoGasContext";
-import { ToastProvider } from "../src/contexts/ToastContext";
-import ToastContainer from "../src/components/ToastContainer";
 import App from "../src/App";
 
+/**
+ * Thin shell that loads the main SPA client-side only.
+ * Providers (wagmi, auth, toast, no-gas) live in app/ClientProviders.tsx
+ * which is mounted once in the root layout — they are NOT duplicated here.
+ */
 export default function AppRoot() {
-  return (
-    <ToastProvider>
-      <DualAuthBridge>
-        <NoGasProvider>
-          <ToastContainer />
-          <App />
-        </NoGasProvider>
-      </DualAuthBridge>
-    </ToastProvider>
-  );
+  return <App />;
 }

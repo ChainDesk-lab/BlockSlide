@@ -5,6 +5,7 @@ import "./globals.css";
 // above (mirrors the original Vite bundle order — no visual change).
 import "../src/index.css";
 import PwaRegister from "./components/PwaRegister";
+import ClientProviders from "./ClientProviders";
 
 export const metadata: Metadata = {
   title: "BlockSlide",
@@ -36,8 +37,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        {children}
-        <PwaRegister />
+        <ClientProviders>
+          {children}
+          <PwaRegister />
+        </ClientProviders>
       </body>
     </html>
   );
