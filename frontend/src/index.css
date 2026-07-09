@@ -1448,6 +1448,112 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   text-align: center;
 }
 
+/* "See more" footer link at the bottom of the compact leaderboard */
+.leaderboard__footer {
+  margin-top: 14px;
+  text-align: center;
+}
+.leaderboard__see-more {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+.leaderboard__see-more:hover { text-decoration: underline; }
+
+/* Game-view leaderboard wrapper — separates it visually from game controls */
+.game-view__leaderboard {
+  margin-top: 24px;
+  width: 100%;
+}
+
+/* ─── Your-Rank Bar ───────────────────────────────────────────────────────── */
+.rank-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+}
+.rank-bar--disconnected,
+.rank-bar--loading,
+.rank-bar--unranked {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  gap: 8px;
+}
+.rank-bar__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rank-bar__rank {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.rank-bar__xp {
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Full Leaderboard Page ───────────────────────────────────────────────── */
+.leaderboard-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+.leaderboard-page__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.leaderboard-page__back {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.leaderboard-page__back:hover { text-decoration: underline; }
+.leaderboard-page__title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0;
+}
+.leaderboard-page__main {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+.leaderboard-page__content {
+  display: flex;
+  flex-direction: column;
+}
+.leaderboard-page__load-more {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
 /* ─── Login Screen ────────────────────────────────────────────────────────── */
 .login-screen {
   width: 100%;
