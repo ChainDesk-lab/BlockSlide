@@ -2406,3 +2406,275 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
     transform: translateX(0);
   }
 }
+
+/* ─── Leaderboard footer / see-more / load-more ─────────────────────────── */
+.leaderboard__footer {
+  display: flex;
+  justify-content: center;
+  padding: 16px 20px 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.leaderboard__see-more {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  transition: background 150ms ease, opacity 150ms ease;
+}
+.leaderboard__see-more:hover {
+  background: rgba(132, 94, 247, 0.08);
+}
+
+.leaderboard__load-more {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 7px 20px;
+  cursor: pointer;
+  transition: background 150ms ease, opacity 150ms ease;
+}
+.leaderboard__load-more:hover:not(:disabled) {
+  background: rgba(132, 94, 247, 0.08);
+}
+.leaderboard__load-more:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ─── Mini-leaderboard inside game view ─────────────────────────────────── */
+.game-view__leaderboard {
+  width: 100%;
+  max-width: 480px;
+  margin: 16px auto 0;
+}
+.game-view__leaderboard .leaderboard {
+  padding: 16px;
+}
+.game-view__leaderboard .leaderboard__title {
+  font-size: 0.9rem;
+}
+
+/* ─── Your-rank bar (full leaderboard page) ─────────────────────────────── */
+.rank-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 16px;
+  max-width: 600px;
+}
+.rank-bar--loading,
+.rank-bar--unranked {
+  border-color: var(--border);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.rank-bar__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.rank-bar__value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--accent);
+  flex: 1;
+}
+.rank-bar__xp {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* ─── Full leaderboard page ──────────────────────────────────────────────── */
+.leaderboard-page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 24px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.leaderboard-page__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 20px;
+}
+.leaderboard-page__back {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition: background 150ms ease;
+}
+.leaderboard-page__back:hover {
+  background: rgba(132, 94, 247, 0.08);
+}
+.leaderboard-page__title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.leaderboard-page .leaderboard {
+  width: 100%;
+  max-width: 600px;
+}
+.leaderboard-page .rank-bar {
+  width: 100%;
+  max-width: 600px;
+}
+.leaderboard-page__count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-weight: 500;
+}
+
+/* ─── Score column (score + optional badge side-by-side) ─────────────────── */
+.leaderboard__score-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* ─── Unverified badge ───────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+.badge--unverified {
+  background: rgba(239, 146, 40, 0.12);
+  color: #c97a10;
+  border: 1px solid rgba(239, 146, 40, 0.3);
+}
+
+/* Dim unverified rows slightly */
+.leaderboard__entry--unverified {
+  opacity: 0.8;
+}
+
+/* ─── Rank bar — unverified variant ─────────────────────────────────────── */
+.rank-bar--unverified {
+  border-color: rgba(239, 146, 40, 0.5);
+}
+.rank-bar__verify {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Small accent button variant */
+.btn--accent {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+.btn--accent:hover:not(:disabled) {
+  background: #7047e0;
+}
+.btn--accent:disabled {
+  opacity: 0.5;
+}
+
+/* ─── Pagination controls ────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 600px;
+}
+
+.pagination__page,
+.pagination__arrow {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.pagination__page:hover:not(:disabled),
+.pagination__arrow:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.pagination__page--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.pagination__page--active:hover {
+  background: #7047e0;
+  border-color: #7047e0;
+}
+
+.pagination__arrow {
+  font-size: 1.1rem;
+  font-weight: 400;
+}
+.pagination__arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pagination__ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  user-select: none;
+}
+
+/* ─── Error state ────────────────────────────────────────────────────────── */
+.leaderboard__empty--error {
+  color: #c0392b;
+}
+
+@media (max-width: 480px) {
+  .rank-bar__verify { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .pagination__page, .pagination__arrow { min-width: 32px; height: 32px; font-size: 0.8rem; }
+}
