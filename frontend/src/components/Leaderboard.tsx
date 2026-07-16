@@ -65,7 +65,11 @@ export default function Leaderboard({ limit = 10, showSeeMore = false }: Props) 
             return (
               <li
                 key={entry.id}
-                className={`leaderboard__entry ${isCurrentUser ? "leaderboard__entry--current-user" : ""}`}
+                className={[
+                  "leaderboard__entry",
+                  isCurrentUser ? "leaderboard__entry--current-user" : "",
+                  !entry.isVerified ? "leaderboard__entry--unverified" : "",
+                ].filter(Boolean).join(" ")}
               >
                 <span className="leaderboard__rank">{i + 1}</span>
                 <div className="leaderboard__player">
@@ -91,9 +95,14 @@ export default function Leaderboard({ limit = 10, showSeeMore = false }: Props) 
                     {shortAddr(entry.id)}
                   </span>
                 </div>
-                <span className="leaderboard__score">
-                  {Number(entry.xp).toLocaleString()} XP
-                </span>
+                <div className="leaderboard__score-col">
+                  <span className="leaderboard__score">
+                    {Number(entry.displayXp).toLocaleString()} XP
+                  </span>
+                  {!entry.isVerified && (
+                    <span className="badge badge--unverified">Unverified</span>
+                  )}
+                </div>
                 {isCurrentUser && (
                   <div className="leaderboard__actions">
                     {isEditingThis ? (
