@@ -82,7 +82,7 @@ export default function Leaderboard() {
 
   return (
     <div className="leaderboard">
-      <h3 className="leaderboard__title">Top Players</h3>
+      <h2 className="leaderboard__title">Leaderboard</h2>
 
       {!configured && (
         <p className="leaderboard__empty">Leaderboard is being set up.</p>
@@ -91,24 +91,89 @@ export default function Leaderboard() {
         <p className="leaderboard__empty">Loading…</p>
       )}
       {showEmpty && (
-        <p className="leaderboard__empty">No scores yet. Be the first to play.</p>
+        <div className="leaderboard__empty-state">
+          <div className="leaderboard__empty-icon">🎮</div>
+          <h3>No Scores Yet</h3>
+          <p>Be the first to slide tiles and claim the top rank.</p>
+          <button className="btn btn--primary" onClick={() => { /* navigate to game */ }}>
+            Play Now
+          </button>
+        </div>
+      )}
+
+      {/* ── Top 3 Podium Section ────────────────────────────────────────── */}
+      {entries.length > 0 && entries.length >= 3 && (
+        <div className="leaderboard__podium">
+          {entries.slice(0, 3).map((entry, idx) => {
+            const medals = ["🥇", "🥈", "🥉"];
+            const positions = [2, 1, 0]; // order for visual layout
+            const pos = positions[idx];
+            const entry_ = entries[idx];
+            const name = entry_.username?.trim() || generatedName(entry_.id);
+            const avatar = getAvatar(entry_.id);
+            const isVerified = entry_.isVerified ?? (Number(entry_.xp) > 0);
+
+            return (
+              <div key={entry_.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
+                <div className="leaderboard__podium-medal">{medals[idx]}</div>
+                <div className="leaderboard__podium-avatar">{avatar}</div>
+                <div className="leaderboard__podium-name">{name}</div>
+                <div className="leaderboard__podium-badge">
+                  {isVerified ? <span className="badge badge--verified">✓</span> : <span className="badge badge--unverified">⏳</span>}
+                </div>
+                <div className="leaderboard__podium-xp">{Number(entry_.xp).toLocaleString()} XP</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {entries.length > 0 && entries.length < 3 && (
+        <div className="leaderboard__podium leaderboard__podium--partial">
+          {entries.map((entry, idx) => {
+            const medals = ["🥇", "🥈", "🥉"];
+            const name = entry.username?.trim() || generatedName(entry.id);
+            const avatar = getAvatar(entry.id);
+            const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
+
+            return (
+              <div key={entry.id} className="leaderboard__podium-item">
+                <div className="leaderboard__podium-medal">{medals[idx]}</div>
+                <div className="leaderboard__podium-avatar">{avatar}</div>
+                <div className="leaderboard__podium-name">{name}</div>
+                <div className="leaderboard__podium-badge">
+                  {isVerified ? <span className="badge badge--verified">✓</span> : <span className="badge badge--unverified">⏳</span>}
+                </div>
+                <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {entries.length > 0 && (
         <>
+          <div className="leaderboard__separator" />
+          <div className="leaderboard__list-header">
+            <h3 className="leaderboard__list-title">All Players</h3>
+          </div>
+
           <ol className="leaderboard__list">
             {entries.map((entry, i) => {
+              const rank = currentPage * PAGE_SIZE + i + 1;
               const name = entry.username?.trim() || generatedName(entry.id);
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
               const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
               const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
+              const avatar = getAvatar(entry.id);
 
               return (
                 <li
                   key={entry.id}
                   className={`leaderboard__entry ${isCurrentUser ? "leaderboard__entry--current-user" : ""}`}
                 >
-                  <span className="leaderboard__rank">{currentPage * PAGE_SIZE + i + 1}</span>
+                  <span className="leaderboard__rank">#{rank}</span>
+                  <div className="leaderboard__avatar-sm">{avatar}</div>
                   <div className="leaderboard__player">
                     <div className="leaderboard__name-badge">
                       {isEditingThis ? (
@@ -215,4 +280,12 @@ function shortAddr(addr: string): string {
 // Deterministic friendly name when a player hasn't claimed an on-chain username.
 function generatedName(addr: string): string {
   return `Player-${addr.slice(-4).toUpperCase()}`;
+}
+
+// Avatar placeholder: initials or letter-based on address
+function getAvatar(addr: string): string {
+  // Use first 2 chars of address (after 0x) as a seed for a letter
+  const seed = parseInt(addr.slice(2, 4), 16) % 26;
+  const letter = String.fromCharCode(65 + seed); // A-Z
+  return letter;
 }
