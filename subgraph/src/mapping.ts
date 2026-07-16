@@ -13,6 +13,7 @@ function loadPlayer(addr: Address, ts: BigInt): Player {
     p.xp = BigInt.zero();
     p.bestScore = BigInt.zero();
     p.gamesPlayed = 0;
+    p.isVerified = false;
     p.firstSeen = ts;
     p.lastUpdated = ts;
   }
@@ -23,6 +24,7 @@ function loadPlayer(addr: Address, ts: BigInt): Player {
 export function handleXpEarned(event: XpEarned): void {
   let p = loadPlayer(event.params.player, event.block.timestamp);
   p.xp = event.params.total;
+  p.isVerified = true;
   p.lastUpdated = event.block.timestamp;
   p.save();
 }

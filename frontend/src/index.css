@@ -1448,6 +1448,72 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   text-align: center;
 }
 
+.leaderboard__name-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leaderboard__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.leaderboard__badge--verified {
+  background: color-mix(in srgb, #4caf50 20%, var(--surface));
+  color: #4caf50;
+  border: 1px solid #4caf50;
+}
+
+.leaderboard__badge--unverified {
+  background: color-mix(in srgb, #ff9800 20%, var(--surface));
+  color: #ff9800;
+  border: 1px solid #ff9800;
+}
+
+.leaderboard__pagination {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.leaderboard__pagination-btn {
+  padding: 8px 16px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.leaderboard__pagination-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 80%, black);
+}
+
+.leaderboard__pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.leaderboard__pagination-info {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 /* ─── Login Screen ────────────────────────────────────────────────────────── */
 .login-screen {
   width: 100%;
