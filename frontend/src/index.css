@@ -5,39 +5,54 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 /* ─── Theme tokens ───────────────────────────────────────────────────────── */
 :root {
-  --bg:        #f2ece0;
-  --surface:   #ffffff;
-  --surface-2: #ece5d8;
-  --board:     #a89880;
-  --cell:      #bfae9e;
-  --text:      #1a1614;
-  --text-muted:#7a6f68;
-  --border:    rgba(0, 0, 0, 0.09);
-  --shadow:    0 2px 8px rgba(0, 0, 0, 0.09);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.14);
-  --radius-sm: 8px;
+  /* Brand */
+  --brand:     #6B4EFF;
+
+  /* Base palette — restrained, cream/white/charcoal */
+  --bg:        #FEFCE8;
+  --surface:   #FFFFFF;
+  --surface-2: #F5F1E8;
+  --board:     #E5E0D5;
+  --cell:      #F5F1E8;
+  --text:      #1F2937;
+  --text-muted:#6B7280;
+  --border:    rgba(0, 0, 0, 0.08);
+
+  /* Shadows */
+  --shadow:    0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+  /* Radius scale */
+  --radius-sm: 6px;
   --radius:    12px;
   --radius-lg: 20px;
-  --green:     #16a34a;
-  --accent:    #845ef7;
+
+  /* Status colors */
+  --success:   #10B981;
+  --warning:   #F59E0B;
+  --error:     #EF4444;
+
+  /* Legacy accent (for compatibility) */
+  --accent:    #6B4EFF;
+  --green:     #10B981;
 }
 
 
 /* ─── Tile palette ────────────────────────────────────────────────────────── */
-/* Brand-aligned gradient: light lavender → saturated purple → hot pink → orange.
-   Progresses from pastel lows through brand colors to vivid highs. */
+/* Classic 2048 progression: cool (2/4) → warm (8/32) → brand purple (128+).
+   High-value tiles (512+) use brand color shades for visual celebration. */
 :root {
-  --t2:    #f5eff9; --t2-fg:    #2a2722;
-  --t4:    #e8daf4; --t4-fg:    #3a3430;
-  --t8:    #dcc7ee; --t8-fg:    #4a4440;
-  --t16:   #cf9fe6; --t16-fg:   #fff;
-  --t32:   #c375dc; --t32-fg:   #fff;
-  --t64:   #b64fd2; --t64-fg:   #fff;
-  --t128:  #845ef7; --t128-fg:  #fff;
-  --t256:  #7047e0; --t256-fg:  #fff;
-  --t512:  #5c3fd0; --t512-fg:  #fff;
-  --t1024: #ff1cac; --t1024-fg: #fff;
-  --t2048: #ff7a00; --t2048-fg: #fff;
+  --t2:    #EBF8FF; --t2-fg:    #0F172A;
+  --t4:    #D1E7FE; --t4-fg:    #0F172A;
+  --t8:    #FEF9E7; --t8-fg:    #292415;
+  --t16:   #FEE4D6; --t16-fg:   #292415;
+  --t32:   #FFCBA4; --t32-fg:   #FFFFFF;
+  --t64:   #FDA857; --t64-fg:   #FFFFFF;
+  --t128:  #9370DB; --t128-fg:  #FFFFFF;
+  --t256:  #7C5AC2; --t256-fg:  #FFFFFF;
+  --t512:  #6B4EFF; --t512-fg:  #FFFFFF;
+  --t1024: #5940D4; --t1024-fg: #FFFFFF;
+  --t2048: #4A33AA; --t2048-fg: #FFFFFF;
 }
 
 /* ─── App shell ──────────────────────────────────────────────────────────── */
@@ -71,10 +86,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-size: 1.1rem;
   font-weight: 900;
   letter-spacing: -0.04em;
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 50%, #ff7a00 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--brand);
   line-height: 1;
 }
 
@@ -186,14 +198,14 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 /* ─── Active nav icon (Play / Leaderboard / Shop) ────────────────────────── */
 .icon-btn--active {
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+  background: var(--brand);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 2px 10px rgba(132, 94, 247, 0.35);
 }
 
 .icon-btn--active:hover {
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+  background: var(--brand);
 }
 
 /* ─── Sub-screen (Leaderboard / Shop) ────────────────────────────────────── */
@@ -217,7 +229,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .screen__title svg {
-  color: #845ef7;
+  color: var(--brand);
 }
 
 /* ─── Username card ──────────────────────────────────────────────────────── */
@@ -336,7 +348,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-weight: 900;
   letter-spacing: -0.045em;
   line-height: 1;
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 50%, #ff7a00 100%);
+  background: var(--brand);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -371,7 +383,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   align-items: center;
   justify-content: center;
   color: #fff;
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+  background: var(--brand);
   flex-shrink: 0;
 }
 
@@ -461,7 +473,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .daily-claim--ready .daily-claim__status {
-  color: #845ef7;
+  color: var(--brand);
   font-weight: 700;
 }
 
@@ -725,13 +737,31 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 @keyframes tileGlow2048 {
-  0%, 100% { box-shadow: 0 0  0px 0px rgba(255, 77, 0, 0.0); }
-  50%       { box-shadow: 0 0 24px 8px rgba(255, 0, 144, 0.55); }
+  0%, 100% { box-shadow: 0 0  0px 0px rgba(107, 78, 255, 0.0); }
+  50%       { box-shadow: 0 0 28px 12px rgba(107, 78, 255, 0.5); }
+}
+
+@keyframes highScorePulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.15); opacity: 0.8; }
+}
+
+@keyframes floatUp {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-60px) scale(0.9); opacity: 0; }
+}
+
+@keyframes celebrationPop {
+  0%   { transform: scale(0.5) rotate(-15deg); opacity: 1; }
+  100% { transform: scale(1.3) rotate(15deg); opacity: 0; }
 }
 
 .tile--appear { animation: tileAppear 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.tile--merge  { animation: tileMerge  0.2s  ease-out; }
+.tile--merge  { animation: tileMerge 0.12s ease-out; }
 .tile--glow   { animation: tileGlow2048 2s ease-in-out infinite; }
+.tile--high-score { animation: highScorePulse 0.6s ease-in-out; }
+.score--float { animation: floatUp 0.8s ease-out forwards; }
+.celebration--pop { animation: celebrationPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
 /* ─── Game-over overlay ──────────────────────────────────────────────────── */
 .game-overlay {
@@ -795,8 +825,8 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 .btn:not(:disabled):active { transform: translateY(0); }
 
-.btn--primary   { background: var(--accent); color: #fff; }
-.btn--secondary { background: #1e63ff;        color: #fff; }
+.btn--primary   { background: var(--brand); color: #fff; }
+.btn--secondary { background: var(--text-muted); color: #fff; }
 
 /* Disabled/completed state — muted appearance, not clickable-looking */
 .btn--disabled {
@@ -1546,7 +1576,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   font-weight: 900;
   letter-spacing: -0.045em;
   line-height: 1;
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 50%, #ff7a00 100%);
+  background: var(--brand);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1584,8 +1614,8 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .login-tab--active {
-  color: #845ef7;
-  border-bottom-color: #845ef7;
+  color: var(--brand);
+  border-bottom-color: var(--brand);
 }
 
 .login-tab:disabled {
@@ -1619,7 +1649,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .login-email-form__input:focus {
   outline: none;
-  border-color: #845ef7;
+  border-color: var(--brand);
   box-shadow: 0 0 12px rgba(132, 94, 247, 0.15);
 }
 
@@ -1643,7 +1673,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .login-option:hover:not(:disabled) {
-  border-color: #845ef7;
+  border-color: var(--brand);
   box-shadow: 0 0 20px rgba(132, 94, 247, 0.2);
   transform: translateY(-2px);
 }
@@ -1670,7 +1700,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .login-option--wallet .login-option__icon {
-  background: linear-gradient(135deg, #845ef7 0%, #ff1cac 100%);
+  background: var(--brand);
 }
 
 .login-option--email .login-option__icon {
@@ -1700,7 +1730,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .login-option__arrow {
   font-size: 1.5rem;
-  color: #845ef7;
+  color: var(--brand);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -1901,7 +1931,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .wallet-option:hover:not(:disabled) {
-  border-color: #845ef7;
+  border-color: var(--brand);
   background: rgba(132, 94, 247, 0.08);
   box-shadow: 0 4px 12px rgba(132, 94, 247, 0.12);
   transform: translateY(-1px);
@@ -1918,12 +1948,12 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .wallet-option:focus {
   outline: none;
-  border-color: #845ef7;
+  border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(132, 94, 247, 0.1);
 }
 
 .wallet-option--connecting {
-  border-color: #845ef7;
+  border-color: var(--brand);
   background: rgba(132, 94, 247, 0.08);
 }
 
@@ -1964,7 +1994,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .wallet-option__arrow {
   font-size: 1.2rem;
-  color: #845ef7;
+  color: var(--brand);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -1991,7 +2021,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .wallet-selector-link {
-  color: #845ef7;
+  color: var(--brand);
   text-decoration: none;
   font-weight: 600;
   transition: opacity 0.2s;
@@ -2024,7 +2054,7 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .login-link {
-  color: #845ef7;
+  color: var(--brand);
   text-decoration: none;
   font-weight: 600;
   transition: opacity 0.2s;
