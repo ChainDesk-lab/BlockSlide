@@ -327,47 +327,60 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 16px;
+  padding: 32px 20px;
+}
+
+.hero__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  max-width: 520px;
 }
 
 .hero__badge {
   display: inline-block;
-  padding: 6px 14px;
+  padding: 6px 16px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .hero__title {
-  font-size: clamp(2.8rem, 9vw, 4.5rem);
-  font-weight: 900;
-  letter-spacing: -0.045em;
-  line-height: 1;
-  background: var(--brand);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: clamp(2.2rem, 8vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--brand);
 }
 
 .hero__tagline {
-  max-width: 480px;
-  font-size: 1.05rem;
+  font-size: 1rem;
   line-height: 1.6;
-  color: var(--text-muted);
+  color: var(--text);
+  max-width: 480px;
 }
-.hero__tagline strong { color: var(--accent); font-weight: 800; }
 
 .hero__cta {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
   justify-content: center;
-  margin-top: 6px;
+  margin-top: 8px;
+}
+
+.hero__claim {
+  width: 100%;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.hero__spacer {
+  height: 40px;
 }
 
 .btn--ghost {
@@ -409,9 +422,23 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 /* Feature cards */
 .features {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 0 20px 40px;
+}
+
+.features__title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+
+.features__grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
 }
 
 .feature-card {
@@ -419,10 +446,12 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 20px;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
   transition: transform 0.15s, box-shadow 0.15s;
 }
 .feature-card:hover {
@@ -430,10 +459,8 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   box-shadow: var(--shadow-lg);
 }
 
-/* Removed: feature-card__icon — now uses icon-badge component */
-
-.feature-card__title { font-size: 1rem; font-weight: 800; }
-.feature-card__text  { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; }
+.feature-card__title { font-size: 1rem; font-weight: 700; color: var(--text); }
+.feature-card__text  { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
 
 /* ─── Daily G$ claim ─────────────────────────────────────────────────────── */
 .daily-claim {
