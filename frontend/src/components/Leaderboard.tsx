@@ -1,23 +1,56 @@
 import { useState } from "react";
-import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
-import { useLeaderboard } from "../hooks/useLeaderboard";
 
-interface Props {
-  limit?: number;
-  showSeeMore?: boolean;
+// Goldsky subgraph GraphQL endpoint. Set NEXT_PUBLIC_SUBGRAPH_URL after deploying
+// the subgraph in /subgraph (see its README/deploy step).
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
+
+interface PlayerRow {
+  id: string; // wallet address
+  xp: string; // BigInt as string
+  username: string | null;
 }
 
-export default function Leaderboard({ limit = 10, showSeeMore = false }: Props) {
+// All registered players, ranked by XP (earners on top; 0-XP users below).
+const QUERY = `{
+  players(first: 10, orderBy: xp, orderDirection: desc) {
+    id
+    xp
+    username
+  }
+}`;
+
+async function fetchLeaderboard(): Promise<PlayerRow[]> {
+  const res = await fetch(SUBGRAPH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: QUERY }),
+  });
+  if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
+  const json = (await res.json()) as { data?: { players?: PlayerRow[] }; errors?: unknown };
+  if (json.errors) throw new Error("Subgraph returned errors");
+  return json.data?.players ?? [];
+}
+
+export default function Leaderboard() {
+  const configured = SUBGRAPH_URL.length > 0;
   const { address } = useAuth();
   const { isSaving, error, save, clearFeedback } = useUsername();
-  const { players, isLoading, isError, configured } = useLeaderboard(limit, 0);
 
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const entries = players;
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["leaderboard"],
+    queryFn: fetchLeaderboard,
+    enabled: configured,
+    refetchInterval: 30_000, // pick up new scores
+    staleTime: 15_000,
+  });
+
+  const entries = data ?? [];
   const showEmpty = configured && !isLoading && (isError || entries.length === 0);
 
   const handleEditClick = (addr: string, currentName: string | null) => {
@@ -65,11 +98,7 @@ export default function Leaderboard({ limit = 10, showSeeMore = false }: Props) 
             return (
               <li
                 key={entry.id}
-                className={[
-                  "leaderboard__entry",
-                  isCurrentUser ? "leaderboard__entry--current-user" : "",
-                  !entry.isVerified ? "leaderboard__entry--unverified" : "",
-                ].filter(Boolean).join(" ")}
+                className={`leaderboard__entry ${isCurrentUser ? "leaderboard__entry--current-user" : ""}`}
               >
                 <span className="leaderboard__rank">{i + 1}</span>
                 <div className="leaderboard__player">
@@ -95,14 +124,9 @@ export default function Leaderboard({ limit = 10, showSeeMore = false }: Props) 
                     {shortAddr(entry.id)}
                   </span>
                 </div>
-                <div className="leaderboard__score-col">
-                  <span className="leaderboard__score">
-                    {Number(entry.displayXp).toLocaleString()} XP
-                  </span>
-                  {!entry.isVerified && (
-                    <span className="badge badge--unverified">Unverified</span>
-                  )}
-                </div>
+                <span className="leaderboard__score">
+                  {Number(entry.xp).toLocaleString()} XP
+                </span>
                 {isCurrentUser && (
                   <div className="leaderboard__actions">
                     {isEditingThis ? (
@@ -144,14 +168,6 @@ export default function Leaderboard({ limit = 10, showSeeMore = false }: Props) 
       {editingAddress && error && (
         <div className="leaderboard__error">
           {error}
-        </div>
-      )}
-
-      {showSeeMore && entries.length > 0 && (
-        <div className="leaderboard__footer">
-          <Link href="/leaderboard" className="leaderboard__see-more">
-            See full leaderboard →
-          </Link>
         </div>
       )}
     </div>

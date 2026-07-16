@@ -45,11 +45,11 @@ export function useShop() {
   const { data: gdBalance, refetch: refetchBalance } = useReadContract({
     address: G_DOLLAR_ADDRESS, abi: ERC20_ABI, functionName: "balanceOf",
     args: address ? [address] : undefined, query: { enabled },
-  }) as { data: bigint | undefined; refetch: any };
+  });
   const { data: gdAllowance, refetch: refetchAllowance } = useReadContract({
     address: G_DOLLAR_ADDRESS, abi: ERC20_ABI, functionName: "allowance",
     args: address ? [address, GAME2048_ADDRESS] : undefined, query: { enabled },
-  }) as { data: bigint | undefined; refetch: any };
+  });
 
   const refetchAll = () => {
     refetchShield();

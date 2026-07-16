@@ -5,11 +5,19 @@ import "./globals.css";
 // above (mirrors the original Vite bundle order — no visual change).
 import "../src/index.css";
 import PwaRegister from "./components/PwaRegister";
-import ClientProviders from "./ClientProviders";
 
 export const metadata: Metadata = {
   title: "BlockSlide",
   description: "BlockSlide — onchain 2048 with G$ rewards on Celo",
+  appleWebApp: {
+    capable: true,
+    title: "BlockSlide",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    // apple-touch-icon — used when iOS users tap "Add to Home Screen"
+    apple: "/pwa-icon?size=192",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -28,10 +36,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        <ClientProviders>
-          {children}
-          <PwaRegister />
-        </ClientProviders>
+        {children}
+        <PwaRegister />
       </body>
     </html>
   );
