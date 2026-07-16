@@ -21,7 +21,6 @@ function buildQuery(skip: number): string {
       id
       xp
       username
-      isVerified
     }
   }`;
 }
