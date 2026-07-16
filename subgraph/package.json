@@ -6,7 +6,7 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy:goldsky": "goldsky subgraph deploy blockslide-leaderboard/1.0.0 --path ."
+    "deploy:goldsky": "goldsky subgraph deploy blockslide-leaderboard/2.0.0 --path ."
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "0.97.1",
