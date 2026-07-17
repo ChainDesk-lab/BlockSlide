@@ -1325,21 +1325,22 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .shop-item {
-  background: #2F2F2F;
-  border: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 28px 20px;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   align-items: center;
   text-align: center;
   transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
 }
 
 .shop-item:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-lg);
 }
 
 .shop-item__top {
@@ -1351,35 +1352,38 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .shop-item__name {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   line-height: 1.2;
   margin: 0;
 }
 
 .shop-item__price {
-  font-size: 1.4rem;
-  font-weight: 800;
+  font-size: 1.6rem;
+  font-weight: 900;
   color: var(--brand);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  margin: 8px 0 0;
 }
 
 .shop-item__desc {
   font-size: 0.8rem;
-  color: #B0B0B0;
+  color: var(--text-muted);
   line-height: 1.5;
+  margin-top: 4px;
 }
 
 .shop-item__status {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.05em;
-  color: #B0B0B0;
+  color: var(--text-muted);
   padding: 6px 12px;
   background: transparent;
   border-radius: var(--radius-sm);
   text-align: center;
+  margin-top: 4px;
 }
 
 .shop-btn {
