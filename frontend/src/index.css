@@ -1391,14 +1391,6 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   width: 100%;
 }
 
-.shop-item__price-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .shop-item__price {
   font-size: 1.6rem;
   font-weight: 900;

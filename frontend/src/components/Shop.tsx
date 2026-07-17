@@ -60,7 +60,7 @@ export default function Shop() {
           onClick={approve}
           disabled={!!pendingAction}
         >
-          {approvePending ? <Spinner /> : "Approve G$"}
+          {approvePending ? <Spinner /> : "Buy"}
         </button>
       );
     }
@@ -124,7 +124,6 @@ export default function Shop() {
               : "No shields"}
           </p>
           <div className="shop-item__price-section">
-            <span className="shop-item__price-label">Price:</span>
             <span className="shop-item__price">{fmtG(shieldPrice)}</span>
           </div>
           <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
@@ -145,7 +144,6 @@ export default function Shop() {
               : "Not active"}
           </p>
           <div className="shop-item__price-section">
-            <span className="shop-item__price-label">Price:</span>
             <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
           </div>
           <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
