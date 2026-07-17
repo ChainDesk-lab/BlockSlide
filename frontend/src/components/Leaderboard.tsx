@@ -106,22 +106,19 @@ export default function Leaderboard() {
         <div className="leaderboard__podium">
           {entries.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
-            const positions = [2, 1, 0]; // order for visual layout
-            const pos = positions[idx];
-            const entry_ = entries[idx];
-            const name = entry_.username?.trim() || generatedName(entry_.id);
-            const avatar = getAvatar(entry_.id);
-            const isVerified = entry_.isVerified ?? (Number(entry_.xp) > 0);
+            const name = entry.username?.trim() || generatedName(entry.id);
+            const avatar = getAvatar(entry.id);
+            const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
 
             return (
-              <div key={entry_.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
+              <div key={entry.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
                 <div className="leaderboard__podium-medal">{medals[idx]}</div>
                 <div className="leaderboard__podium-avatar">{avatar}</div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
                   {isVerified ? <span className="badge badge--verified">✓</span> : <span className="badge badge--unverified">⏳</span>}
                 </div>
-                <div className="leaderboard__podium-xp">{Number(entry_.xp).toLocaleString()} XP</div>
+                <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
               </div>
             );
           })}
