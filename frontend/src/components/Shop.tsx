@@ -5,7 +5,7 @@ import { IconBadge } from "./IconBadge";
 
 function fmtG(val: bigint | undefined): string {
   if (val === undefined) return "…";
-  return (Number(val) / 1e18).toFixed(0) + " G$";
+  return (Number(val) / 1e18).toLocaleString('en-US', { maximumFractionDigits: 0 }) + " G$";
 }
 
 function fmtTimeLeft(expiry: bigint): string {

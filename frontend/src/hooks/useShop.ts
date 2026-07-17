@@ -141,9 +141,9 @@ export function useShop() {
   })();
 
   // Normalize prices: use contract values, fallback to expected prices if 0
-  const SHIELD_PRICE_DEFAULT = 25n * 10n ** 18n; // 25 G$
-  const BOOST_2X_PRICE_DEFAULT = 50n * 10n ** 18n; // 50 G$
-  const BOOST_5X_PRICE_DEFAULT = 125n * 10n ** 18n; // 125 G$
+  const SHIELD_PRICE_DEFAULT = 2150n * 10n ** 18n; // 2,150 G$ (~$0.25)
+  const BOOST_2X_PRICE_DEFAULT = 3870n * 10n ** 18n; // 3,870 G$ (~$0.45)
+  const BOOST_5X_PRICE_DEFAULT = 6880n * 10n ** 18n; // 6,880 G$ (~$0.80)
 
   const normalizedShieldPrice = shieldPrice ?? SHIELD_PRICE_DEFAULT;
   const normalizedBoost2xPrice = boost2xPrice ?? BOOST_2X_PRICE_DEFAULT;
