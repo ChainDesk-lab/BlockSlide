@@ -1,4 +1,5 @@
 import ClaimUBI from "./ClaimUBI";
+import BlockSlideLogo from "./BlockSlideLogo";
 import { FlameIcon, GamepadIcon, TrophyIcon } from "./icons";
 import { IconBadge } from "./IconBadge";
 
@@ -31,8 +32,10 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="hero">
         <div className="hero__inner">
-          <span className="hero__badge">BlockSlide</span>
-          <h1 className="hero__title">The 2048 of Tomorrow</h1>
+          <div className="hero__logo-section">
+            <BlockSlideLogo size={80} />
+          </div>
+          <h1 className="hero__title">BlockSlide</h1>
           <p className="hero__tagline">
             Classic puzzle game, on-chain forever. Slide tiles, build streaks,
             compete on the leaderboard.
