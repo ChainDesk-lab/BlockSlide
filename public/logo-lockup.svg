@@ -1,0 +1,30 @@
+<svg width="320" height="80" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- BlockSlide Horizontal Lockup (icon + wordmark)
+       For site headers, marketing materials, social cards -->
+
+  <!-- Icon mark (scaled up from mark version) -->
+  <g>
+    <!-- Top-left tile -->
+    <rect x="8" y="8" width="28" height="28" rx="4" fill="#6B4EFF"/>
+    <!-- Top-right tile -->
+    <rect x="44" y="8" width="28" height="28" rx="4" fill="#6B4EFF"/>
+    <!-- Bottom-left tile -->
+    <rect x="8" y="44" width="28" height="28" rx="4" fill="#8B5CF6"/>
+    <!-- Bottom-right tile (offset) -->
+    <rect x="52" y="52" width="28" height="28" rx="4" fill="#C4B5FD"/>
+  </g>
+
+  <!-- Wordmark "BlockSlide" -->
+  <text
+    x="100"
+    y="40"
+    fontFamily="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif"
+    fontSize="48"
+    fontWeight="800"
+    fill="#1F2937"
+    letterSpacing="-0.02em"
+    dominantBaseline="middle"
+  >
+    BlockSlide
+  </text>
+</svg>

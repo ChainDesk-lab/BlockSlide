@@ -1,0 +1,17 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- BlockSlide Icon Mark (Concept 2: Grid Break)
+       2×2 grid with bottom-right offset tile
+       Suggests both 2048's merge mechanic and sliding motion -->
+
+  <!-- Top-left tile - brand purple -->
+  <rect x="16" y="16" width="40" height="40" rx="6" fill="#6B4EFF"/>
+
+  <!-- Top-right tile - brand purple -->
+  <rect x="72" y="16" width="40" height="40" rx="6" fill="#6B4EFF"/>
+
+  <!-- Bottom-left tile - darker purple accent -->
+  <rect x="16" y="72" width="40" height="40" rx="6" fill="#8B5CF6"/>
+
+  <!-- Bottom-right tile (offset ~10px) - lighter purple, creates the "break" visual -->
+  <rect x="80" y="80" width="40" height="40" rx="6" fill="#C4B5FD"/>
+</svg>

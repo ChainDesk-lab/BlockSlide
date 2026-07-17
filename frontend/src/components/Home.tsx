@@ -1,5 +1,5 @@
 import ClaimUBI from "./ClaimUBI";
-import BlockSlideLogo from "./BlockSlideLogo";
+import BlockSlideMark from "./BlockSlideMark";
 import { FlameIcon, GamepadIcon, TrophyIcon } from "./icons";
 import { IconBadge } from "./IconBadge";
 
@@ -33,7 +33,7 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
       <section className="hero">
         <div className="hero__inner">
           <div className="hero__logo-section">
-            <BlockSlideLogo size={80} />
+            <BlockSlideMark size={96} variant="color" />
           </div>
           <h1 className="hero__title">BlockSlide</h1>
           <p className="hero__tagline">

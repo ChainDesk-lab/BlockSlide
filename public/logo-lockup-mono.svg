@@ -1,0 +1,31 @@
+<svg width="320" height="80" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- BlockSlide Horizontal Lockup - Monochrome Version
+       Use on dark backgrounds: fill="white"
+       Use on light backgrounds: fill="black" -->
+
+  <!-- Icon mark -->
+  <g>
+    <!-- Top-left tile -->
+    <rect x="8" y="8" width="28" height="28" rx="4" fill="white"/>
+    <!-- Top-right tile -->
+    <rect x="44" y="8" width="28" height="28" rx="4" fill="white"/>
+    <!-- Bottom-left tile -->
+    <rect x="8" y="44" width="28" height="28" rx="4" fill="white"/>
+    <!-- Bottom-right tile (offset) -->
+    <rect x="52" y="52" width="28" height="28" rx="4" fill="white" opacity="0.6"/>
+  </g>
+
+  <!-- Wordmark "BlockSlide" -->
+  <text
+    x="100"
+    y="40"
+    fontFamily="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif"
+    fontSize="48"
+    fontWeight="800"
+    fill="white"
+    letterSpacing="-0.02em"
+    dominantBaseline="middle"
+  >
+    BlockSlide
+  </text>
+</svg>
