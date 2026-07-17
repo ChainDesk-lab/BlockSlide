@@ -140,14 +140,14 @@ export function useShop() {
     return val;
   })();
 
-  // Normalize prices: use contract values, fallback to expected prices if 0
+  // Normalize prices: use contract values, fallback to expected prices if 0 or undefined
   const SHIELD_PRICE_DEFAULT = 2150n * 10n ** 18n; // 2,150 G$ (~$0.25)
   const BOOST_2X_PRICE_DEFAULT = 3870n * 10n ** 18n; // 3,870 G$ (~$0.45)
   const BOOST_5X_PRICE_DEFAULT = 6880n * 10n ** 18n; // 6,880 G$ (~$0.80)
 
-  const normalizedShieldPrice = shieldPrice ?? SHIELD_PRICE_DEFAULT;
-  const normalizedBoost2xPrice = boost2xPrice ?? BOOST_2X_PRICE_DEFAULT;
-  const normalizedBoost5xPrice = boost5xPrice ?? BOOST_5X_PRICE_DEFAULT;
+  const normalizedShieldPrice = (shieldPrice && shieldPrice > 0n) ? shieldPrice : SHIELD_PRICE_DEFAULT;
+  const normalizedBoost2xPrice = (boost2xPrice && boost2xPrice > 0n) ? boost2xPrice : BOOST_2X_PRICE_DEFAULT;
+  const normalizedBoost5xPrice = (boost5xPrice && boost5xPrice > 0n) ? boost5xPrice : BOOST_5X_PRICE_DEFAULT;
 
   // Sanity-check XP: if it's suspiciously large (like a timestamp), log warning
   if ((playerXp ?? 0n) > 10000000n) {
