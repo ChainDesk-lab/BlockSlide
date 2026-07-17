@@ -112,11 +112,9 @@ export default function Shop() {
         {/* Streak Shield */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <IconBadge icon={<ShieldIcon size={18} />} size="sm" />
-            <div>
-              <p className="shop-item__name">Streak Shield</p>
-              <p className="shop-item__price">{fmtG(shieldPrice)}</p>
-            </div>
+            <IconBadge icon={<ShieldIcon size={32} />} size="lg" />
+            <p className="shop-item__name">Streak Shield</p>
+            <p className="shop-item__price">{fmtG(shieldPrice)}</p>
           </div>
           <p className="shop-item__desc">
             Protects your streak for one missed day. Shields stack in your inventory.
@@ -132,11 +130,9 @@ export default function Shop() {
         {/* 2x XP Boost */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <IconBadge icon={<BoltIcon size={18} />} size="sm" />
-            <div>
-              <p className="shop-item__name">2x XP Boost</p>
-              <p className="shop-item__price">{fmtG(boost2xPrice)}</p>
-            </div>
+            <IconBadge icon={<BoltIcon size={32} />} size="lg" />
+            <p className="shop-item__name">2x XP Boost</p>
+            <p className="shop-item__price">{fmtG(boost2xPrice)}</p>
           </div>
           <p className="shop-item__desc">
             Doubles all XP earned from games for 24 hours.
@@ -152,11 +148,9 @@ export default function Shop() {
         {/* 5x XP Boost */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <IconBadge icon={<FlameIcon size={18} />} size="sm" />
-            <div>
-              <p className="shop-item__name">5x XP Boost</p>
-              <p className="shop-item__price">{fmtG(boost5xPrice)}</p>
-            </div>
+            <IconBadge icon={<FlameIcon size={32} />} size="lg" />
+            <p className="shop-item__name">5x XP Boost</p>
+            <p className="shop-item__price">{fmtG(boost5xPrice)}</p>
           </div>
           <p className="shop-item__desc">
             Multiplies all XP earned from games by 5 for 24 hours.

@@ -1325,61 +1325,66 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 .shop-item {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: #2F2F2F;
+  border: none;
   border-radius: var(--radius);
-  padding: 20px 16px;
+  padding: 28px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
 .shop-item:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
 .shop-item__top {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   gap: 12px;
+  width: 100%;
 }
 
 .shop-item__name {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  color: var(--text);
+  color: #ffffff;
   line-height: 1.2;
   margin: 0;
 }
 
 .shop-item__price {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 800;
   color: var(--brand);
   letter-spacing: -0.02em;
 }
 
 .shop-item__desc {
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  font-size: 0.8rem;
+  color: #B0B0B0;
   line-height: 1.5;
 }
 
 .shop-item__status {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--success);
-  padding: 6px 10px;
-  background: color-mix(in srgb, var(--success) 15%, var(--surface));
+  letter-spacing: 0.05em;
+  color: #B0B0B0;
+  padding: 6px 12px;
+  background: transparent;
   border-radius: var(--radius-sm);
   text-align: center;
 }
 
 .shop-btn {
-  padding: 10px 16px;
-  border-radius: var(--radius-sm);
+  padding: 12px 28px;
+  border-radius: 20px;
   border: none;
   font-size: 0.9rem;
   font-weight: 700;
@@ -1389,7 +1394,8 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   justify-content: center;
   gap: 6px;
   transition: opacity 0.15s, transform 0.1s;
-  width: 100%;
+  width: auto;
+  min-width: 100px;
 }
 
 .shop-btn:not(:disabled):hover { transform: translateY(-1px); opacity: 0.9; }
