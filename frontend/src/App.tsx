@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
+import BlockSlideMark from "./components/BlockSlideMark";
 import Board from "./components/Board";
 import GameControls from "./components/GameControls";
 import Home from "./components/Home";
@@ -183,7 +184,10 @@ export default function App() {
           title="Home"
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setView("home"); }}
         >
-          <h1 className="header__logo">BlockSlide</h1>
+          <div className="header__logo">
+            <BlockSlideMark size={36} variant="color" />
+            <span className="header__logo-text">BlockSlide</span>
+          </div>
         </div>
         <div className="header__right">
           <span className="tooltip" data-tip="Home">
