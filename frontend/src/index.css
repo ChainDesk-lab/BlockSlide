@@ -80,14 +80,22 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   z-index: 100;
 }
 
-.header__left { display: flex; align-items: baseline; gap: 10px; cursor: pointer; }
+.header__left { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 
 .header__logo {
-  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.header__logo-text {
+  font-size: 0.9rem;
   font-weight: 900;
   letter-spacing: -0.04em;
   color: var(--brand);
   line-height: 1;
+  white-space: nowrap;
 }
 
 .header__right {
