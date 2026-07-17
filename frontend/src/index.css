@@ -1359,12 +1359,31 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   margin: 0;
 }
 
+.shop-item__price-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 12px;
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+
+.shop-item__price-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .shop-item__price {
   font-size: 1.6rem;
   font-weight: 900;
   color: var(--brand);
   letter-spacing: -0.03em;
-  margin: 8px 0 0;
 }
 
 .shop-item__desc {

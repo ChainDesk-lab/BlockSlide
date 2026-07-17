@@ -114,7 +114,6 @@ export default function Shop() {
           <div className="shop-item__top">
             <IconBadge icon={<ShieldIcon size={32} />} size="lg" />
             <p className="shop-item__name">Streak Shield</p>
-            <p className="shop-item__price">{fmtG(shieldPrice)}</p>
           </div>
           <p className="shop-item__desc">
             Protects your streak for one missed day. Shields stack in your inventory.
@@ -124,6 +123,10 @@ export default function Shop() {
               ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""} in inventory`
               : "No shields"}
           </p>
+          <div className="shop-item__price-section">
+            <span className="shop-item__price-label">Price:</span>
+            <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+          </div>
           <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
         </div>
 
@@ -132,7 +135,6 @@ export default function Shop() {
           <div className="shop-item__top">
             <IconBadge icon={<BoltIcon size={32} />} size="lg" />
             <p className="shop-item__name">2x XP Boost</p>
-            <p className="shop-item__price">{fmtG(boost2xPrice)}</p>
           </div>
           <p className="shop-item__desc">
             Doubles all XP earned from games for 24 hours.
@@ -142,6 +144,10 @@ export default function Shop() {
               ? fmtTimeLeft(xpBoost.expiry)
               : "Not active"}
           </p>
+          <div className="shop-item__price-section">
+            <span className="shop-item__price-label">Price:</span>
+            <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+          </div>
           <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
         </div>
 
@@ -150,7 +156,6 @@ export default function Shop() {
           <div className="shop-item__top">
             <IconBadge icon={<FlameIcon size={32} />} size="lg" />
             <p className="shop-item__name">5x XP Boost</p>
-            <p className="shop-item__price">{fmtG(boost5xPrice)}</p>
           </div>
           <p className="shop-item__desc">
             Multiplies all XP earned from games by 5 for 24 hours.
@@ -160,6 +165,10 @@ export default function Shop() {
               ? fmtTimeLeft(xpBoost.expiry)
               : "Not active"}
           </p>
+          <div className="shop-item__price-section">
+            <span className="shop-item__price-label">Price:</span>
+            <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+          </div>
           <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
         </div>
 
