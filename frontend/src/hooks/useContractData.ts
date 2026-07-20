@@ -1,4 +1,4 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, fallback } from "viem";
 import { celo } from "wagmi/chains";
 import { useAuth } from "../auth/AuthContext";
 import { isMagicConfigured, getMagic } from "../magic";
@@ -34,7 +34,12 @@ export function useContractPublicClient() {
     if (authType === "magic" && isMagicConfigured) {
       return createPublicClient({
         chain: celo,
-        transport: http("https://rpc.ankr.com/celo"),
+        // Fallback RPC: forno first (public Celo node), then ankr as backup
+        // Prevents transaction failures when ankr experiences rate-limiting
+        transport: fallback([
+          http("https://forno.celo.org"),
+          http("https://rpc.ankr.com/celo"),
+        ]),
       });
     }
     return null;
