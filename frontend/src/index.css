@@ -4,18 +4,28 @@ html { font-size: 16px; }
 body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 
 /* ─── Theme tokens ───────────────────────────────────────────────────────── */
-:root {
-  /* Brand */
-  --brand:     #6B4EFF;
+/* Light mode is default. Dark mode via @media or .dark-mode class on html */
 
-  /* Base palette — restrained, cream/white/charcoal */
+:root {
+  /* ── LIGHT THEME (DEFAULT) ──────────────────────────────────────────────── */
+
+  /* Brand & Accent */
+  --brand:     #6B4EFF;
+  --brand-rgb: 107, 78, 255;
+  --accent:    #6B4EFF;
+
+  /* Backgrounds & Surfaces */
   --bg:        #FEFCE8;
   --surface:   #FFFFFF;
   --surface-2: #F5F1E8;
   --board:     #E5E0D5;
   --cell:      #F5F1E8;
+
+  /* Text & Contrast */
   --text:      #1F2937;
   --text-muted:#6B7280;
+
+  /* Borders & Dividers */
   --border:    rgba(0, 0, 0, 0.08);
 
   /* Shadows */
@@ -31,17 +41,9 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   --success:   #10B981;
   --warning:   #F59E0B;
   --error:     #EF4444;
-
-  /* Legacy accent (for compatibility) */
-  --accent:    #6B4EFF;
   --green:     #10B981;
-}
 
-
-/* ─── Tile palette ────────────────────────────────────────────────────────── */
-/* Classic 2048 progression: cool (2/4) → warm (8/32) → brand purple (128+).
-   High-value tiles (512+) use brand color shades for visual celebration. */
-:root {
+  /* ── TILE PALETTE (LIGHT MODE) ────────────────────────────────────────── */
   --t2:    #EBF8FF; --t2-fg:    #0F172A;
   --t4:    #D1E7FE; --t4-fg:    #0F172A;
   --t8:    #FEF9E7; --t8-fg:    #292415;
@@ -53,6 +55,87 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
   --t512:  #6B4EFF; --t512-fg:  #FFFFFF;
   --t1024: #5940D4; --t1024-fg: #FFFFFF;
   --t2048: #4A33AA; --t2048-fg: #FFFFFF;
+}
+
+/* Dark mode via system preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* ── DARK THEME ─────────────────────────────────────────────────────── */
+
+    /* Brand stays the same */
+    --brand:     #6B4EFF;
+    --brand-rgb: 107, 78, 255;
+    --accent:    #6B4EFF;
+
+    /* Backgrounds & Surfaces */
+    --bg:        #0F1419;
+    --surface:   #1A1F2E;
+    --surface-2: #242C3F;
+    --board:     #2D3548;
+    --cell:      #242C3F;
+
+    /* Text & Contrast */
+    --text:      #F3F4F6;
+    --text-muted: #9CA3AF;
+
+    /* Borders & Dividers */
+    --border:    rgba(255, 255, 255, 0.1);
+
+    /* Shadows */
+    --shadow:    0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+    /* Status colors (adjusted for dark mode) */
+    --success:   #34D399;
+    --warning:   #FBBF24;
+    --error:     #F87171;
+    --green:     #34D399;
+
+    /* ── TILE PALETTE (DARK MODE) ───────────────────────────────────────── */
+    --t2:    #1E3A5F; --t2-fg:    #E0F2FE;
+    --t4:    #1E40AF; --t4-fg:    #DBEAFE;
+    --t8:    #451A03; --t8-fg:    #FFFAEB;
+    --t16:   #5B2C0F; --t16-fg:   #FED7AA;
+    --t32:   #7C2D12; --t32-fg:   #FECACA;
+    --t64:   #92400E; --t64-fg:   #FEF3C7;
+    --t128:  #5B21B6; --t128-fg:  #DDD6FE;
+    --t256:  #6D28D9; --t256-fg:  #EDE9FE;
+    --t512:  #7C3AED; --t512-fg:  #F3E8FF;
+    --t1024: #8B5CF6; --t1024-fg: #F3E8FF;
+    --t2048: #A78BFA; --t2048-fg: #1E1B4B;
+  }
+}
+
+/* Dark mode via manual toggle (class on html element) */
+html.dark-mode {
+  --brand:     #6B4EFF;
+  --brand-rgb: 107, 78, 255;
+  --accent:    #6B4EFF;
+  --bg:        #0F1419;
+  --surface:   #1A1F2E;
+  --surface-2: #242C3F;
+  --board:     #2D3548;
+  --cell:      #242C3F;
+  --text:      #F3F4F6;
+  --text-muted: #9CA3AF;
+  --border:    rgba(255, 255, 255, 0.1);
+  --shadow:    0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --success:   #34D399;
+  --warning:   #FBBF24;
+  --error:     #F87171;
+  --green:     #34D399;
+  --t2:    #1E3A5F; --t2-fg:    #E0F2FE;
+  --t4:    #1E40AF; --t4-fg:    #DBEAFE;
+  --t8:    #451A03; --t8-fg:    #FFFAEB;
+  --t16:   #5B2C0F; --t16-fg:   #FED7AA;
+  --t32:   #7C2D12; --t32-fg:   #FECACA;
+  --t64:   #92400E; --t64-fg:   #FEF3C7;
+  --t128:  #5B21B6; --t128-fg:  #DDD6FE;
+  --t256:  #6D28D9; --t256-fg:  #EDE9FE;
+  --t512:  #7C3AED; --t512-fg:  #F3E8FF;
+  --t1024: #8B5CF6; --t1024-fg: #F3E8FF;
+  --t2048: #A78BFA; --t2048-fg: #1E1B4B;
 }
 
 /* ─── App shell ──────────────────────────────────────────────────────────── */
@@ -214,6 +297,35 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 
 .icon-btn--active:hover {
   background: var(--brand);
+}
+
+/* ─── Theme toggle ───────────────────────────────────────────────────────── */
+.theme-toggle {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  line-height: 1;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.theme-toggle:hover {
+  background: var(--cell);
+  transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(var(--brand-rgb), 0.3);
+}
+
+.theme-toggle:active {
+  transform: scale(0.96);
+  box-shadow: none;
 }
 
 /* ─── Sub-screen (Leaderboard / Shop) ────────────────────────────────────── */

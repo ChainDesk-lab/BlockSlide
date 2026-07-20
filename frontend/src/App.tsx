@@ -10,6 +10,7 @@ import Leaderboard from "./components/Leaderboard";
 import LoginScreen from "./components/LoginScreen";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
+import ThemeToggle from "./components/ThemeToggle";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
 import WalletButton from "./components/WalletButton";
@@ -244,6 +245,7 @@ export default function App() {
               {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
             </button>
           </span>
+          <ThemeToggle />
           {username ? (
             <span className="header__username" title="Your username">
               <span className="header__username-name">{username}</span>
