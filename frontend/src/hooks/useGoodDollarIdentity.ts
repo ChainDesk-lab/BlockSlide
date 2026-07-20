@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { useWalletClient } from "wagmi";
 import { IdentitySDK } from "@goodsdks/citizen-sdk";
 import { createWalletClient, custom } from "viem";
 import { TARGET_CHAIN } from "../lib/constants";
 import { useAuth } from "../auth/AuthContext";
-import { useContractPublicClient } from "./useContractData";
+import { useContractPublicClient, useContractWalletClient } from "./useContractData";
 import { getMagic } from "../magic";
 
 interface UseGoodDollarIdentityResult {
@@ -29,7 +28,7 @@ interface UseGoodDollarIdentityResult {
  */
 export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { authType, address: magicAddress } = useAuth();
-  const { data: wagmiWalletClient } = useWalletClient();
+  const walletClient = useContractWalletClient();
   const contractPublicClient = useContractPublicClient();
 
   // Helper to create wallet client on-demand (not memoized to avoid dependency issues)
@@ -50,7 +49,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         return undefined;
       }
     }
-    return wagmiWalletClient;
+    return walletClient;
   };
 
   const [isVerified, setIsVerified] = useState(false);
@@ -59,7 +58,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const [error, setError] = useState<string | null>(null);
 
   // Get the address to verify - Magic or wagmi
-  const addressToVerify = authType === "magic" ? magicAddress : wagmiWalletClient?.account?.address;
+  const addressToVerify = authType === "magic" ? magicAddress : walletClient?.account?.address;
 
   // Check on-chain verification status
   const checkVerificationStatus = useCallback(async () => {
