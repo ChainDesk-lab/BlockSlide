@@ -7,6 +7,7 @@ import { TARGET_CHAIN } from "../lib/constants";
 import { useAuth } from "../auth/AuthContext";
 import { wagmiConfig } from "../auth/wagmiConfig";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
+import { useContractPublicClient, useContractWalletClient } from "./useContractData";
 import { getMagic } from "../magic";
 
 interface UseGoodDollarIdentityResult {
@@ -32,6 +33,8 @@ interface UseGoodDollarIdentityResult {
 export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { authType } = useAuth();
   const { data: wagmiWalletClient } = useWalletClient();
+  const { authType, address: magicAddress } = useAuth();
+  const walletClient = useContractWalletClient();
   const contractPublicClient = useContractPublicClient();
 
   // Helper to create wallet client on-demand (not memoized to avoid dependency issues)
@@ -62,6 +65,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       console.error("Failed to fetch wallet client:", err);
       return undefined;
     }
+    return walletClient;
   };
 
   const [isVerified, setIsVerified] = useState(false);
@@ -75,6 +79,8 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   // a read-only lookup and never needed a signer, so gating it on one caused
   // the "wallet not connected" false negative even while clearly connected.
   const addressToVerify = useContractAddress();
+  // Get the address to verify - Magic or wagmi
+  const addressToVerify = authType === "magic" ? magicAddress : walletClient?.account?.address;
 
   // Check on-chain verification status
   const checkVerificationStatus = useCallback(async () => {

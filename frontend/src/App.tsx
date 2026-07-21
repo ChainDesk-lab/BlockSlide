@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
+import { getDeviceStorage, setDeviceStorage, getUserStorage, setUserStorage } from "./lib/unifiedStorage";
+import BlockSlideMark from "./components/BlockSlideMark";
 import Board from "./components/Board";
 import GameControls from "./components/GameControls";
 import Home from "./components/Home";
@@ -9,6 +11,7 @@ import Leaderboard from "./components/Leaderboard";
 import LoginScreen from "./components/LoginScreen";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
+import ThemeToggle from "./components/ThemeToggle";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
 import WalletButton from "./components/WalletButton";
@@ -30,11 +33,11 @@ export default function App() {
   const [view, setView] = useState<View>("home");
 
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(() =>
-    !localStorage.getItem("blockslide_seen_htp")
+    !getDeviceStorage("seen_htp")
   );
   const openHowToPlay  = () => setShowHowToPlay(true);
   const closeHowToPlay = () => {
-    localStorage.setItem("blockslide_seen_htp", "1");
+    setDeviceStorage("seen_htp", "1");
     setShowHowToPlay(false);
   };
   const { state, seed, startNewGame, clearGame } = useGame(address, view === "game");
@@ -56,18 +59,18 @@ export default function App() {
   // ── Username ────────────────────────────────────────────────────────────────
   // On connect we read the username from the contract. If it's empty, prompt the
   // user to choose one via a modal; if they already have one it loads silently
-  // and shows in the header. Dismissed-per-wallet and persisted to localStorage.
+  // and shows in the header. Dismissed-per-wallet and persisted to storage.
   const { username, isLoading: usernameLoading } = useUsername();
-  const DISMISSED_KEY = (addr: string) => `blockslide_username_dismissed_${addr.toLowerCase()}`;
+  const DISMISSED_KEY = "username_modal_dismissed";
   const [usernameModalDismissed, setUsernameModalDismissed] = useState(false);
 
   useEffect(() => {
-    // On wallet change, read the dismiss state from localStorage.
+    // On wallet change, read the dismiss state from storage.
     if (!address) {
       setUsernameModalDismissed(false);
       return;
     }
-    const dismissed = localStorage.getItem(DISMISSED_KEY(address)) === "true";
+    const dismissed = getUserStorage(address, DISMISSED_KEY) === "true";
     setUsernameModalDismissed(dismissed);
   }, [address]);
 
@@ -169,7 +172,7 @@ export default function App() {
         <UsernameModal
           onClose={() => {
             setUsernameModalDismissed(true);
-            if (address) localStorage.setItem(DISMISSED_KEY(address), "true");
+            if (address) setUserStorage(address, DISMISSED_KEY, "true");
           }}
         />
       )}
@@ -183,7 +186,10 @@ export default function App() {
           title="Home"
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setView("home"); }}
         >
-          <h1 className="header__logo">BlockSlide</h1>
+          <div className="header__logo">
+            <BlockSlideMark size={36} variant="color" />
+            <span className="header__logo-text">BlockSlide</span>
+          </div>
         </div>
         <div className="header__right">
           <span className="tooltip" data-tip="Home">
@@ -240,6 +246,7 @@ export default function App() {
               {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
             </button>
           </span>
+          <ThemeToggle />
           {username ? (
             <span className="header__username" title="Your username">
               <span className="header__username-name">{username}</span>

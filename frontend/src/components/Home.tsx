@@ -1,5 +1,6 @@
 import ClaimUBI from "./ClaimUBI";
-import { BoltIcon, FlameIcon, GamepadIcon, TrophyIcon } from "./icons";
+import BlockSlideMark from "./BlockSlideMark";
+import { FlameIcon, GamepadIcon, TrophyIcon } from "./icons";
 import { IconBadge } from "./IconBadge";
 
 interface HomeProps {
@@ -9,24 +10,19 @@ interface HomeProps {
 
 const FEATURES = [
   {
-    Icon: TrophyIcon,
-    title: "Climb the leaderboard",
-    text: "Your best scores are recorded on-chain for everyone to chase.",
+    Icon: GamepadIcon,
+    title: "Classic Puzzle",
+    text: "The 2048 you know. Slide tiles, merge numbers, reach 2048.",
   },
   {
-    Icon: GamepadIcon,
-    title: "On-chain play",
-    text: "Start a verified session and submit your score straight to the chain.",
+    Icon: TrophyIcon,
+    title: "On-Chain Leaderboard",
+    text: "Your scores live forever on Celo. Climb the ranks.",
   },
   {
     Icon: FlameIcon,
-    title: "Daily streaks",
-    text: "Play every day to build a streak — protect it with a shield from the shop.",
-  },
-  {
-    Icon: BoltIcon,
-    title: "XP & boosts",
-    text: "Earn XP from every game and multiply it with 2× / 5× boosts.",
+    title: "Daily Streaks & Boosts",
+    text: "Build streaks, protect them with shields, multiply XP with boosts.",
   },
 ];
 
@@ -35,36 +31,49 @@ export default function Home({ onPlay, onLeaderboard }: HomeProps) {
     <div className="home">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="hero">
-        <span className="hero__badge">2048 · on-chain · Celo</span>
-        <h1 className="hero__title">BlockSlide</h1>
-        <p className="hero__tagline">
-          The classic 2048, reimagined on Celo. Slide tiles, build your streak,
-          and climb the on-chain leaderboard.
-        </p>
-        <div className="hero__cta">
-          <button className="btn btn--primary" onClick={onPlay}>
-            Play Now
-          </button>
-          <button className="btn btn--ghost" onClick={onLeaderboard}>
-            View Leaderboard
-          </button>
+        <div className="hero__inner">
+          <div className="hero__logo-section">
+            <BlockSlideMark size={96} variant="color" />
+          </div>
+          <h1 className="hero__title">BlockSlide</h1>
+          <p className="hero__tagline">
+            Classic puzzle game, on-chain forever. Slide tiles, build streaks,
+            compete on the leaderboard.
+          </p>
+
+          {/* ── CTAs ──────────────────────────────────────────────────────── */}
+          <div className="hero__cta">
+            <button className="btn btn--primary" onClick={onPlay}>
+              Play Now
+            </button>
+            <button className="btn btn--ghost" onClick={onLeaderboard}>
+              View Leaderboard
+            </button>
+          </div>
+
+          {/* ── Daily Claim (compact, inline) ───────────────────────────── */}
+          <div className="hero__claim">
+            <ClaimUBI />
+          </div>
         </div>
       </section>
 
-      {/* ── Daily G$ claim ────────────────────────────────────────────────── */}
-      <ClaimUBI />
+      {/* ── Spacer ─────────────────────────────────────────────────────────── */}
+      <div className="hero__spacer" />
 
       {/* ── Features ──────────────────────────────────────────────────────── */}
       <section className="features">
-        {FEATURES.map(({ Icon, title, text }) => (
-          <div className="feature-card" key={title}>
-            <IconBadge icon={<Icon size={22} />} size="md" />
-            <h3 className="feature-card__title">{title}</h3>
-            <p className="feature-card__text">{text}</p>
-          </div>
-        ))}
+        <h2 className="features__title">Why BlockSlide?</h2>
+        <div className="features__grid">
+          {FEATURES.map(({ Icon, title, text }) => (
+            <div className="feature-card" key={title}>
+              <IconBadge icon={<Icon size={24} />} size="md" />
+              <h3 className="feature-card__title">{title}</h3>
+              <p className="feature-card__text">{text}</p>
+            </div>
+          ))}
+        </div>
       </section>
-
     </div>
   );
 }

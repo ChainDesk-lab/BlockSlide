@@ -5,7 +5,7 @@ import { IconBadge } from "./IconBadge";
 
 function fmtG(val: bigint | undefined): string {
   if (val === undefined) return "…";
-  return (Number(val) / 1e18).toFixed(0) + " G$";
+  return (Number(val) / 1e18).toLocaleString('en-US', { maximumFractionDigits: 0 }) + " G$";
 }
 
 function fmtTimeLeft(expiry: bigint): string {
@@ -60,7 +60,7 @@ export default function Shop() {
           onClick={approve}
           disabled={!!pendingAction}
         >
-          {approvePending ? <Spinner /> : "Approve G$"}
+          {approvePending ? <Spinner /> : "Buy"}
         </button>
       );
     }
@@ -80,37 +80,40 @@ export default function Shop() {
     <section className="shop">
       {/* Header */}
       <div className="shop__header">
-        <h2 className="shop__title">Shop</h2>
-        <span className="shop__balance">Balance: {fmtG(gdBalance)}</span>
+        <div>
+          <h2 className="shop__title">Shop</h2>
+          <p className="shop__subtitle">Boost your game with power-ups</p>
+        </div>
+        <div className="shop__balance">
+          <div className="shop__balance-label">Balance</div>
+          <div className="shop__balance-value">{fmtG(gdBalance)}</div>
+        </div>
       </div>
 
       {/* Player stats row */}
       <div className="shop__stats">
-        <span className="shop__stat">
+        <div className="shop__stat">
           <span className="shop__stat-label">XP</span>
           <span className="shop__stat-value">{Number(playerXp).toLocaleString()}</span>
-        </span>
-        <span className="shop__stat">
+        </div>
+        <div className="shop__stat">
           <span className="shop__stat-label">Streak</span>
           <span className="shop__stat-value">{Number(streakCount)} day{streakCount !== 1n ? "s" : ""}</span>
-        </span>
-        <span className="shop__stat">
+        </div>
+        <div className="shop__stat">
           <span className="shop__stat-label">Shields</span>
           <span className="shop__stat-value">{Number(shieldCount)}</span>
-        </span>
+        </div>
       </div>
 
-      {/* Items */}
+      {/* Items Grid */}
       <div className="shop__items">
 
         {/* Streak Shield */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <IconBadge icon={<ShieldIcon size={18} />} size="sm" />
-            <div>
-              <p className="shop-item__name">Streak Shield</p>
-              <p className="shop-item__price">{fmtG(shieldPrice)}</p>
-            </div>
+            <IconBadge icon={<ShieldIcon size={32} />} size="lg" />
+            <p className="shop-item__name">Streak Shield</p>
           </div>
           <p className="shop-item__desc">
             Protects your streak for one missed day. Shields stack in your inventory.
@@ -120,17 +123,17 @@ export default function Shop() {
               ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""} in inventory`
               : "No shields"}
           </p>
+          <div className="shop-item__price-section">
+            <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+          </div>
           <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
         </div>
 
         {/* 2x XP Boost */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <IconBadge icon={<BoltIcon size={18} />} size="sm" />
-            <div>
-              <p className="shop-item__name">2x XP Boost</p>
-              <p className="shop-item__price">{fmtG(boost2xPrice)}</p>
-            </div>
+            <IconBadge icon={<BoltIcon size={32} />} size="lg" />
+            <p className="shop-item__name">2x XP Boost</p>
           </div>
           <p className="shop-item__desc">
             Doubles all XP earned from games for 24 hours.
@@ -140,17 +143,17 @@ export default function Shop() {
               ? fmtTimeLeft(xpBoost.expiry)
               : "Not active"}
           </p>
+          <div className="shop-item__price-section">
+            <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+          </div>
           <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
         </div>
 
         {/* 5x XP Boost */}
         <div className="shop-item">
           <div className="shop-item__top">
-            <IconBadge icon={<FlameIcon size={18} />} size="sm" />
-            <div>
-              <p className="shop-item__name">5x XP Boost</p>
-              <p className="shop-item__price">{fmtG(boost5xPrice)}</p>
-            </div>
+            <IconBadge icon={<FlameIcon size={32} />} size="lg" />
+            <p className="shop-item__name">5x XP Boost</p>
           </div>
           <p className="shop-item__desc">
             Multiplies all XP earned from games by 5 for 24 hours.
@@ -160,6 +163,10 @@ export default function Shop() {
               ? fmtTimeLeft(xpBoost.expiry)
               : "Not active"}
           </p>
+          <div className="shop-item__price-section">
+            <span className="shop-item__price-label">Price:</span>
+            <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+          </div>
           <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
         </div>
 

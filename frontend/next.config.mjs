@@ -9,9 +9,19 @@ const nextConfig = {
   // require CORP headers on every cross-origin asset and break image/RPC loads.
   async headers() {
     return [
+      // Static assets: cache indefinitely (Next.js adds content hash to filenames)
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+        ],
+      },
+      // Dynamic content: revalidate on each request to prevent stale builds
       {
         source: "/:path*",
         headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
         ],
       },

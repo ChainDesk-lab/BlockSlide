@@ -9,6 +9,8 @@ type Player @entity(immutable: false) {
   bestScore: BigInt!
   "Number of scores submitted on-chain"
   gamesPlayed: Int!
+  "True if player has earned XP (verified with rewards)"
+  isVerified: Boolean!
   "Block timestamp of the player's first indexed event"
   firstSeen: BigInt!
   "Block timestamp of the most recent update"

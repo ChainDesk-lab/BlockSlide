@@ -40,7 +40,8 @@ function tone(
 
 function readEnabled(): boolean {
   try {
-    return localStorage.getItem("blockslide_sound") !== "off";
+    const { getDeviceStorage } = require("./unifiedStorage");
+    return getDeviceStorage("sound") !== "off";
   } catch {
     return true;
   }
@@ -52,7 +53,8 @@ export const sounds = {
   setEnabled(val: boolean) {
     this.enabled = val;
     try {
-      localStorage.setItem("blockslide_sound", val ? "on" : "off");
+      const { setDeviceStorage } = require("./unifiedStorage");
+      setDeviceStorage("sound", val ? "on" : "off");
     } catch {
       /* ignore */
     }

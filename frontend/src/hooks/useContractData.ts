@@ -1,8 +1,8 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, fallback } from "viem";
 import { celo } from "wagmi/chains";
 import { useAuth } from "../auth/AuthContext";
 import { isMagicConfigured, getMagic } from "../magic";
-import { useAccount, usePublicClient, useWalletClient } from "wagmi";
+import { useAccount, useWalletClient } from "wagmi";
 import { useCallback, useMemo } from "react";
 
 /**
@@ -22,25 +22,25 @@ export function useContractAddress() {
 /**
  * Get the correct public client for contract reads based on auth type.
  * For Magic.link, uses Magic's RPC provider (memoized to prevent recreating on every render).
- * For Web3 wallets, uses wagmi's public client.
+ * For Web3 wallets, uses a viem client with RPC fallback (wagmi's client may not apply fallback).
  */
 export function useContractPublicClient() {
-  const { authType } = useAuth();
-  const wagmiClient = usePublicClient({ chainId: celo.id });
+  // Memoize the public client to prevent recreating it on every render
+  // which would cause dependent callbacks to be recreated and trigger infinite loops.
+  // Use explicit fallback for all users (Magic and wagmi) to ensure RPC reliability.
+  const publicClient = useMemo(() => {
+    return createPublicClient({
+      chain: celo,
+      // Fallback RPC: forno first (public Celo node), then ankr as backup
+      // Ensures transaction simulation and receipt polling don't timeout when one RPC fails
+      transport: fallback([
+        http("https://forno.celo.org"),
+        http("https://rpc.ankr.com/celo"),
+      ]),
+    });
+  }, []);
 
-  // Memoize the Magic public client to prevent recreating it on every render
-  // which would cause dependent callbacks to be recreated and trigger infinite loops
-  const magicClient = useMemo(() => {
-    if (authType === "magic" && isMagicConfigured) {
-      return createPublicClient({
-        chain: celo,
-        transport: http("https://rpc.ankr.com/celo"),
-      });
-    }
-    return null;
-  }, [authType]);
-
-  return magicClient || wagmiClient;
+  return publicClient;
 }
 
 /**

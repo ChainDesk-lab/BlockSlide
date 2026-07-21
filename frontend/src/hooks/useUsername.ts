@@ -10,7 +10,7 @@ import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
-import { useContractAddress, useContractPublicClient } from "./useContractData";
+import { useContractAddress, useContractPublicClient, useContractWalletClient } from "./useContractData";
 import { useAuth } from "../auth/AuthContext";
 import { useWalletClient } from "wagmi";
 import { getWalletClient } from "wagmi/actions";
@@ -24,7 +24,7 @@ export function useUsername() {
   const { authType } = useAuth();
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
-  const { data: wagmiWalletClient } = useWalletClient({ chainId: TARGET_CHAIN.id });
+  const walletClient = useContractWalletClient();
   const { triggerNoGas } = useNoGas();
 
   const [current, setCurrent] = useState<string | undefined>();
@@ -211,6 +211,7 @@ export function useUsername() {
             // For other auth types, use viem's signTransaction
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const signed = await (signTransaction as any)(resolvedWalletClient, { ...base, type: "eip1559" });
+            const signed = await (signTransaction as any)(walletClient, { ...base, type: "eip1559" });
             hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
           }
         } catch (signErr: unknown) {
@@ -258,6 +259,7 @@ export function useUsername() {
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           hash = await (resolvedWalletClient as any).request({
+          hash = await (walletClient as any).request({
             method: "eth_sendTransaction",
             params: [{
               from: address,
@@ -291,7 +293,7 @@ export function useUsername() {
         setIsSaving(false);
       }
     },
-    [address, wagmiWalletClient, publicClient, refetch, triggerNoGas, authType],
+    [address, walletClient, publicClient, refetch, triggerNoGas, authType],
   );
 
   return {

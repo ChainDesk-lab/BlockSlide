@@ -1,0 +1,18 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- BlockSlide Icon Mark - Monochrome Version
+       Use on dark backgrounds: fill="white"
+       Use on light backgrounds: fill="black"
+       Achieves by using currentColor or single-color fill -->
+
+  <!-- Top-left tile - full opacity -->
+  <rect x="16" y="16" width="40" height="40" rx="6" fill="white"/>
+
+  <!-- Top-right tile - full opacity -->
+  <rect x="72" y="16" width="40" height="40" rx="6" fill="white"/>
+
+  <!-- Bottom-left tile - full opacity -->
+  <rect x="16" y="72" width="40" height="40" rx="6" fill="white"/>
+
+  <!-- Bottom-right tile (offset) - reduced opacity for visual hierarchy -->
+  <rect x="80" y="80" width="40" height="40" rx="6" fill="white" opacity="0.6"/>
+</svg>
