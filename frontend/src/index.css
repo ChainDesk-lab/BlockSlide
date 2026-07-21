@@ -107,7 +107,40 @@ body { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: anti
 }
 
 /* Dark mode via manual toggle (class on html element) */
+html.light-mode {
+  /* Explicitly set light mode, overrides @media (prefers-color-scheme: dark) */
+  --brand:     #6B4EFF;
+  --brand-rgb: 107, 78, 255;
+  --accent:    #6B4EFF;
+  --bg:        #FEFCE8;
+  --surface:   #FFFFFF;
+  --surface-2: #F5F1E8;
+  --board:     #E5E0D5;
+  --cell:      #F5F1E8;
+  --text:      #1F2937;
+  --text-muted: #6B7280;
+  --border:    rgba(0, 0, 0, 0.08);
+  --shadow:    0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --success:   #10B981;
+  --warning:   #F59E0B;
+  --error:     #EF4444;
+  --green:     #10B981;
+  --t2:    #EBF8FF; --t2-fg:    #0F172A;
+  --t4:    #D1E7FE; --t4-fg:    #0F172A;
+  --t8:    #FEF9E7; --t8-fg:    #292415;
+  --t16:   #FEE4D6; --t16-fg:   #292415;
+  --t32:   #FFCBA4; --t32-fg:   #FFFFFF;
+  --t64:   #FDA857; --t64-fg:   #FFFFFF;
+  --t128:  #9370DB; --t128-fg:  #FFFFFF;
+  --t256:  #7C5AC2; --t256-fg:  #FFFFFF;
+  --t512:  #6B4EFF; --t512-fg:  #FFFFFF;
+  --t1024: #5940D4; --t1024-fg: #FFFFFF;
+  --t2048: #4A33AA; --t2048-fg: #FFFFFF;
+}
+
 html.dark-mode {
+  /* Explicitly set dark mode, overrides @media (prefers-color-scheme: dark) */
   --brand:     #6B4EFF;
   --brand-rgb: 107, 78, 255;
   --accent:    #6B4EFF;
