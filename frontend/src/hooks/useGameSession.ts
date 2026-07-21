@@ -324,9 +324,13 @@ export function useGameSession() {
         return;
       }
 
+      if (!isConnected) {
+        setError("Wallet is still connecting — please wait a moment and try again.");
+        return;
+      }
+
       const readyWalletClient = await resolveWalletClient();
       if (!readyWalletClient) {
-      if (!isConnected || !walletClient) {
         setError("Wallet is still connecting — please wait a moment and try again.");
         return;
       }
@@ -358,8 +362,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, isWrongChain, celoBalance, onChainSession, resolveWalletClient, signAndBroadcast, triggerNoGas, showToast],
-    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, walletClient, signAndBroadcast, triggerNoGas, showToast],
+    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, resolveWalletClient, signAndBroadcast, triggerNoGas, showToast],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -375,9 +378,13 @@ export function useGameSession() {
         setError("Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
         return;
       }
+      if (!isConnected) {
+        setError("Wallet is still connecting — please wait a moment and try again.");
+        return;
+      }
+
       const readyWalletClient = await resolveWalletClient();
       if (!readyWalletClient) {
-      if (!isConnected || !walletClient) {
         setError("Wallet is still connecting — please wait a moment and try again.");
         return;
       }
@@ -486,8 +493,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, contractDeployed, celoBalance, resolveWalletClient, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast],
-    [address, isConnected, contractDeployed, celoBalance, walletClient, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast],
+    [address, isConnected, contractDeployed, celoBalance, resolveWalletClient, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast],
   );
 
   const reset = useCallback(() => {
