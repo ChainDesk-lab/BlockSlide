@@ -1,5 +1,5 @@
 import { http, createConfig, fallback } from "wagmi";
-import { injected, walletConnect, metaMask } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 import { celo } from "wagmi/chains";
 
 // Celo mainnet read RPCs (no API keys)
@@ -24,8 +24,14 @@ const walletConnectConnector = walletConnectProjectId
 export const wagmiConfig = createConfig({
   chains: [celo],
   connectors: [
-    injected(), // MetaMask and other browser wallets
-    metaMask(),
+    // injected() alone covers MetaMask and other browser-extension wallets by
+    // talking directly to window.ethereum. The dedicated metaMask() connector
+    // (MetaMask SDK) is built for mobile/deep-link flows and is unreliable at
+    // producing a working useWalletClient() signer for a plain desktop
+    // browser-extension connection — registering both caused useWalletClient()
+    // to silently never resolve for a subset of wallet users, even though
+    // useAccount() correctly showed them as connected.
+    injected(),
     ...(walletConnectConnector ? [walletConnectConnector] : []), // WalletConnect v2
   ],
   transports: { [celo.id]: transport },
