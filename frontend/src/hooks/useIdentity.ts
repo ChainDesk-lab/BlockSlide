@@ -3,6 +3,7 @@ import { zeroAddress } from "viem";
 import { IDENTITY_ABI } from "../lib/abi";
 import { IDENTITY_ADDRESS } from "../lib/constants";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
+import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
 
 export type IdentityStatus =
   | "no-wallet"   // wallet not connected
@@ -11,8 +12,8 @@ export type IdentityStatus =
   | "pending"     // user started face verification, not yet confirmed on-chain
   | "verified";   // whitelisted on the GoodDollar identity contract
 
-const VERIFIED_KEY = (a: string) => `blockslide_verified_${a.toLowerCase()}`;
-const PENDING_KEY  = (a: string) => `blockslide_fv_pending_${a.toLowerCase()}`;
+const VERIFIED_KEY = "identity_verified";
+const PENDING_KEY  = "identity_pending";
 // How long a "pending" verification stays pending before reverting to
 // unverified (so a user who never finishes the scan can retry cleanly).
 const PENDING_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -90,16 +91,16 @@ export function useIdentity() {
       setPendingActive(false);
       return;
     }
-    setCachedVerified(localStorage.getItem(VERIFIED_KEY(address)) === "true");
-    const ts = Number(localStorage.getItem(PENDING_KEY(address)) || 0);
+    setCachedVerified(getUserStorage(address, VERIFIED_KEY) === "true");
+    const ts = Number(getUserStorage(address, PENDING_KEY) || 0);
     setPendingActive(ts > 0 && Date.now() - ts < PENDING_TTL_MS);
   }, [address]);
 
   // When the contract confirms verification, persist it and clear any pending.
   useEffect(() => {
     if (!address || !onChainVerified) return;
-    localStorage.setItem(VERIFIED_KEY(address), "true");
-    localStorage.removeItem(PENDING_KEY(address));
+    setUserStorage(address, VERIFIED_KEY, "true");
+    removeUserStorage(address, PENDING_KEY);
     setCachedVerified(true);
     setPendingActive(false);
   }, [address, onChainVerified]);
@@ -107,7 +108,7 @@ export function useIdentity() {
   // Called when the user kicks off the GoodDollar face-verification flow.
   const markPending = useCallback(() => {
     if (!address) return;
-    localStorage.setItem(PENDING_KEY(address), String(Date.now()));
+    setUserStorage(address, PENDING_KEY, String(Date.now()));
     setPendingActive(true);
   }, [address]);
 

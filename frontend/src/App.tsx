@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
+import { getDeviceStorage, setDeviceStorage, getUserStorage, setUserStorage } from "./lib/unifiedStorage";
 import BlockSlideMark from "./components/BlockSlideMark";
 import Board from "./components/Board";
 import GameControls from "./components/GameControls";
@@ -32,11 +33,11 @@ export default function App() {
   const [view, setView] = useState<View>("home");
 
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(() =>
-    !localStorage.getItem("blockslide_seen_htp")
+    !getDeviceStorage("seen_htp")
   );
   const openHowToPlay  = () => setShowHowToPlay(true);
   const closeHowToPlay = () => {
-    localStorage.setItem("blockslide_seen_htp", "1");
+    setDeviceStorage("seen_htp", "1");
     setShowHowToPlay(false);
   };
   const { state, seed, startNewGame, clearGame } = useGame(address, view === "game");
@@ -58,18 +59,18 @@ export default function App() {
   // ── Username ────────────────────────────────────────────────────────────────
   // On connect we read the username from the contract. If it's empty, prompt the
   // user to choose one via a modal; if they already have one it loads silently
-  // and shows in the header. Dismissed-per-wallet and persisted to localStorage.
+  // and shows in the header. Dismissed-per-wallet and persisted to storage.
   const { username, isLoading: usernameLoading } = useUsername();
-  const DISMISSED_KEY = (addr: string) => `blockslide_username_dismissed_${addr.toLowerCase()}`;
+  const DISMISSED_KEY = "username_modal_dismissed";
   const [usernameModalDismissed, setUsernameModalDismissed] = useState(false);
 
   useEffect(() => {
-    // On wallet change, read the dismiss state from localStorage.
+    // On wallet change, read the dismiss state from storage.
     if (!address) {
       setUsernameModalDismissed(false);
       return;
     }
-    const dismissed = localStorage.getItem(DISMISSED_KEY(address)) === "true";
+    const dismissed = getUserStorage(address, DISMISSED_KEY) === "true";
     setUsernameModalDismissed(dismissed);
   }, [address]);
 
@@ -171,7 +172,7 @@ export default function App() {
         <UsernameModal
           onClose={() => {
             setUsernameModalDismissed(true);
-            if (address) localStorage.setItem(DISMISSED_KEY(address), "true");
+            if (address) setUserStorage(address, DISMISSED_KEY, "true");
           }}
         />
       )}

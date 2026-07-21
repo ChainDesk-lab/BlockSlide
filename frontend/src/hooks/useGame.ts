@@ -6,8 +6,9 @@ import {
   generateSeed,
   initGame,
 } from "../lib/gameLogic";
+import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
 
-const STORAGE_KEY = (addr: string) => `blockslide_game_${addr.toLowerCase()}`;
+const STORAGE_KEY = "game_state";
 
 interface PersistedGame {
   seed: string;
@@ -28,7 +29,7 @@ export function useGame(address?: string, inputEnabled: boolean = true) {
   useEffect(() => {
     if (!address) return;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY(address));
+      const raw = getUserStorage(address, STORAGE_KEY);
       if (!raw) return;
       const saved: PersistedGame = JSON.parse(raw);
       // Re-init RNG from seed and fast-forward to saved moveCount
@@ -58,7 +59,7 @@ export function useGame(address?: string, inputEnabled: boolean = true) {
   useEffect(() => {
     if (!address || !state || !seed) return;
     const data: PersistedGame = { seed, state };
-    localStorage.setItem(STORAGE_KEY(address), JSON.stringify(data));
+    setUserStorage(address, STORAGE_KEY, JSON.stringify(data));
   }, [address, state, seed]);
 
   const startNewGame = useCallback((existingSeed?: string) => {
@@ -74,7 +75,7 @@ export function useGame(address?: string, inputEnabled: boolean = true) {
     setState(null);
     setSeed(null);
     rngRef.current = null;
-    if (address) localStorage.removeItem(STORAGE_KEY(address));
+    if (address) removeUserStorage(address, STORAGE_KEY);
   }, [address]);
 
   const handleMove = useCallback((dir: Direction) => {
