@@ -7,6 +7,16 @@ interface WalletSelectorProps {
   onClose: () => void;
 }
 
+// A phone in a plain browser tab (not MetaMask's own in-app browser) has no
+// injected provider at all — window.ethereum simply doesn't exist there, so
+// there's nothing for the "MetaMask" option to connect to unless we send the
+// user into the MetaMask app itself first.
+const isMobileDevice = () =>
+  typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+const hasInjectedProvider = () =>
+  typeof window !== "undefined" && !!(window as unknown as { ethereum?: unknown }).ethereum;
+
 export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
@@ -16,6 +26,24 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const [error, setError] = useState<string | null>(null);
 
   const handleConnectWallet = async (connectorName: string) => {
+    // Mobile + no injected provider + user picked MetaMask: there's nothing
+    // for injected() to connect to here — the MetaMask app isn't open. Send
+    // them to MetaMask's official deep link, which reopens this exact page
+    // inside the MetaMask app's own browser. That in-app browser injects
+    // window.ethereum just like a desktop extension does, so the user lands
+    // on the same reliable injected() path once they return — not on
+    // MetaMask's separate SDK/relay bridge, which is what caused the
+    // original "wallet is still connecting" bug for desktop users.
+    if (
+      connectorName.toLowerCase() === "metamask" &&
+      !hasInjectedProvider() &&
+      isMobileDevice()
+    ) {
+      const dappUrl = `${window.location.host}${window.location.pathname}${window.location.search}`;
+      window.location.href = `https://metamask.app.link/dapp/${dappUrl}`;
+      return;
+    }
+
     // Find connector with case-insensitive match
     const connector = connectors.find(
       (c) => c.name.toLowerCase().includes(connectorName.toLowerCase())

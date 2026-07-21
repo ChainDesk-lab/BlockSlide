@@ -12,6 +12,9 @@ import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
 import { useContractAddress, useContractPublicClient, useContractWalletClient } from "./useContractData";
 import { useAuth } from "../auth/AuthContext";
+import { useWalletClient } from "wagmi";
+import { getWalletClient } from "wagmi/actions";
+import { wagmiConfig } from "../auth/wagmiConfig";
 import { getMagic, isMagicConfigured } from "../magic";
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
@@ -139,6 +142,24 @@ export function useUsername() {
         } as const;
 
         let hash: `0x${string}`;
+        // Resolved once up-front so both the primary signTransaction path and
+        // the eth_sendTransaction fallback below use the same client — wagmi's
+        // reactive useWalletClient() can still be resolving right after a
+        // fresh connect/reload, so fetch it imperatively if needed instead of
+        // treating "not resolved yet" as unusable.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let resolvedWalletClient: any = wagmiWalletClient;
+        if (!(authType === "magic" && isMagicConfigured) && !resolvedWalletClient) {
+          try {
+            // Cast the call itself — viem's Client generics recurse in a way
+            // that trips a spurious "two different types with this name"
+            // error across module-resolution boundaries; the value is used
+            // as `any` throughout this file regardless.
+            resolvedWalletClient = await (getWalletClient as any)(wagmiConfig, { chainId: TARGET_CHAIN.id });
+          } catch (err) {
+            console.error("[useUsername] getWalletClient fallback failed:", err);
+          }
+        }
         try {
           // For Magic.link, use sendTransaction with timeout
           if (authType === "magic" && isMagicConfigured) {
@@ -181,8 +202,15 @@ export function useUsername() {
               throw timeoutErr;
             }
           } else {
+            if (!resolvedWalletClient) {
+              setError("Wallet is still connecting — please wait a moment and try again.");
+              setIsSaving(false);
+              return;
+            }
+
             // For other auth types, use viem's signTransaction
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const signed = await (signTransaction as any)(resolvedWalletClient, { ...base, type: "eip1559" });
             const signed = await (signTransaction as any)(walletClient, { ...base, type: "eip1559" });
             hash = await publicClient.sendRawTransaction({ serializedTransaction: signed as `0x${string}` });
           }
@@ -230,6 +258,7 @@ export function useUsername() {
           if (!unsupported) throw signErr;
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          hash = await (resolvedWalletClient as any).request({
           hash = await (walletClient as any).request({
             method: "eth_sendTransaction",
             params: [{

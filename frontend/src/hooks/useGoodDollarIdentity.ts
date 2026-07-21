@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { useWalletClient } from "wagmi";
+import { getWalletClient } from "wagmi/actions";
 import { IdentitySDK } from "@goodsdks/citizen-sdk";
 import { createWalletClient, custom } from "viem";
 import { TARGET_CHAIN } from "../lib/constants";
 import { useAuth } from "../auth/AuthContext";
+import { wagmiConfig } from "../auth/wagmiConfig";
+import { useContractAddress, useContractPublicClient } from "./useContractData";
 import { useContractPublicClient, useContractWalletClient } from "./useContractData";
 import { getMagic } from "../magic";
 
@@ -27,13 +31,15 @@ interface UseGoodDollarIdentityResult {
  * - Post-verification status recheck
  */
 export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
+  const { authType } = useAuth();
+  const { data: wagmiWalletClient } = useWalletClient();
   const { authType, address: magicAddress } = useAuth();
   const walletClient = useContractWalletClient();
   const contractPublicClient = useContractPublicClient();
 
   // Helper to create wallet client on-demand (not memoized to avoid dependency issues)
   // Note: only called after addressToVerify has been verified as non-undefined
-  const createWalletClientForAuth = (addr?: `0x${string}`) => {
+  const createWalletClientForAuth = async (addr?: `0x${string}`) => {
     if (authType === "magic") {
       try {
         const magic = getMagic();
@@ -49,6 +55,16 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         return undefined;
       }
     }
+    // wagmi's reactive useWalletClient() can still be resolving right after a
+    // fresh connect — fetch it imperatively once before giving up, instead of
+    // treating "not resolved yet" as "not connected".
+    if (wagmiWalletClient) return wagmiWalletClient;
+    try {
+      return await getWalletClient(wagmiConfig, { chainId: TARGET_CHAIN.id });
+    } catch (err) {
+      console.error("Failed to fetch wallet client:", err);
+      return undefined;
+    }
     return walletClient;
   };
 
@@ -57,6 +73,12 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Address to verify — the same reliably-connected address the rest of the
+  // app (header balance, username, game session) uses. Deliberately NOT
+  // derived from the wallet *signing* client: checking verification status is
+  // a read-only lookup and never needed a signer, so gating it on one caused
+  // the "wallet not connected" false negative even while clearly connected.
+  const addressToVerify = useContractAddress();
   // Get the address to verify - Magic or wagmi
   const addressToVerify = authType === "magic" ? magicAddress : walletClient?.account?.address;
 
@@ -72,7 +94,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       setError(null);
 
       // Initialize SDK for on-chain status check
-      const walletClient = createWalletClientForAuth(addressToVerify);
+      const walletClient = await createWalletClientForAuth(addressToVerify);
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
@@ -116,7 +138,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
     try {
       // Initialize SDK with wallet and public clients
-      const walletClient = createWalletClientForAuth(addressToVerify);
+      const walletClient = await createWalletClientForAuth(addressToVerify);
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
