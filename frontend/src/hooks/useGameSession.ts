@@ -17,6 +17,7 @@ import { useNoGas } from "../contexts/NoGasContext";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../auth/AuthContext";
 import { useContractAddress, useContractWalletClient } from "./useContractData";
+import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
 
@@ -24,7 +25,7 @@ const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for 
 // game-state seed (blockslide_game_*) so a board reset, remount, or "play
 // locally" can't orphan the on-chain session — submitScore can always recover
 // the seed that matches the committed hash from here.
-const SESSION_SEED_KEY = (addr: string) => `blockslide_session_seed_${addr.toLowerCase()}`;
+const SESSION_SEED_KEY = "session_seed";
 
 export type SessionPhase =
   | "idle"        // no wallet / no active session
@@ -140,8 +141,8 @@ export function useGameSession() {
       setSessionStuck(false);
       // Session is spent — drop the durable committed-seed copy.
       try {
-        if (address && typeof localStorage !== "undefined") {
-          localStorage.removeItem(SESSION_SEED_KEY(address));
+        if (address) {
+          removeUserStorage(address, SESSION_SEED_KEY);
         }
       } catch { /* ignore */ }
       showToast("✓ Score submitted! Check your rewards.", "success");
@@ -313,9 +314,7 @@ export function useGameSession() {
       // Durably persist the committed seed *before* handing it to the game, so a
       // later board reset / remount / "play locally" can't orphan this session.
       try {
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem(SESSION_SEED_KEY(address), seed);
-        }
+        setUserStorage(address, SESSION_SEED_KEY, seed);
       } catch { /* storage unavailable — submit falls back to the live game seed */ }
       onSeedReady(seed);
 
@@ -379,10 +378,7 @@ export function useGameSession() {
       if (keccak256(submitSeed) !== session.seedHash) {
         let recovered: `0x${string}` | null = null;
         try {
-          const stored =
-            typeof localStorage !== "undefined"
-              ? localStorage.getItem(SESSION_SEED_KEY(address))
-              : null;
+          const stored = getUserStorage(address, SESSION_SEED_KEY);
           if (
             stored &&
             stored.startsWith("0x") &&

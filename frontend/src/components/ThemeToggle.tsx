@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
+import { getDeviceStorage, setDeviceStorage } from "../lib/unifiedStorage";
 
 export default function ThemeToggle() {
   const [isDark, setIsDark] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Initialize theme from localStorage or system preference
+  // Initialize theme from device-level storage or system preference
   useEffect(() => {
-    const storedTheme = localStorage.getItem("blockslide-theme");
+    const storedTheme = getDeviceStorage("theme");
 
     if (storedTheme) {
-      // User has manually set a preference
+      // User has manually set a preference (persists across wallet switches)
       const isDarkMode = storedTheme === "dark";
       setIsDark(isDarkMode);
       applyTheme(isDarkMode);
@@ -38,7 +39,7 @@ export default function ThemeToggle() {
     const newIsDark = !isDark;
     setIsDark(newIsDark);
     applyTheme(newIsDark);
-    localStorage.setItem("blockslide-theme", newIsDark ? "dark" : "light");
+    setDeviceStorage("theme", newIsDark ? "dark" : "light");
   };
 
   // Don't render until mounted to prevent hydration mismatch
