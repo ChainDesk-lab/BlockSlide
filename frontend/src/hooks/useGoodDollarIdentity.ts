@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useChainId } from "wagmi";
 import { getWalletClient } from "wagmi/actions";
 import { IdentitySDK } from "@goodsdks/citizen-sdk";
 import { createWalletClient, custom } from "viem";
@@ -32,6 +33,14 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { authType } = useAuth();
   const walletClient = useContractWalletClient();
   const contractPublicClient = useContractPublicClient();
+  // The wallet's actively-selected network (as MetaMask itself reports it),
+  // not just whether an address is connected. IdentitySDK's constructor
+  // throws synchronously on a missing/undefined wallet client, and wagmi's
+  // getWalletClient() throws internally whenever the wallet isn't on Celo —
+  // without this check that surfaces as a confusing generic crash instead of
+  // telling the user to switch networks.
+  const chainId = useChainId();
+  const isWrongChain = authType !== "magic" && chainId !== TARGET_CHAIN.id;
 
   // Helper to create wallet client on-demand (not memoized to avoid dependency issues)
   // Note: only called after addressToVerify has been verified as non-undefined
@@ -88,6 +97,11 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
       // Initialize SDK for on-chain status check
       const walletClient = await createWalletClientForAuth(addressToVerify);
+      if (!walletClient) {
+        // Read-only status check — fail quietly, same as any other status-check error.
+        setIsVerified(false);
+        return;
+      }
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
@@ -123,6 +137,11 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       return;
     }
 
+    if (isWrongChain) {
+      setError("Wrong network — switch to Celo mainnet in your wallet, then try again.");
+      return;
+    }
+
     setError(null);
     setIsVerifying(true);
 
@@ -132,6 +151,11 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     try {
       // Initialize SDK with wallet and public clients
       const walletClient = await createWalletClientForAuth(addressToVerify);
+      if (!walletClient) {
+        throw new Error(
+          "Your wallet isn't ready to sign yet — make sure it's connected to Celo mainnet and try again.",
+        );
+      }
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: walletClient as any,
@@ -223,13 +247,17 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         message.toLowerCase().includes("cancel")
       ) {
         setError(null); // Don't show error for user cancellation
+      } else if (message.includes("wallet isn't ready")) {
+        // One of our own clear, actionable messages — show it as-is instead
+        // of masking it behind the generic fallback below.
+        setError(message);
       } else {
         setError("Could not start face verification. Please try again.");
       }
 
       setIsVerifying(false);
     }
-  }, [addressToVerify, contractPublicClient, authType, checkVerificationStatus]);
+  }, [addressToVerify, contractPublicClient, authType, isWrongChain, checkVerificationStatus]);
 
   const recheckVerification = useCallback(async () => {
     await checkVerificationStatus();
