@@ -2606,6 +2606,8 @@ html.dark-mode {
   .icon-btn { width: 32px; height: 32px; font-size: 0.9rem; }
   .header__right { width: 100%; justify-content: space-between; }
   .header__username { max-width: 110px; padding: 5px 10px; font-size: 0.8rem; }
+  .wallet-button-container { margin-left: auto; }
+  .wallet-dropdown { max-width: calc(100vw - 24px); }
 }
 
 /* ─── Very small phones (≤ 360px) ───────────────────────────────── */
@@ -2614,6 +2616,7 @@ html.dark-mode {
   .header__logo { font-size: 1.1rem; }
   .header__right { width: 100%; justify-content: space-between; }
   .header__username { max-width: 80px; padding: 4px 7px; font-size: 0.72rem; }
+  .wallet-button-container { margin-left: auto; }
   .icon-btn { width: 28px; height: 28px; font-size: 0.8rem; }
   .main { padding: 12px 10px 32px; gap: 12px; }
   .board { gap: 6px; padding: 6px; border-radius: var(--radius-sm); }
@@ -2679,6 +2682,7 @@ html.dark-mode {
   .hero__title { font-size: clamp(3rem, 8vw, 3.8rem); }
   .hero__tagline { font-size: 1rem; }
   .header__right { width: 100%; justify-content: space-between; }
+  .wallet-button-container { margin-left: auto; }
 }
 
 /* ─── Tablets (≥ 768px) ─────────────────────────────────────────── */
