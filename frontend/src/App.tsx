@@ -40,7 +40,8 @@ export default function App() {
     setDeviceStorage("seen_htp", "1");
     setShowHowToPlay(false);
   };
-  const { state, seed, startNewGame, clearGame } = useGame(address, view === "game");
+  const boardWrapperRef = useRef<HTMLDivElement>(null);
+  const { state, seed, startNewGame, clearGame } = useGame(address, view === "game", boardWrapperRef);
   const {
     phase,
     isPending,
@@ -296,7 +297,7 @@ export default function App() {
           <div className="game-view">
             <ScorePanel state={state} />
 
-            <div className="board-wrapper">
+            <div className="board-wrapper" ref={boardWrapperRef}>
               {state ? (
                 <>
                   <Board state={state} />

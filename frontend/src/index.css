@@ -180,6 +180,13 @@ html.dark-mode {
   flex-direction: column;
 }
 
+/* ─── Play screen ────────────────────────────────────────────────────────── */
+/* Keep an over-swipe on the board from rubber-banding/bouncing the whole
+   page on iOS Safari, without altering the existing layout. */
+.game-view {
+  overscroll-behavior: contain;
+}
+
 /* ─── Header ─────────────────────────────────────────────────────────────── */
 .header {
   display: flex;
@@ -825,7 +832,16 @@ html.dark-mode {
 }
 
 /* ─── Board ──────────────────────────────────────────────────────────────── */
-.board-wrapper { position: relative; }
+/* touch-action: none stops the browser from treating a swipe as a page
+   scroll/pan/zoom gesture — the board must stay fixed while the player
+   swipes; only the tiles move. Paired with the touchmove preventDefault
+   in useGame.ts as a fallback for browsers that don't fully honor it. */
+.board-wrapper {
+  position: relative;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
 
 .board {
   display: grid;
@@ -838,6 +854,7 @@ html.dark-mode {
   aspect-ratio: 1 / 1;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   position: relative;
+  touch-action: none;
 }
 
 

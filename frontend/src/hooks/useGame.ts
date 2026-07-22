@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
   applyMove,
   Direction,
@@ -15,7 +15,11 @@ interface PersistedGame {
   state: GameState;
 }
 
-export function useGame(address?: string, inputEnabled: boolean = true) {
+export function useGame(
+  address?: string,
+  inputEnabled: boolean = true,
+  boardRef?: RefObject<HTMLElement | null>
+) {
   const [state, setState] = useState<GameState | null>(null);
   const [seed, setSeed] = useState<string | null>(null);
   const rngRef = useRef<(() => number) | null>(null);
@@ -110,11 +114,27 @@ export function useGame(address?: string, inputEnabled: boolean = true) {
   useEffect(() => {
     let startX = 0;
     let startY = 0;
+    // Whether the finger came down on the board itself — only then do we
+    // block the browser's native scroll/rubber-band, so the board stays
+    // put during a swipe without stopping the user from scrolling the
+    // rest of the page (controls, banners, etc.) elsewhere.
+    let trackingBoard = false;
 
     const onTouchStart = (e: TouchEvent) => {
-      if (!inputEnabledRef.current) return;
+      if (!inputEnabledRef.current) {
+        trackingBoard = false;
+        return;
+      }
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
+      trackingBoard = !!boardRef?.current?.contains(e.target as Node);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      // Re-check inputEnabledRef here too (not just at touchstart) so a
+      // screen change mid-gesture — leaving the game view — can never leave
+      // scroll-blocking stuck on for whatever page the user lands on next.
+      if (inputEnabledRef.current && trackingBoard) e.preventDefault();
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -133,12 +153,15 @@ export function useGame(address?: string, inputEnabled: boolean = true) {
     };
 
     window.addEventListener("touchstart", onTouchStart, { passive: true });
+    // Must be non-passive so preventDefault() can actually stop the scroll.
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => {
       window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
     };
-  }, [handleMove]);
+  }, [handleMove, boardRef]);
 
   return { state, seed, startNewGame, clearGame, handleMove };
 }
