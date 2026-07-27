@@ -10,11 +10,10 @@ import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
-import { useContractAddress, useContractPublicClient, useContractWalletClient } from "./useContractData";
+import { useContractAddress, useContractPublicClient } from "./useContractData";
 import { useAuth } from "../auth/AuthContext";
-import { getWalletClient } from "wagmi/actions";
-import { wagmiConfig } from "../auth/wagmiConfig";
 import { getMagic, isMagicConfigured } from "../magic";
+import { useSigner } from "./useSigner";
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -23,7 +22,7 @@ export function useUsername() {
   const { authType } = useAuth();
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
-  const walletClient = useContractWalletClient();
+  const { signer, error: signerError } = useSigner();
   const { triggerNoGas } = useNoGas();
 
   const [current, setCurrent] = useState<string | undefined>();
@@ -145,19 +144,12 @@ export function useUsername() {
         // the eth_sendTransaction fallback below use the same client —
         // useContractWalletClient() can still be resolving right after a
         // fresh connect/reload, so fetch it imperatively if needed instead of
-        // treating "not resolved yet" as unusable.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let resolvedWalletClient: any = walletClient;
-        if (!(authType === "magic" && isMagicConfigured) && !resolvedWalletClient) {
-          try {
-            // Cast the call itself — viem's Client generics recurse in a way
-            // that trips a spurious "two different types with this name"
-            // error across module-resolution boundaries; the value is used
-            // as `any` throughout this file regardless.
-            resolvedWalletClient = await (getWalletClient as any)(wagmiConfig, { chainId: TARGET_CHAIN.id });
-          } catch (err) {
-            console.error("[useUsername] getWalletClient fallback failed:", err);
-          }
+        // Single source of truth for signer — useSigner() handles all retries
+        const resolvedWalletClient: any = signer;
+        if (!resolvedWalletClient) {
+          setError(signerError || "Wallet signer not available — please try again.");
+          setIsSaving(false);
+          return;
         }
         try {
           // For Magic.link, use sendTransaction with timeout
@@ -290,7 +282,7 @@ export function useUsername() {
         setIsSaving(false);
       }
     },
-    [address, walletClient, publicClient, refetch, triggerNoGas, authType],
+    [address, signer, publicClient, refetch, triggerNoGas, authType],
   );
 
   return {

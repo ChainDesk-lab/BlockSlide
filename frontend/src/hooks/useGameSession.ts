@@ -9,8 +9,6 @@ import {
   useSwitchChain,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { getWalletClient } from "wagmi/actions";
-import { wagmiConfig } from "../auth/wagmiConfig";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
@@ -18,8 +16,9 @@ import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../auth/AuthContext";
-import { useContractAddress, useContractWalletClient } from "./useContractData";
+import { useContractAddress } from "./useContractData";
 import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
+import { useSigner } from "./useSigner";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
 
@@ -48,9 +47,9 @@ export function useGameSession() {
 
   // Public client uses our transport (ankr first) — for nonce reads and broadcast.
   const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
-  // Wallet client — used for signTransaction (pure signing, no RPC calls made
-  // by the wallet, so the wallet's forno config can't block us).
-  const walletClient = useContractWalletClient();
+  // Single source of truth for signer — all three features (game, username, identity)
+  // call useSigner() so there's exactly one code path, one retry strategy, one error handler.
+  const { signer, error: signerError } = useSigner();
 
   // Manual tx state — replaces useSendTransaction so we can use signTransaction
   // + sendRawTransaction and keep the same interface for the rest of the hook.
@@ -163,13 +162,13 @@ export function useGameSession() {
   // Takes the wallet client as a parameter (rather than closing over the
   // reactive hook value) so callers can resolve it — including the
   // imperative fallback below — right before signing, guaranteeing this
-  // function always uses the freshest client instead of a possibly-stale one.
+  // function always uses the freshest signer instead of a possibly-stale one.
   const signAndBroadcast = useCallback(async (
-    activeWalletClient: NonNullable<ReturnType<typeof useContractWalletClient>>,
+    activeSigner: any,
     data: `0x${string}`,
     gas: bigint,
   ): Promise<`0x${string}`> => {
-    if (!activeWalletClient || !address) throw new Error("Wallet not connected");
+    if (!activeSigner || !address) throw new Error("Wallet not connected");
     if (!publicClient) throw new Error("Network unavailable");
 
     setIsPending(true);
@@ -197,7 +196,7 @@ export function useGameSession() {
       // expose eth_signTransaction. Go straight to eth_sendTransaction with a
       // simple legacy-style tx (gasPrice only, no EIP-1559 fields, no explicit
       // nonce) so Magic's provider can apply chain defaults without confusion.
-      const isMagicWallet = (activeWalletClient as any)?.key === "magic";
+      const isMagicWallet = (activeSigner as any)?.key === "magic";
 
       if (isMagicWallet) {
         // Fetch live gas price immediately before broadcast — never send a stale hardcoded value.
@@ -209,7 +208,7 @@ export function useGameSession() {
           gasPrice = liveGasPrice + liveGasPrice / 5n; // live + 20%
         } catch { /* use fallback */ }
 
-        hash = await (activeWalletClient as any).request({
+        hash = await (activeSigner as any).request({
           method: "eth_sendTransaction",
           params: [{
             from:     address,
@@ -224,7 +223,7 @@ export function useGameSession() {
           // Primary path: eth_signTransaction (pure crypto, wallet makes zero RPC
           // calls) then we broadcast via ankr — forno never involved.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const signedTx = await (signTransaction as any)(activeWalletClient, { ...txBase, type: "eip1559" });
+          const signedTx = await (signTransaction as any)(activeSigner, { ...txBase, type: "eip1559" });
           hash = await publicClient.sendRawTransaction({ serializedTransaction: signedTx });
         } catch (signErr: unknown) {
           const msg = ((signErr as Error)?.message ?? "").toLowerCase();
@@ -247,7 +246,7 @@ export function useGameSession() {
           // Fallback: wallet doesn't support eth_signTransaction (e.g. Coinbase Wallet).
           // Use eth_sendTransaction directly — wallet handles signing + broadcast via
           // its own RPC (which is not forno, so the signing prompt appears normally).
-          hash = await (activeWalletClient as any).request({
+          hash = await (activeSigner as any).request({
             method: "eth_sendTransaction",
             params: [{
               from:                 address,
@@ -273,21 +272,6 @@ export function useGameSession() {
     }
   }, [publicClient, address]);
 
-  // wagmi's reactive useWalletClient() (surfaced here as `walletClient`) can
-  // still be resolving right after a fresh connect or reload, even though
-  // useAccount()/address is already correct. Rather than treating "not
-  // resolved yet" as "not connected", fetch it imperatively once before
-  // giving up — this is the same client wagmi's hook would eventually hand
-  // back, just requested directly instead of waiting on a render.
-  const resolveWalletClient = useCallback(async () => {
-    if (walletClient) return walletClient;
-    try {
-      return await getWalletClient(wagmiConfig, { chainId: TARGET_CHAIN.id });
-    } catch (err) {
-      console.error("[useGameSession] getWalletClient fallback failed:", err);
-      return null;
-    }
-  }, [walletClient]);
 
   // ── startSession ─────────────────────────────────────────────────────────
   // onSeedReady is called with the committed seed only after all pre-flight
@@ -329,9 +313,8 @@ export function useGameSession() {
         return;
       }
 
-      const readyWalletClient = await resolveWalletClient();
-      if (!readyWalletClient) {
-        setError("Wallet is still connecting — please wait a moment and try again.");
+      if (!signer) {
+        setError(signerError || "Wallet signer not available — please try again.");
         return;
       }
 
@@ -349,7 +332,7 @@ export function useGameSession() {
 
       try {
         await signAndBroadcast(
-          readyWalletClient,
+          signer,
           encodeFunctionData({ abi: GAME2048_ABI, functionName: "startSession", args: [keccak256(seed)] }),
           200_000n,
         );
@@ -362,7 +345,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, resolveWalletClient, signAndBroadcast, triggerNoGas, showToast],
+    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, signer, signerError, signAndBroadcast, triggerNoGas, showToast],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -383,9 +366,8 @@ export function useGameSession() {
         return;
       }
 
-      const readyWalletClient = await resolveWalletClient();
-      if (!readyWalletClient) {
-        setError("Wallet is still connecting — please wait a moment and try again.");
+      if (!signer) {
+        setError(signerError || "Wallet signer not available — please try again.");
         return;
       }
 
@@ -480,7 +462,7 @@ export function useGameSession() {
 
       try {
         await signAndBroadcast(
-          readyWalletClient,
+          signer,
           encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args }),
           500_000n,
         );
@@ -493,7 +475,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, celoBalance, resolveWalletClient, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast],
+    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast],
   );
 
   const reset = useCallback(() => {
