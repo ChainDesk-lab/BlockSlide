@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { getDeviceStorage, setDeviceStorage, getUserStorage, setUserStorage } from "./lib/unifiedStorage";
+import { migrateStorageKeys } from "./lib/storageMigration";
 import BlockSlideMark from "./components/BlockSlideMark";
 import Board from "./components/Board";
 import GameControls from "./components/GameControls";
@@ -27,6 +28,11 @@ type View = "home" | "game" | "leaderboard" | "shop";
 export default function App() {
   const { address, isConnected, isFundingWallet } = useAuth();
   const { status: identityStatus, refetch: refetchIdentity, markPending: markIdentityPending } = useIdentity();
+
+  // Migrate old storage keys to new unified format (run once per address)
+  useEffect(() => {
+    migrateStorageKeys(address);
+  }, [address]);
 
   // Which screen is showing. Game state/hooks live at this level so navigating
   // away and back never resets an in-progress game.
