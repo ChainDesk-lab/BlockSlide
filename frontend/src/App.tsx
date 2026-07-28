@@ -34,6 +34,17 @@ export default function App() {
     migrateStorageKeys(address);
   }, [address]);
 
+  // Log auth state changes for debugging wallet connection issues
+  useEffect(() => {
+    if (isConnected || address) {
+      console.log("[App] Auth state:", {
+        isConnected,
+        address: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "none",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [isConnected, address]);
+
   // Which screen is showing. Game state/hooks live at this level so navigating
   // away and back never resets an in-progress game.
   const [view, setView] = useState<View>("home");

@@ -15,8 +15,12 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
-    // apple-touch-icon — used when iOS users tap "Add to Home Screen"
-    apple: "/pwa-icon?size=192",
+    icon: [
+      { rel: "icon", url: "/favicon.ico", sizes: "any" },
+      { rel: "icon", url: "/favicon-48x48.png", sizes: "48x48", type: "image/png" },
+      { rel: "icon", url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
 };
 
