@@ -15,7 +15,13 @@ interface PlayerRow {
   isVerified?: boolean; // true if player has earned XP; undefined for backward compat
 }
 
-function buildQuery(skip: number): string {
+interface LeaderboardData {
+  entries: PlayerRow[];
+  totalPlayers: number;
+  totalPages: number;
+}
+
+function buildPlayersQuery(skip: number): string {
   return `{
     players(first: ${PAGE_SIZE}, skip: ${skip}, orderBy: xp, orderDirection: desc) {
       id
@@ -25,17 +31,38 @@ function buildQuery(skip: number): string {
   }`;
 }
 
-async function fetchLeaderboard(skip: number): Promise<PlayerRow[]> {
-  const query = buildQuery(skip);
+function buildTotalQuery(): string {
+  return `{
+    players {
+      id
+    }
+  }`;
+}
+
+async function fetchLeaderboard(skip: number): Promise<LeaderboardData> {
+  // Fetch page data
+  const playersQuery = buildPlayersQuery(skip);
   const res = await fetch(SUBGRAPH_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query: playersQuery }),
   });
   if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
   const json = (await res.json()) as { data?: { players?: PlayerRow[] }; errors?: unknown };
   if (json.errors) throw new Error("Subgraph returned errors");
-  return json.data?.players ?? [];
+  const entries = json.data?.players ?? [];
+
+  // Fetch total count (once per query to keep it fresh)
+  const totalRes = await fetch(SUBGRAPH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: buildTotalQuery() }),
+  });
+  const totalJson = (await totalRes.json()) as { data?: { players?: { id: string }[] }; errors?: unknown };
+  const totalPlayers = totalJson.data?.players?.length ?? 0;
+  const totalPages = Math.ceil(totalPlayers / PAGE_SIZE);
+
+  return { entries, totalPlayers, totalPages };
 }
 
 export default function Leaderboard() {
@@ -56,8 +83,11 @@ export default function Leaderboard() {
     staleTime: 15_000,
   });
 
-  const entries = data ?? [];
-  const showEmpty = configured && !isLoading && (isError || entries.length === 0);
+  const entries = data?.entries ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const totalPlayers = data?.totalPlayers ?? 0;
+  const showEmpty = configured && !isLoading && (isError || totalPlayers === 0);
+  const isLastPage = currentPage >= totalPages - 1;
 
   const handleEditClick = (addr: string, currentName: string | null) => {
     setEditingAddress(addr);
@@ -248,12 +278,12 @@ export default function Leaderboard() {
               ← Previous
             </button>
             <span className="leaderboard__pagination-info">
-              Page {currentPage + 1}
+              Page {currentPage + 1} of {totalPages}
             </span>
             <button
               className="leaderboard__pagination-btn"
               onClick={() => setCurrentPage(p => p + 1)}
-              disabled={entries.length < PAGE_SIZE || isLoading}
+              disabled={isLastPage || isLoading}
             >
               Next →
             </button>
