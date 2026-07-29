@@ -38,6 +38,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
           rel="stylesheet"
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Detect when service worker takes control (new deploy activation)
+              // and reload to ensure users get the new code immediately
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                  console.log('[App] New service worker activated, reloading page');
+                  window.location.reload();
+                });
+              }
+            `,
+          }}
+        />
       </head>
       <body>
         {children}

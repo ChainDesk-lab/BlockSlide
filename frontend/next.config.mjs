@@ -9,6 +9,14 @@ const nextConfig = {
   // require CORP headers on every cross-origin asset and break image/RPC loads.
   async headers() {
     return [
+      // Service worker: NEVER cache. Browsers must check for updates on every load.
+      // Critical: old SW won't uninstall without browsers fetching the new version.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+        ],
+      },
       // Static assets: cache indefinitely (Next.js adds content hash to filenames)
       {
         source: "/_next/static/:path*",
