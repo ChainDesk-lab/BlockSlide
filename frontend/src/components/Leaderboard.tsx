@@ -65,6 +65,26 @@ async function fetchLeaderboard(skip: number): Promise<LeaderboardData> {
   return { entries, totalPlayers, totalPages };
 }
 
+// Fetch the global top 3 players (independent of pagination)
+async function fetchTopThree(): Promise<PlayerRow[]> {
+  const query = `{
+    players(first: 3, orderBy: xp, orderDirection: desc) {
+      id
+      xp
+      username
+    }
+  }`;
+  const res = await fetch(SUBGRAPH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
+  const json = (await res.json()) as { data?: { players?: PlayerRow[] }; errors?: unknown };
+  if (json.errors) throw new Error("Subgraph returned errors");
+  return json.data?.players ?? [];
+}
+
 export default function Leaderboard() {
   const configured = SUBGRAPH_URL.length > 0;
   const { address } = useAuth();
@@ -75,7 +95,9 @@ export default function Leaderboard() {
   const [currentPage, setCurrentPage] = useState(0);
 
   const skip = currentPage * PAGE_SIZE;
-  const { data, isLoading, isError } = useQuery({
+
+  // Paginated list query for current page
+  const { data, isLoading, isError, error: queryError } = useQuery({
     queryKey: ["leaderboard", currentPage],
     queryFn: () => fetchLeaderboard(skip),
     enabled: configured,
@@ -83,11 +105,28 @@ export default function Leaderboard() {
     staleTime: 15_000,
   });
 
+  // Independent query for global top 3 (never changes with page navigation)
+  const { data: topThreeData } = useQuery({
+    queryKey: ["leaderboard-top-three"],
+    queryFn: () => fetchTopThree(),
+    enabled: configured,
+    refetchInterval: 30_000, // pick up new scores
+    staleTime: 15_000,
+  });
+
+  if (queryError) {
+    console.error("[Leaderboard] Query error:", queryError);
+  }
+
   const entries = data?.entries ?? [];
+  const topThree = topThreeData ?? [];
   const totalPages = data?.totalPages ?? 1;
   const totalPlayers = data?.totalPlayers ?? 0;
   const showEmpty = configured && !isLoading && (isError || totalPlayers === 0);
   const isLastPage = currentPage >= totalPages - 1;
+
+  // Debug: log navigation state when page changes
+  console.log(`[Leaderboard] Page ${currentPage + 1}/${totalPages}, skip=${skip}, entries=${entries.length}, isLoading=${isLoading}`);
 
   const handleEditClick = (addr: string, currentName: string | null) => {
     setEditingAddress(addr);
@@ -132,9 +171,9 @@ export default function Leaderboard() {
       )}
 
       {/* ── Top 3 Podium Section ────────────────────────────────────────── */}
-      {entries.length > 0 && entries.length >= 3 && (
+      {topThree.length > 0 && topThree.length >= 3 && (
         <div className="leaderboard__podium">
-          {entries.slice(0, 3).map((entry, idx) => {
+          {topThree.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
             const avatar = getAvatar(entry.id);
@@ -155,9 +194,9 @@ export default function Leaderboard() {
         </div>
       )}
 
-      {entries.length > 0 && entries.length < 3 && (
+      {topThree.length > 0 && topThree.length < 3 && (
         <div className="leaderboard__podium leaderboard__podium--partial">
-          {entries.map((entry, idx) => {
+          {topThree.map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
             const avatar = getAvatar(entry.id);
@@ -272,8 +311,12 @@ export default function Leaderboard() {
           <div className="leaderboard__pagination">
             <button
               className="leaderboard__pagination-btn"
-              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              onClick={() => {
+                console.log(`[Leaderboard] Previous clicked: currentPage ${currentPage} → ${Math.max(0, currentPage - 1)}`);
+                setCurrentPage(p => Math.max(0, p - 1));
+              }}
               disabled={currentPage === 0 || isLoading}
+              aria-label="Previous page"
             >
               ← Previous
             </button>
@@ -282,8 +325,12 @@ export default function Leaderboard() {
             </span>
             <button
               className="leaderboard__pagination-btn"
-              onClick={() => setCurrentPage(p => p + 1)}
+              onClick={() => {
+                console.log(`[Leaderboard] Next clicked: currentPage ${currentPage} → ${currentPage + 1}, isLastPage=${isLastPage}`);
+                setCurrentPage(p => p + 1);
+              }}
               disabled={isLastPage || isLoading}
+              aria-label="Next page"
             >
               Next →
             </button>
