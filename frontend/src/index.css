@@ -2008,7 +2008,7 @@ html.dark-mode {
 
 .leaderboard__pagination-btn {
   padding: 8px 16px;
-  background: var(--primary);
+  background: var(--brand);
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -2019,7 +2019,7 @@ html.dark-mode {
 }
 
 .leaderboard__pagination-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--primary) 80%, black);
+  background: color-mix(in srgb, var(--brand) 80%, black);
 }
 
 .leaderboard__pagination-btn:disabled {
