@@ -9,6 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#f2ece0",
     display: "standalone",
     start_url: "/",
+    scope: "/",
     icons: [
       {
         src: "/android-chrome-192x192.png",
@@ -21,6 +22,12 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
+      },
+      {
+        src: "/android-chrome-512x512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
     ],
   };
