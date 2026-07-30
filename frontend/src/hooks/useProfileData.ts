@@ -12,6 +12,7 @@ interface PlayerProfile {
   isVerified: boolean;
   totalGEarned?: string; // Phase 2 optional
   totalGSpent?: string; // Phase 2 optional
+  referralCount?: string; // Phase 3 optional
 }
 
 interface ProfileData {
@@ -32,7 +33,7 @@ export function useProfileData(
     queryFn: async () => {
       if (!address || !subgraphUrl) return null;
 
-      // Query with Phase 2 fields; gracefully degrade if they don't exist yet
+      // Query with Phase 2 and Phase 3 fields; gracefully degrade if they don't exist yet
       const query = `{
         players(where: { id: "${address.toLowerCase()}" }, first: 1) {
           id
@@ -43,6 +44,7 @@ export function useProfileData(
           isVerified
           totalGEarned
           totalGSpent
+          referralCount
         }
       }`;
 

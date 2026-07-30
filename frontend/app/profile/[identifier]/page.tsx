@@ -122,9 +122,11 @@ export default function ProfilePage({ params }: PageProps) {
 
   const gEarned = player?.totalGEarned ? formatGDollar(player.totalGEarned) : null;
   const gSpent = player?.totalGSpent ? formatGDollar(player.totalGSpent) : null;
+  const referralCount = player?.referralCount ? parseInt(player.referralCount) : 0;
 
   // Feature detection: if fields don't exist, show "coming soon"
   const hasGFields = player && (player.totalGEarned !== undefined || player.totalGSpent !== undefined);
+  const hasReferralFields = player && player.referralCount !== undefined;
 
   // Generate invite link
   const refLink = `${PRODUCTION_URL}/?ref=${profileAddress}`;
@@ -242,9 +244,18 @@ export default function ProfilePage({ params }: PageProps) {
             Share invite
           </button>
 
-          <div className="invite-referral-count">
-            Referral tracking coming soon
-          </div>
+          {hasReferralFields && (
+            <div className="invite-referral-count">
+              {referralCount === 0
+                ? "No referrals yet"
+                : `${referralCount} player${referralCount === 1 ? "" : "s"} joined through you`}
+            </div>
+          )}
+          {!hasReferralFields && !loading && (
+            <div className="invite-referral-count">
+              Referral tracking coming soon
+            </div>
+          )}
         </div>
       )}
     </div>
