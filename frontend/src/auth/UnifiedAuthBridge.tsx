@@ -29,12 +29,23 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
 
   const clearWagmiStorage = () => {
     if (typeof localStorage === "undefined") return;
-    Object.keys(localStorage)
-      .filter((key) => key.startsWith("wagmi."))
-      .forEach((key) => {
-        localStorage.removeItem(key);
-        console.log(`[UnifiedAuth] Cleared localStorage: ${key}`);
-      });
+
+    // Clear ALL wagmi-related storage, not just keys starting with "wagmi."
+    // wagmi v2 may use: wagmi, wagmi.*, wagmi.store, recentConnectorId, etc.
+    const keysToRemove = Object.keys(localStorage).filter((key) =>
+      key.startsWith("wagmi") ||
+      key === "recentConnectorId" ||
+      key.includes("connector")
+    );
+
+    keysToRemove.forEach((key) => {
+      localStorage.removeItem(key);
+      console.log(`[UnifiedAuth] Cleared localStorage: ${key}`);
+    });
+
+    if (keysToRemove.length === 0) {
+      console.log("[UnifiedAuth] No wagmi storage keys found to clear");
+    }
   };
 
   const walletLogout = async () => {
@@ -42,7 +53,9 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
     disconnect();
     await new Promise((resolve) => setTimeout(resolve, 300));
     clearWagmiStorage();
-    console.log("[UnifiedAuth] Wallet logout complete");
+    console.log("[UnifiedAuth] Wallet logout complete. Reloading to reset wagmi state...");
+    // Force page reload to completely reset wagmi connector state and allow fresh EIP-6963 discovery
+    window.location.reload();
   };
 
   // ---- Magic.link (email) state ----

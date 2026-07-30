@@ -24,20 +24,12 @@ const walletConnectConnector = walletConnectProjectId
 export const wagmiConfig = createConfig({
   chains: [celo],
   connectors: [
-    // Targeted specifically at MetaMask via wagmi's built-in EIP-6963 / shared
-    // `.providers` array discovery, which filters out every wallet known to
-    // impersonate MetaMask (Brave Wallet, Rabby, OKX, TokenPocket, etc.) and
-    // binds only to the real MetaMask instance. A plain injected() with no
-    // target just grabs `window.ethereum` as-is — with more than one wallet
-    // extension installed, that global can silently point at a *different*
-    // wallet than the one the user actually authorized, which read-only calls
-    // (address, balance) don't expose but every signing call does. That
-    // mismatch, not a timing issue, is what caused useWalletClient() /
-    // getWalletClient() to never produce a usable signer for affected users.
-    injected({ target: "metaMask" }),
-    // Generic fallback for any other injected wallet ("Other Wallet" option) —
-    // kept separate from the MetaMask-targeted connector above so neither
-    // resolution strategy interferes with the other.
+    // Use only generic injected connector with multiInjectedProviderDiscovery (wagmi v2 default).
+    // With 7+ wallet extensions installed, the targeted metaMask connector fails with
+    // "Provider not found" after logout+reload because its discovery mechanism doesn't
+    // reinitialize properly when multiple wallets are present and fighting over window.ethereum.
+    // Generic injected() uses EIP-6963 which is more robust: each wallet announces itself,
+    // and we let wagmi handle the discovery without assuming a specific target.
     injected(),
     ...(walletConnectConnector ? [walletConnectConnector] : []), // WalletConnect v2
   ],
