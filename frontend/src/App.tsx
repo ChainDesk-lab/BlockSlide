@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "./auth/AuthContext";
 import { getDeviceStorage, setDeviceStorage, getUserStorage, setUserStorage } from "./lib/unifiedStorage";
 import { migrateStorageKeys } from "./lib/storageMigration";
@@ -9,14 +10,14 @@ import Home from "./components/Home";
 import HowToPlay from "./components/HowToPlay";
 import IdentityGate from "./components/IdentityGate";
 import Leaderboard from "./components/Leaderboard";
-import LoginScreen from "./components/LoginScreen";
+import SignInModal from "./components/SignInModal";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
 import ThemeToggle from "./components/ThemeToggle";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
 import WalletButton from "./components/WalletButton";
-import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon, VerifiedIcon } from "./components/icons";
+import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon, VerifiedIcon, UserIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
@@ -157,7 +158,7 @@ export default function App() {
   //                                 button — so nothing can re-trigger login)
   //   - connected + address       → the app
   if (!isConnected) {
-    return <LoginScreen />;
+    return <SignInModal />;
   }
   if (!address) {
     return <FinishingSignIn />;
@@ -236,6 +237,13 @@ export default function App() {
             >
               <TrophyIcon />
             </button>
+          </span>
+          <span className="tooltip" data-tip="Profile">
+            <Link href={`/profile/${address}`} aria-label="Profile">
+              <button className="icon-btn" aria-label="Profile">
+                <UserIcon />
+              </button>
+            </Link>
           </span>
           <span className="tooltip" data-tip="Shop">
             <button

@@ -7,15 +7,28 @@ interface WalletSelectorProps {
   onClose: () => void;
 }
 
-// A phone in a plain browser tab (not MetaMask's own in-app browser) has no
-// injected provider at all — window.ethereum simply doesn't exist there, so
-// there's nothing for the "MetaMask" option to connect to unless we send the
-// user into the MetaMask app itself first.
+interface WalletOption {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+  isWalletConnect: boolean;
+}
+
 const isMobileDevice = () =>
   typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 const hasInjectedProvider = () =>
   typeof window !== "undefined" && !!(window as unknown as { ethereum?: unknown }).ethereum;
+
+// Map connector rdns to fallback icon paths in public/wallet-icons/
+const WALLET_ICON_FALLBACKS: Record<string, string> = {
+  "io.metamask": "/wallet-icons/metamask.svg",
+  "com.rabby": "/wallet-icons/rabby.svg",
+  "com.trustwallet": "/wallet-icons/trust.svg",
+  "app.phantom": "/wallet-icons/phantom.svg",
+  "com.brave": "/wallet-icons/brave.svg",
+  "com.uniswap": "/wallet-icons/uniswap.svg",
+};
 
 export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { connect } = useConnect();
@@ -23,24 +36,22 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { isConnecting, connector: connectedConnector, isConnected, address } = useAccount();
   const { disconnect } = useDisconnect();
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failedIcons, setFailedIcons] = useState<Set<string>>(new Set());
 
   const handleConnectWallet = async (connectorId: string, connectorName: string) => {
-    const connector = connectors.find((c) => c.id === connectorId);
+    // For injected wallets with the same ID, also match by name to get the right connector
+    const connector = connectors.find((c) =>
+      c.id === connectorId &&
+      (c.id !== "injected" || c.name.toLowerCase() === connectorName.toLowerCase())
+    );
 
     if (!connector) {
       console.error(`[WalletSelector] Connector not found: ${connectorId}`, {
         available: connectors.map((c) => ({ id: c.id, name: c.name })),
       });
-      setError(`${connectorName} wallet not found`);
       return;
     }
 
-    // Mobile + no injected provider + user picked injected wallet (MetaMask-targeted or generic):
-    // there's nothing for injected() to connect to here — the wallet app isn't open.
-    // For MetaMask specifically, send them to MetaMask's official deep link, which reopens
-    // this exact page inside the MetaMask app's own browser. That in-app browser injects
-    // window.ethereum just like a desktop extension does.
     if (
       (connectorId === "injected" || connectorName.toLowerCase().includes("metamask")) &&
       !hasInjectedProvider() &&
@@ -52,10 +63,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     }
 
     setConnectingTo(connectorId);
-    setError(null);
 
-    // Check if this connector has a LIVE connection (not just a stale connector object)
-    // Must have both isConnected=true AND address present to be considered a real connection
     const hasLiveConnection =
       connectedConnector?.id === connector.id && isConnected && address;
 
@@ -63,26 +71,21 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
       console.log(
         `[WalletSelector] User is already connected to ${connectorName} with address ${address}`
       );
-      // Already genuinely connected to this wallet - close modal without reconnecting
       setTimeout(() => {
         onClose();
       }, 300);
       return;
     }
 
-    // If connector exists but NO real address (stale state), force clean disconnect first
     if (connectedConnector?.id === connector.id && !address) {
       console.warn(
         `[WalletSelector] Stale connection detected: connector=${connectorName} but no address. Force disconnecting...`
       );
       disconnect();
-      // Wait for stale state to clear
       await new Promise((resolve) => setTimeout(resolve, 300));
       console.log(`[WalletSelector] Stale state cleared, proceeding with connect for ${connectorName}`);
     }
 
-    // Disconnect current connector if switching to a DIFFERENT one
-    // wagmi requires disconnecting before connecting a different connector
     if (
       connectedConnector &&
       connectedConnector.id !== connector.id &&
@@ -97,19 +100,15 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
       );
       disconnect();
 
-      // Wait for disconnect to fully complete before attempting new connection
-      // 500ms is safe for wagmi's internal state to update
       await new Promise((resolve) => setTimeout(resolve, 500));
       console.log(
         `[WalletSelector] Disconnection complete, now connecting ${connectorName}`
       );
     }
 
-    // Set a timeout to reset connecting state if connection hangs
     const timeoutId = setTimeout(() => {
       console.warn(`[WalletSelector] Connection to ${connectorName} timed out after 30s`);
       setConnectingTo(null);
-      setError(`Connection to ${connectorName} timed out. Please try again.`);
     }, 30000);
 
     connect(
@@ -118,7 +117,6 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
         onSuccess: () => {
           clearTimeout(timeoutId);
           console.log(`[WalletSelector] Successfully connected to ${connectorName}`);
-          // Keep modal open briefly while connection completes
           setTimeout(() => {
             onClose();
           }, 500);
@@ -128,206 +126,136 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
           console.error(`[WalletSelector] Connection error:`, error);
           setConnectingTo(null);
 
-          // Provide user-friendly error messages for common failure modes
-          let errorMessage = "Failed to connect wallet";
           const errorStr = error instanceof Error ? error.message : String(error);
 
-          // Handle "Connector already connected" - try force-disconnect and retry
           if (errorStr.includes("Connector already connected")) {
             console.warn(`[WalletSelector] Connector already connected, attempting force-disconnect...`);
-            // Force disconnect to clear stale state
             disconnect();
             setTimeout(() => {
-              // Retry the connection after disconnect
               console.log(`[WalletSelector] Retrying connection after force-disconnect`);
               handleConnectWallet(connectorId, connectorName);
             }, 500);
             return;
           }
-
-          if (
-            errorStr.includes("relay") ||
-            errorStr.includes("websocket") ||
-            errorStr.toLowerCase().includes("connection")
-          ) {
-            errorMessage =
-              "Network error connecting to WalletConnect relay. Check your internet connection or try MetaMask instead.";
-          } else if (errorStr.includes("Provider not found")) {
-            if (connectorName.toLowerCase().includes("metamask")) {
-              errorMessage =
-                "MetaMask not found. It may not be installed, or another extension is blocking it. Try disabling other wallet extensions.";
-            } else if (connectorName.toLowerCase().includes("walletconnect")) {
-              errorMessage = "WalletConnect failed to connect. Check your internet and try again.";
-            } else {
-              errorMessage = "No Web3 wallet found. Install MetaMask or another Web3 wallet.";
-            }
-          } else if (errorStr.includes("not installed")) {
-            errorMessage = `${connectorName} is not installed. Please install it first.`;
-          } else if (errorStr.includes("User rejected")) {
-            errorMessage = "Connection cancelled by user";
-          } else if (errorStr) {
-            errorMessage = errorStr;
-          }
-
-          setError(errorMessage);
         },
       }
     );
   };
 
-  const handleClose = () => {
-    // Only allow closing if not actively connecting
-    if (!connectingTo) {
-      onClose();
+  // Build wallet options with real icons
+  const walletOptionsMap = new Map<string, WalletOption>();
+  let walletConnectOption: WalletOption | null = null;
+
+  for (const connector of connectors) {
+    if (connector.id === "walletConnect") {
+      walletConnectOption = {
+        id: connector.id,
+        name: "WalletConnect",
+        iconUrl: "/wallet-icons/walletconnect.svg",
+        isWalletConnect: true,
+      };
+      continue;
     }
+
+    // Process all injected/EIP-6963 connectors (id like "io.metamask", "com.rabby", or generic "injected")
+    if (connector.id === "injected" || connector.id.includes(".")) {
+      const normalizedName = connector.name.toLowerCase().trim();
+
+      if (walletOptionsMap.has(normalizedName)) {
+        console.log(`[WalletSelector] Skipping duplicate: ${connector.name}`);
+        continue;
+      }
+
+      // Get icon from connector.icon (EIP-6963) or fallback map
+      let iconUrl: string | null = connector.icon || null;
+
+      // Try fallback map if no EIP-6963 icon
+      if (!iconUrl) {
+        for (const [rdns, fallback] of Object.entries(WALLET_ICON_FALLBACKS)) {
+          if (normalizedName.includes(rdns.split(".")[0]) || connector.id.includes(rdns.split(".")[0]) || connector.name.toLowerCase().includes(rdns)) {
+            iconUrl = fallback;
+            break;
+          }
+        }
+      }
+
+      walletOptionsMap.set(normalizedName, {
+        id: connector.id,
+        name: connector.name,
+        iconUrl,
+        isWalletConnect: false,
+      });
+    }
+  }
+
+  // Build ordered list: MetaMask first, other wallets, then WalletConnect
+  const walletOptions: WalletOption[] = [];
+
+  // Find and add MetaMask first if present
+  for (const [key, option] of walletOptionsMap) {
+    if (key.includes("metamask")) {
+      walletOptions.push(option);
+      walletOptionsMap.delete(key);
+      break;
+    }
+  }
+
+  // Add other discovered wallets in order
+  walletOptions.push(...walletOptionsMap.values());
+
+  // Add WalletConnect last if configured
+  if (walletConnectOption) {
+    walletOptions.push(walletConnectOption);
+  }
+
+  // Only show "Injected" fallback if NO wallets were discovered
+  const showFallbackInjected = walletOptions.length === 0;
+  if (showFallbackInjected) {
+    walletOptions.push({
+      id: "injected",
+      name: "Other Wallet",
+      iconUrl: null,
+      isWalletConnect: false,
+    });
+  }
+
+  const handleIconError = (id: string) => {
+    setFailedIcons((prev) => new Set(prev).add(id));
   };
 
-  // Build wallet options reactively from wagmi's connectors
-  // wagmi's multiInjectedProviderDiscovery (default in v2) discovers via EIP-6963
-  // and adds discovered wallets to the connectors list with updated names/icons
-  const walletOptions = connectors.map((connector) => {
-    let icon = "💳";
-    let description = "Web3 wallet";
-
-    // Determine icon and description based on connector type
-    if (connector.id === "injected") {
-      if (connector.name.toLowerCase().includes("metamask")) {
-        icon = "🦊";
-        description = "Browser extension";
-      } else if (connector.name.toLowerCase().includes("brave")) {
-        icon = "⚔️";
-        description = "Browser native wallet";
-      } else if (connector.name.toLowerCase().includes("coinbase")) {
-        icon = "💰";
-        description = "Coinbase Wallet";
-      } else if (connector.name.toLowerCase().includes("rabby")) {
-        icon = "🐰";
-        description = "Rabby Wallet";
-      } else {
-        icon = "💳";
-        description = "Injected wallet";
-      }
-    } else if (connector.id === "walletConnect") {
-      icon = "📱";
-      description = "Connect mobile wallet via QR";
-    }
-
-    return {
-      id: connector.id,
-      name: connector.name,
-      icon,
-      description,
-    };
-  });
-
-  // Show at least a message if we have no connectors (shouldn't happen)
-  const showEmpty = walletOptions.length === 0;
+  const shouldShowIcon = (option: WalletOption): boolean => {
+    return option.iconUrl !== null && !failedIcons.has(option.id);
+  };
 
   return (
-    <div className="wallet-selector-modal">
-      <div className="wallet-selector-overlay" onClick={handleClose} />
-      <div className="wallet-selector-dialog">
-        <div className="wallet-selector-header">
-          <h2 className="wallet-selector-title">Connect Wallet</h2>
-          <button
-            className="wallet-selector-close"
-            onClick={handleClose}
-            disabled={!!connectingTo}
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="wallet-selector-content">
-          <p className="wallet-selector-description">
-            Select a wallet to sign in to BlockSlide
-          </p>
-
-          {error && (
-            <div className="wallet-selector-error">
-              <span className="wallet-selector-error__icon">⚠️</span>
-              <span className="wallet-selector-error__text">{error}</span>
-              <div className="wallet-selector-error__actions">
-                {error.includes("already") && (
-                  <button
-                    className="wallet-selector-error__reset"
-                    onClick={() => {
-                      console.log("[WalletSelector] User triggered manual disconnect");
-                      disconnect();
-                      setError(null);
-                      setConnectingTo(null);
-                    }}
-                    aria-label="Reset connection"
-                  >
-                    Reset Connection
-                  </button>
-                )}
-                <button
-                  className="wallet-selector-error__close"
-                  onClick={() => setError(null)}
-                  aria-label="Dismiss error"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="wallet-selector-options">
-            {walletOptions.map((option) => (
-              <button
-                key={option.id}
-                className={`wallet-option ${
-                  connectingTo === option.id ? "wallet-option--connecting" : ""
-                }`}
-                onClick={() => handleConnectWallet(option.id, option.name)}
-                disabled={isConnecting || connectingTo !== null}
-              >
-                <span className="wallet-option__icon">{option.icon}</span>
-                <div className="wallet-option__content">
-                  <span className="wallet-option__name">{option.name}</span>
-                  <span className="wallet-option__description">
-                    {option.description}
-                  </span>
-                </div>
-                {connectingTo === option.id && (
-                  <span className="wallet-option__spinner">
-                    <span className="spinner" />
-                  </span>
-                )}
-                {connectingTo !== option.id && (
-                  <span className="wallet-option__arrow">→</span>
-                )}
-              </button>
-            ))}
+    <div className="wallet-list-container">
+      {walletOptions.map((option) => (
+        <button
+          key={option.id}
+          className={`wallet-list-row ${connectingTo === option.id ? "wallet-list-row--connecting" : ""}`}
+          onClick={() => handleConnectWallet(option.id, option.name)}
+          disabled={isConnecting || connectingTo !== null}
+        >
+          <div className="wallet-list-icon-box">
+            {shouldShowIcon(option) && option.iconUrl ? (
+              <img
+                src={option.iconUrl}
+                alt={option.name}
+                className="wallet-list-icon"
+                onError={() => handleIconError(option.id)}
+              />
+            ) : (
+              <div className="wallet-list-icon-fallback" />
+            )}
           </div>
-
-          {showEmpty && (
-            <div className="wallet-selector-empty">
-              <p>No wallets detected. Install MetaMask or another Web3 wallet to continue.</p>
-            </div>
+          <span className="wallet-list-name">{option.name}</span>
+          {connectingTo === option.id ? (
+            <span className="wallet-list-spinner" />
+          ) : (
+            <span className="wallet-list-chevron" />
           )}
-        </div>
-
-        <div className="wallet-selector-footer">
-          <p className="wallet-selector-help">
-            Don't have a wallet?{" "}
-            <a
-              href="https://metamask.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="wallet-selector-link"
-            >
-              Get MetaMask
-            </a>
-          </p>
-          <p className="wallet-selector-help wallet-selector-help--note">
-            <strong>Having connection issues?</strong> If WalletConnect fails, try MetaMask
-            instead. Some networks may block WebSocket connections.
-          </p>
-        </div>
-      </div>
+        </button>
+      ))}
     </div>
   );
 }
