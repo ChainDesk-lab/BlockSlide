@@ -22,6 +22,7 @@ import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
+import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { sounds } from "./lib/sounds";
 
 type View = "home" | "game" | "leaderboard" | "shop";
@@ -82,6 +83,9 @@ export default function App() {
   const { username, isLoading: usernameLoading } = useUsername();
   const DISMISSED_KEY = "username_modal_dismissed";
   const [usernameModalDismissed, setUsernameModalDismissed] = useState(false);
+
+  // Register referrer after connect (Phase 3)
+  useReferrerRegistration();
 
   useEffect(() => {
     // On wallet change, read the dismiss state from storage.
