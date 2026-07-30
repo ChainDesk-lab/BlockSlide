@@ -105,6 +105,11 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     mapping(bytes32 => address) public nameOwner;    // keccak(lowercased name) => owner
     mapping(address => bytes32) private _nameKey;     // owner => their current name hash
 
+    // ─── Referral state (appended in V6 — keep at end for UUPS layout safety) ──
+
+    mapping(address => address) public referrerOf;   // player => their referrer (set once, immutable)
+    mapping(address => uint256) public referralCount; // referrer => count of players they referred
+
     // ─── Events ───────────────────────────────────────────────────────────────
 
     event SessionStarted(address indexed player);
@@ -116,6 +121,7 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event XpBoostPurchased(address indexed player, uint8 multiplier, uint64 expiry);
     event ShopPricesUpdated(uint256 shield, uint256 boost2x, uint256 boost5x);
     event UsernameSet(address indexed player, string name);
+    event ReferrerSet(address indexed player, address indexed referrer);
 
     // ─── Errors ───────────────────────────────────────────────────────────────
 
@@ -234,6 +240,20 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint64 expiry = uint64(block.timestamp + BOOST_DURATION);
         xpBoost[msg.sender] = XpBoost({ multiplier: multiplier, expiry: expiry });
         emit XpBoostPurchased(msg.sender, multiplier, expiry);
+    }
+
+    // ─── Referrals ────────────────────────────────────────────────────────────────
+
+    /// Register a referrer for this player. Can only be called once per player (immutable).
+    /// Referrer must be a valid address (not zero, not self).
+    function registerReferrer(address referrer) external {
+        if (referrer == address(0)) revert("Invalid referrer");
+        if (referrer == msg.sender) revert("Cannot refer yourself");
+        if (referrerOf[msg.sender] != address(0)) revert("Referrer already set");
+
+        referrerOf[msg.sender] = referrer;
+        referralCount[referrer]++;
+        emit ReferrerSet(msg.sender, referrer);
     }
 
     // ─── Username ───────────────────────────────────────────────────────────────

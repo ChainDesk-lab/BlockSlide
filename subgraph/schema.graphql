@@ -15,4 +15,14 @@ type Player @entity(immutable: false) {
   firstSeen: BigInt!
   "Block timestamp of the most recent update"
   lastUpdated: BigInt!
+  "Total G$ earned from milestone rewards (in wei, 18 decimals)"
+  totalGEarned: BigInt!
+  "Total G$ spent on shop purchases (in wei, 18 decimals)"
+  totalGSpent: BigInt!
+  "Last cumulative shield count seen (for delta calculation on ShieldPurchased events)"
+  lastShieldCount: BigInt!
+  "Address of the player who referred this player (set once, immutable)"
+  referredBy: Bytes
+  "Count of players who used this player's referral link"
+  referralCount: BigInt!
 }

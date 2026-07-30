@@ -26,4 +26,12 @@ dataSources:
           handler: handleUsernameSet
         - event: ScoreSubmitted(indexed address,uint256,uint32)
           handler: handleScoreSubmitted
+        - event: RewardPaid(indexed address,uint32,uint256)
+          handler: handleRewardPaid
+        - event: ShieldPurchased(indexed address,uint256)
+          handler: handleShieldPurchased
+        - event: XpBoostPurchased(indexed address,uint8,uint64)
+          handler: handleXpBoostPurchased
+        - event: ReferrerSet(indexed address,indexed address)
+          handler: handleReferrerSet
       file: ./src/mapping.ts
