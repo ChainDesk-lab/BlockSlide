@@ -250,11 +250,3 @@ export default function ProfilePage({ params }: PageProps) {
     </div>
   );
 }
-
-export async function generateMetadata({ params }: PageProps) {
-  const decodedIdentifier = decodeURIComponent(params.identifier);
-  return {
-    title: `${decodedIdentifier} on BlockSlide`,
-    description: "Check out this player's BlockSlide profile — 2048 onchain with G$ rewards on Celo.",
-  };
-}
