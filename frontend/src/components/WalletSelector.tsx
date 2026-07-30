@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useConnect, useConnectors, useAccount, useDisconnect } from "wagmi";
 
 interface WalletSelectorProps {
   onClose: () => void;
+}
+
+interface InjectedProvider {
+  rdns?: string;
+  name: string;
+  icon: string;
 }
 
 // A phone in a plain browser tab (not MetaMask's own in-app browser) has no
@@ -17,6 +23,53 @@ const isMobileDevice = () =>
 const hasInjectedProvider = () =>
   typeof window !== "undefined" && !!(window as unknown as { ethereum?: unknown }).ethereum;
 
+/**
+ * Discover wallets via EIP-6963 (Ethereum Request for Comments 6963).
+ * This standard allows wallets to announce themselves without relying on
+ * window.ethereum shadowing (which happens when multiple extensions are installed).
+ */
+const discoverInjectedProviders = async (): Promise<InjectedProvider[]> => {
+  const discoveredProviders: InjectedProvider[] = [];
+
+  if (typeof window === "undefined") return [];
+
+  try {
+    // Listen for announce events from wallets implementing EIP-6963
+    const handleAnnounce = (event: any) => {
+      const provider = event.detail.provider;
+      if (provider) {
+        const rdns = event.detail.info.rdns;
+        const name = event.detail.info.name;
+        const icon = event.detail.info.icon;
+
+        // Avoid duplicates
+        if (!discoveredProviders.find((p) => p.rdns === rdns)) {
+          discoveredProviders.push({ rdns, name, icon });
+        }
+      }
+    };
+
+    // Request wallet announcements
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+
+    // Listen for announcements with timeout to catch async announces
+    window.addEventListener("eip6963:announceProvider", handleAnnounce);
+
+    // Give wallets a moment to respond
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        window.removeEventListener("eip6963:announceProvider", handleAnnounce);
+        resolve();
+      }, 100);
+    });
+
+    return discoveredProviders;
+  } catch (err) {
+    console.warn("[WalletSelector] EIP-6963 discovery failed:", err);
+    return [];
+  }
+};
+
 export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
@@ -24,8 +77,28 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { isConnecting, connector: connectedConnector, isConnected, address } = useAccount();
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [discoveredWallets, setDiscoveredWallets] = useState<InjectedProvider[]>([]);
+  const [isDiscovering, setIsDiscovering] = useState(true);
 
-  const handleConnectWallet = async (connectorName: string) => {
+  // Discover injected wallets via EIP-6963 on mount
+  useEffect(() => {
+    const discover = async () => {
+      setIsDiscovering(true);
+      try {
+        const wallets = await discoverInjectedProviders();
+        setDiscoveredWallets(wallets);
+        console.log("[WalletSelector] Discovered wallets via EIP-6963:", wallets);
+      } catch (err) {
+        console.error("[WalletSelector] Wallet discovery error:", err);
+      } finally {
+        setIsDiscovering(false);
+      }
+    };
+
+    discover();
+  }, []);
+
+  const handleConnectWallet = async (connectorName: string, rdns?: string) => {
     // Mobile + no injected provider + user picked MetaMask: there's nothing
     // for injected() to connect to here — the MetaMask app isn't open. Send
     // them to MetaMask's official deep link, which reopens this exact page
@@ -35,7 +108,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     // MetaMask's separate SDK/relay bridge, which is what caused the
     // original "wallet is still connecting" bug for desktop users.
     if (
-      connectorName.toLowerCase() === "metamask" &&
+      (connectorName.toLowerCase() === "metamask" || rdns === "io.metamask") &&
       !hasInjectedProvider() &&
       isMobileDevice()
     ) {
@@ -44,16 +117,28 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
       return;
     }
 
-    // Find connector with case-insensitive match
-    const connector = connectors.find(
-      (c) => c.name.toLowerCase().includes(connectorName.toLowerCase())
-    );
+    // For EIP-6963 discovered wallets with rdns, use the injected connector
+    // with target. Otherwise fall back to name-based matching.
+    let connector;
+
+    if (rdns === "io.metamask") {
+      // Use targeted MetaMask connector
+      connector = connectors.find((c) => c.id === "injected" && c.name.includes("MetaMask"));
+    } else if (rdns) {
+      // Use generic injected connector for other discovered wallets
+      connector = connectors.find((c) => c.id === "injected");
+    } else {
+      // Legacy fallback: find connector by name (for WalletConnect, etc)
+      connector = connectors.find(
+        (c) => c.name.toLowerCase().includes(connectorName.toLowerCase())
+      );
+    }
 
     if (!connector) {
       console.error(`[WalletSelector] Connector not found: ${connectorName}`, {
-        available: connectors.map((c) => c.name),
+        available: connectors.map((c) => ({ id: c.id, name: c.name })),
       });
-      setError(`${connectorName} wallet not found`);
+      setError(`${connectorName} wallet not found. Please ensure it's installed and enabled.`);
       return;
     }
 
@@ -140,13 +225,15 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
 
           // Handle "Connector already connected" - try force-disconnect and retry
           if (errorStr.includes("Connector already connected")) {
-            console.warn(`[WalletSelector] Connector already connected, attempting force-disconnect...`);
+            console.warn(
+              `[WalletSelector] Connector already connected, attempting force-disconnect...`
+            );
             // Force disconnect to clear stale state
             disconnect();
             setTimeout(() => {
               // Retry the connection after disconnect
               console.log(`[WalletSelector] Retrying connection after force-disconnect`);
-              handleConnectWallet(connectorName);
+              handleConnectWallet(connectorName, rdns);
             }, 500);
             return;
           }
@@ -159,8 +246,9 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
             errorMessage =
               "Network error connecting to WalletConnect relay. Check your internet connection or try MetaMask instead.";
           } else if (errorStr.includes("Provider not found")) {
-            if (connectorName.toLowerCase().includes("metamask")) {
-              errorMessage = "MetaMask is not installed. Install it from https://metamask.io";
+            if (rdns === "io.metamask" || connectorName.toLowerCase().includes("metamask")) {
+              errorMessage =
+                "MetaMask not found. It may not be installed, or another extension is blocking it. Try disabling other wallet extensions.";
             } else if (connectorName.toLowerCase().includes("walletconnect")) {
               errorMessage = "WalletConnect failed to connect. Check your internet and try again.";
             } else {
@@ -187,25 +275,40 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     }
   };
 
+  // Build dynamic wallet options from discovered providers + static ones
   const walletOptions = [
-    {
-      id: "metamask",
-      name: "MetaMask",
-      icon: "🦊",
-      description: "Browser extension wallet",
-    },
-    {
-      id: "walletconnect",
-      name: "WalletConnect",
-      icon: "📱",
-      description: "Connect mobile wallet via QR code",
-    },
-    {
-      id: "injected",
-      name: "Other Wallet",
-      icon: "💳",
-      description: "Any injected Web3 wallet",
-    },
+    // Discovered EIP-6963 providers
+    ...discoveredWallets.map((wallet) => ({
+      id: wallet.rdns || wallet.name,
+      name: wallet.name,
+      icon: wallet.icon,
+      description: "Detected wallet extension",
+      rdns: wallet.rdns,
+    })),
+    // WalletConnect (always available if configured)
+    ...(connectors.some((c) => c.id === "walletConnect")
+      ? [
+          {
+            id: "walletconnect",
+            name: "WalletConnect",
+            icon: "📱",
+            description: "Connect mobile wallet via QR code",
+            rdns: undefined,
+          },
+        ]
+      : []),
+    // Generic injected fallback (only if no discovered wallets)
+    ...(discoveredWallets.length === 0
+      ? [
+          {
+            id: "injected",
+            name: "Other Wallet",
+            icon: "💳",
+            description: "Any injected Web3 wallet",
+            rdns: undefined,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -259,6 +362,13 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
             </div>
           )}
 
+          {isDiscovering && (
+            <div className="wallet-selector-loading">
+              <span className="wallet-selector-loading__spinner">⏳</span>
+              <span>Detecting installed wallets...</span>
+            </div>
+          )}
+
           <div className="wallet-selector-options">
             {walletOptions.map((option) => (
               <button
@@ -266,8 +376,8 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
                 className={`wallet-option ${
                   connectingTo === option.id ? "wallet-option--connecting" : ""
                 }`}
-                onClick={() => handleConnectWallet(option.id)}
-                disabled={isConnecting || connectingTo !== null}
+                onClick={() => handleConnectWallet(option.name, option.rdns)}
+                disabled={isConnecting || connectingTo !== null || isDiscovering}
               >
                 <span className="wallet-option__icon">{option.icon}</span>
                 <div className="wallet-option__content">
@@ -287,6 +397,12 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
               </button>
             ))}
           </div>
+
+          {!isDiscovering && walletOptions.length === 0 && (
+            <div className="wallet-selector-empty">
+              <p>No wallets detected. Install MetaMask or another Web3 wallet to continue.</p>
+            </div>
+          )}
         </div>
 
         <div className="wallet-selector-footer">
@@ -302,7 +418,8 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
             </a>
           </p>
           <p className="wallet-selector-help wallet-selector-help--note">
-            <strong>Having connection issues?</strong> If WalletConnect fails, try MetaMask instead. Some networks may block WebSocket connections.
+            <strong>Having connection issues?</strong> If WalletConnect fails, try MetaMask
+            instead. Some networks may block WebSocket connections.
           </p>
         </div>
       </div>

@@ -2521,6 +2521,38 @@ html.dark-mode {
   text-decoration: underline;
 }
 
+.wallet-selector-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  animation: slideIn 0.3s ease;
+}
+
+.wallet-selector-loading__spinner {
+  font-size: 18px;
+  animation: spin 1s linear infinite;
+}
+
+.wallet-selector-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  margin: 12px 0;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .login-footer {
   display: flex;
   flex-direction: column;
