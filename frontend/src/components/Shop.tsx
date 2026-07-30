@@ -45,6 +45,15 @@ export default function Shop() {
     const pending = isPending(pendingKey);
     const approvePending = isPending("approve");
 
+    // Block purchases if price is not set (0 or undefined)
+    if (price === undefined || price === 0n) {
+      return (
+        <button className="shop-btn shop-btn--disabled" disabled>
+          Price not set
+        </button>
+      );
+    }
+
     if (!canAfford(price)) {
       return (
         <button className="shop-btn shop-btn--disabled" disabled>

@@ -140,14 +140,17 @@ export function useShop() {
     return val;
   })();
 
-  // Normalize prices: use contract values, fallback to expected prices if 0 or undefined
-  const SHIELD_PRICE_DEFAULT = 2150n * 10n ** 18n; // 2,150 G$ (~$0.25)
-  const BOOST_2X_PRICE_DEFAULT = 3870n * 10n ** 18n; // 3,870 G$ (~$0.45)
-  const BOOST_5X_PRICE_DEFAULT = 6880n * 10n ** 18n; // 6,880 G$ (~$0.80)
+  // Normalize prices: use contract values, fallback to configured prices if undefined
+  // If prices are 0 on-chain (unconfigured), leave them as 0 to trigger guards
+  const SHIELD_PRICE_DEFAULT = 500n * 10n ** 18n; // 500 G$ (current mainnet)
+  const BOOST_2X_PRICE_DEFAULT = 1500n * 10n ** 18n; // 1,500 G$ (current mainnet)
+  const BOOST_5X_PRICE_DEFAULT = 4000n * 10n ** 18n; // 4,000 G$ (current mainnet)
 
-  const normalizedShieldPrice = (shieldPrice && shieldPrice > 0n) ? shieldPrice : SHIELD_PRICE_DEFAULT;
-  const normalizedBoost2xPrice = (boost2xPrice && boost2xPrice > 0n) ? boost2xPrice : BOOST_2X_PRICE_DEFAULT;
-  const normalizedBoost5xPrice = (boost5xPrice && boost5xPrice > 0n) ? boost5xPrice : BOOST_5X_PRICE_DEFAULT;
+  // Use contract prices if they exist (even if 0), otherwise fall back to defaults
+  // This allows the zero-price guard to block purchases when prices aren't set
+  const normalizedShieldPrice = shieldPrice !== undefined ? shieldPrice : SHIELD_PRICE_DEFAULT;
+  const normalizedBoost2xPrice = boost2xPrice !== undefined ? boost2xPrice : BOOST_2X_PRICE_DEFAULT;
+  const normalizedBoost5xPrice = boost5xPrice !== undefined ? boost5xPrice : BOOST_5X_PRICE_DEFAULT;
 
   // Sanity-check XP: if it's suspiciously large (like a timestamp), log warning
   if ((playerXp ?? 0n) > 10000000n) {
