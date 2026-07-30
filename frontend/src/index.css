@@ -2995,3 +2995,72 @@ html.dark-mode {
     transform: translateX(0);
   }
 }
+
+/* ── Network Guard Banner ─────────────────────────────────────────────────── */
+.network-guard-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.network-guard-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: white;
+}
+
+.network-guard-banner__icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.network-guard-banner__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.network-guard-banner__title {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.network-guard-banner__message {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  word-break: break-word;
+}
+
+.network-guard-banner__button {
+  padding: 8px 16px;
+  background: white;
+  color: #dc2626;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.network-guard-banner__button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.network-guard-banner__button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

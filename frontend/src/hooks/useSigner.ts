@@ -4,6 +4,7 @@ import { useChainId } from "wagmi";
 import { wagmiConfig } from "../auth/wagmiConfig";
 import { useAuth } from "../auth/AuthContext";
 import { useContractWalletClient } from "./useContractData";
+import { useNetworkGuard } from "./useNetworkGuard";
 import { TARGET_CHAIN } from "../lib/constants";
 import { getMagic, isMagicConfigured } from "../magic";
 import { createWalletClient, custom } from "viem";
@@ -29,8 +30,9 @@ interface UseSignerResult {
  */
 export function useSigner(): UseSignerResult {
   const { authType, address: authAddress } = useAuth();
-  const chainId = useChainId();
+  useChainId(); // Needed by network guard to detect chain changes
   const walletClientHook = useContractWalletClient();
+  const { isWrongNetwork } = useNetworkGuard();
 
   // State tracking
   const [signer, setSigner] = useState<any | null>(null);
@@ -39,7 +41,8 @@ export function useSigner(): UseSignerResult {
   const initAttemptRef = useRef(0);
 
   // For Web3 wallets: check if we're on the wrong network
-  const isWrongChain = authType !== "magic" && chainId !== TARGET_CHAIN.id;
+  // Use network guard state which handles auto-switching
+  const isWrongChain = authType !== "magic" && isWrongNetwork;
 
   // Core signer resolution with retry logic
   const resolveSigner = useCallback(async (): Promise<any | null> => {
