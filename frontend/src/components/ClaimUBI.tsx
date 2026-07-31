@@ -1,15 +1,21 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ClaimSDK, IdentitySDK } from "@goodsdks/citizen-sdk";
 import { useGoodDollarIdentity } from "../hooks/useGoodDollarIdentity";
 import { useGDollarBalance } from "../hooks/useGDollarBalance";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../contexts/ToastContext";
-import { useContractAddress, useContractPublicClient, useContractWalletClient } from "../hooks/useContractData";
+import { useContractAddress, useContractPublicClient } from "../hooks/useContractData";
+import { useSigner } from "../hooks/useSigner";
 import { CoinIcon } from "./icons";
 import { IconBadge } from "./IconBadge";
 
+// Mirrors WalletClaimStatus["status"] from @goodsdks/citizen-sdk, plus
+// "unknown" (not checked yet) and "check_failed" (the status check itself
+// threw — must never be displayed as "already claimed").
+type ClaimStatus = "unknown" | "not_whitelisted" | "can_claim" | "already_claimed" | "check_failed";
+
 interface ClaimState {
-  isEntitled: boolean;
+  claimStatus: ClaimStatus;
   isClaiming: boolean;
   error: string | null;
   success: boolean;
@@ -21,7 +27,13 @@ export default function ClaimUBI() {
   const { isConnected } = useAuth();
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
-  const walletClient = useContractWalletClient();
+  // Single source of truth for the signer — for Magic/email users this builds
+  // a real viem WalletClient with `account` set. The GoodDollar SDK throws
+  // synchronously ("WalletClient must have an account attached") if it's
+  // missing, which previously happened here because this component used to
+  // call the old useContractWalletClient() directly, whose Magic branch
+  // returns a stand-in object with account left undefined.
+  const { signer, isReady: isSignerReady, error: signerError } = useSigner();
   const { showToast } = useToast();
 
   // Use unified GoodDollar identity hook
@@ -37,7 +49,7 @@ export default function ClaimUBI() {
   const { balance, refetch: refetchBalance } = useGDollarBalance();
 
   const [state, setState] = useState<ClaimState>({
-    isEntitled: false,
+    claimStatus: "unknown",
     isClaiming: false,
     error: null,
     success: false,
@@ -63,56 +75,73 @@ export default function ClaimUBI() {
     refetchBalance();
   }, [refetchBalance]);
 
-  // Check entitlement status using GoodDollar SDK
-  useEffect(() => {
+  // Check entitlement status using GoodDollar SDK.
+  // Defined outside the effect (via useCallback) so the "check failed" retry
+  // button can re-run the exact same logic instead of duplicating it.
+  const checkEntitlement = useCallback(async () => {
     if (!address || !isVerified) {
-      setState((prev) => ({ ...prev, isEntitled: false }));
+      setState((prev) => ({ ...prev, claimStatus: "unknown" }));
       return;
     }
 
-    const checkEntitlement = async () => {
-      try {
-        setState((prev) => ({ ...prev, error: null }));
-
-        if (!publicClient || !walletClient) {
-          return;
-        }
-
-        // Initialize IdentitySDK to support ClaimSDK
-        const identitySDK = await IdentitySDK.init({
-          publicClient: publicClient as any,
-          walletClient: walletClient as any,
-          env: "production",
-        });
-
-        // Initialize ClaimSDK
-        const claimSDK = await ClaimSDK.init({
-          publicClient: publicClient as any,
-          walletClient: walletClient as any,
-          identitySDK,
-          env: "production",
-        });
-
-        // Check wallet claim status
-        const status = await claimSDK.getWalletClaimStatus();
-
+    if (!publicClient || !signer) {
+      if (isSignerReady) {
+        // useSigner() finished trying and came up empty (wrong network, Magic
+        // misconfigured, wagmi exhausted its retries, etc.) — this is a real
+        // failure, not "still loading". Surface it instead of spinning forever.
         setState((prev) => ({
           ...prev,
-          isEntitled: status.status === "can_claim",
-          nextClaimTime: status.nextClaimTime || null,
-        }));
-      } catch (err) {
-        console.error("Error checking entitlement:", err);
-        setState((prev) => ({
-          ...prev,
-          isEntitled: false,
-          error: "Could not check entitlement status",
+          claimStatus: "check_failed",
+          error: signerError || "Wallet signer not available",
         }));
       }
-    };
+      // Otherwise still resolving — leave status as "unknown" (renders the
+      // loading state below) rather than guessing at an outcome.
+      return;
+    }
 
+    try {
+      setState((prev) => ({ ...prev, error: null }));
+
+      // Initialize IdentitySDK to support ClaimSDK
+      const identitySDK = await IdentitySDK.init({
+        publicClient: publicClient as any,
+        walletClient: signer as any,
+        env: "production",
+      });
+
+      // Initialize ClaimSDK
+      const claimSDK = await ClaimSDK.init({
+        publicClient: publicClient as any,
+        walletClient: signer as any,
+        identitySDK,
+        env: "production",
+      });
+
+      // Check wallet claim status
+      const status = await claimSDK.getWalletClaimStatus();
+
+      setState((prev) => ({
+        ...prev,
+        claimStatus: status.status,
+        nextClaimTime: status.nextClaimTime || null,
+      }));
+    } catch (err) {
+      console.error("Error checking entitlement:", err);
+      // IMPORTANT: this must stay distinct from "already_claimed" — collapsing
+      // a thrown error into the same state as a real claim history is what
+      // previously made SDK failures look like "Already Claimed Today".
+      setState((prev) => ({
+        ...prev,
+        claimStatus: "check_failed",
+        error: signerError || "Could not check entitlement status",
+      }));
+    }
+  }, [address, isVerified, publicClient, signer, isSignerReady, signerError]);
+
+  useEffect(() => {
     checkEntitlement();
-  }, [address, isVerified, publicClient, walletClient]);
+  }, [checkEntitlement]);
 
   // Auto-dismiss success message after 6 seconds
   useEffect(() => {
@@ -138,7 +167,7 @@ export default function ClaimUBI() {
 
       if (diff <= 0) {
         setCountdown("");
-        setState((prev) => ({ ...prev, isEntitled: true, nextClaimTime: null }));
+        setState((prev) => ({ ...prev, claimStatus: "can_claim", nextClaimTime: null }));
         return;
       }
 
@@ -163,12 +192,12 @@ export default function ClaimUBI() {
 
     console.log("[CLAIM] Address verified", { address });
 
-    if (!publicClient || !walletClient) {
-      console.log("[CLAIM] Pre-condition failed - missing publicClient or walletClient", {
+    if (!publicClient || !signer) {
+      console.log("[CLAIM] Pre-condition failed - missing publicClient or signer", {
         hasPublicClient: !!publicClient,
-        hasWalletClient: !!walletClient
+        hasSigner: !!signer,
       });
-      setState((prev) => ({ ...prev, error: "Wallet not ready" }));
+      setState((prev) => ({ ...prev, error: signerError || "Wallet not ready" }));
       return;
     }
 
@@ -182,7 +211,7 @@ export default function ClaimUBI() {
       console.log("[CLAIM] Initializing IdentitySDK...");
       const identitySDK = await IdentitySDK.init({
         publicClient: publicClient as any,
-        walletClient: walletClient as any,
+        walletClient: signer as any,
         env: "production",
       });
       console.log("[CLAIM] IdentitySDK initialized successfully");
@@ -191,7 +220,7 @@ export default function ClaimUBI() {
       console.log("[CLAIM] Initializing ClaimSDK...");
       const claimSDK = await ClaimSDK.init({
         publicClient: publicClient as any,
-        walletClient: walletClient as any,
+        walletClient: signer as any,
         identitySDK,
         env: "production",
       });
@@ -223,7 +252,7 @@ export default function ClaimUBI() {
         ...prev,
         success: true,
         isClaiming: false,
-        isEntitled: false,
+        claimStatus: "already_claimed",
         txHash,
         nextClaimTime: status.nextClaimTime || null,
       }));
@@ -351,7 +380,80 @@ export default function ClaimUBI() {
     );
   }
 
-  if (!state.isEntitled) {
+  // Still resolving the signer and/or the on-chain claim status — don't
+  // guess. Showing "Already Claimed Today" here (the old behavior) is what
+  // hid the actual bug for Magic/email users whose signer never resolved.
+  if (state.claimStatus === "unknown") {
+    return (
+      <section className="daily-claim">
+        <div className="daily-claim__info">
+          <span className="daily-claim__icon">
+            <CoinIcon size={22} />
+          </span>
+          <div className="daily-claim__text">
+            <h3 className="daily-claim__title">Claim Daily G$</h3>
+            <p className="daily-claim__status">Checking claim status...</p>
+          </div>
+        </div>
+        <button className="btn btn--primary" disabled>
+          Loading...
+        </button>
+      </section>
+    );
+  }
+
+  // The status check itself failed (SDK init threw, RPC error, etc.) — this
+  // must render distinctly from "already claimed" so a broken check never
+  // masquerades as a legitimate claim history. Offer a retry instead of a
+  // dead-end disabled button.
+  if (state.claimStatus === "check_failed") {
+    return (
+      <section className="daily-claim daily-claim--error">
+        <div className="daily-claim__info">
+          <span className="daily-claim__icon">
+            <CoinIcon size={22} />
+          </span>
+          <div className="daily-claim__text">
+            <h3 className="daily-claim__title">Claim Daily G$</h3>
+            <p className="daily-claim__status">Couldn't check your claim status</p>
+            {state.error && <p className="daily-claim__error">{state.error}</p>}
+          </div>
+        </div>
+        <button className="btn btn--secondary" onClick={checkEntitlement}>
+          Retry
+        </button>
+      </section>
+    );
+  }
+
+  // Rare divergence: our own identity check (getWhitelistedRoot) says
+  // verified, but GoodDollar's claim contract hasn't picked that up yet
+  // (on-chain sync lag). Distinct from "already claimed" so it's clear this
+  // isn't a dead end — a retry after a short wait typically resolves it.
+  if (state.claimStatus === "not_whitelisted") {
+    return (
+      <section className="daily-claim daily-claim--error">
+        <div className="daily-claim__info">
+          <span className="daily-claim__icon">
+            <CoinIcon size={22} />
+          </span>
+          <div className="daily-claim__text">
+            <h3 className="daily-claim__title">Claim Daily G$</h3>
+            <p className="daily-claim__status">Still syncing your verification</p>
+            <p className="daily-claim__error">
+              Your identity was verified but hasn't synced with the claim contract yet. This
+              can take a few minutes — try again shortly.
+            </p>
+          </div>
+        </div>
+        <button className="btn btn--secondary" onClick={checkEntitlement}>
+          Retry
+        </button>
+      </section>
+    );
+  }
+
+  if (state.claimStatus === "already_claimed") {
     return (
       <section className="daily-claim daily-claim--claimed">
         <div className="daily-claim__info">

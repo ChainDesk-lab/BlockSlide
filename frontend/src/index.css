@@ -676,6 +676,11 @@ html.dark-mode {
   font-weight: 700;
 }
 
+.daily-claim--error .daily-claim__status {
+  color: #dc2626;
+  font-weight: 700;
+}
+
 .daily-claim__balance {
   font-size: 0.85rem;
   color: var(--text);
