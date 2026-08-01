@@ -22,6 +22,7 @@ export function useGame(
 ) {
   const [state, setState] = useState<GameState | null>(null);
   const [seed, setSeed] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const rngRef = useRef<(() => number) | null>(null);
 
   // Keep keyboard/touch handlers from firing while the player is on another
@@ -31,10 +32,16 @@ export function useGame(
 
   // Restore persisted game on mount
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setIsInitialized(true);
+      return;
+    }
     try {
       const raw = getUserStorage(address, STORAGE_KEY);
-      if (!raw) return;
+      if (!raw) {
+        setIsInitialized(true);
+        return;
+      }
       const saved: PersistedGame = JSON.parse(raw);
       // Re-init RNG from seed and fast-forward to saved moveCount
       const { rng } = initGame(saved.seed);
@@ -56,6 +63,8 @@ export function useGame(
       });
     } catch {
       // corrupt storage — ignore
+    } finally {
+      setIsInitialized(true);
     }
   }, [address]);
 
@@ -163,5 +172,5 @@ export function useGame(
     };
   }, [handleMove, boardRef]);
 
-  return { state, seed, startNewGame, clearGame, handleMove };
+  return { state, seed, startNewGame, clearGame, handleMove, isInitialized };
 }

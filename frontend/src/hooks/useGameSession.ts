@@ -466,6 +466,10 @@ export function useGameSession() {
           encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args }),
           500_000n,
         );
+        setPhase("done");
+        pendingActionRef.current = null;
+        showToast("Score submitted! 🎉", "success");
+        refetchSession();
       } catch (e) {
         if (isInsufficientGasError(e)) triggerNoGas();
         const errMsg = parseContractError(e as Error);

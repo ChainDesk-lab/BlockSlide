@@ -63,7 +63,7 @@ export default function App() {
     setShowHowToPlay(false);
   };
   const boardWrapperRef = useRef<HTMLDivElement>(null);
-  const { state, seed, startNewGame, clearGame } = useGame(address, view === "game", boardWrapperRef);
+  const { state, seed, startNewGame, clearGame, isInitialized } = useGame(address, view === "game", boardWrapperRef);
   const {
     phase,
     isPending,
@@ -243,7 +243,7 @@ export default function App() {
                     </div>
                   )}
                 </>
-              ) : (
+              ) : isInitialized ? (
                 <div className="board board--empty">
                   <div className="board-placeholder">
                     {stuckActive ? (
@@ -276,7 +276,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
 
             {error && (
