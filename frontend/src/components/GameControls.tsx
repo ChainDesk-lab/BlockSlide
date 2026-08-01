@@ -60,6 +60,12 @@ export default function GameControls({
         </button>
       )}
 
+      {phase === "finalizing" && (
+        <button className="btn btn--secondary" disabled>
+          <Spinner /> Finalizing your game…
+        </button>
+      )}
+
       {/* Contextual hints */}
       {!isConnected && phase === "active" && !gameEnded && (
         <p className="controls__hint">Arrow keys · WASD · swipe to move</p>

@@ -32,8 +32,9 @@ export type SessionPhase =
   | "idle"        // no wallet / no active session
   | "starting"    // waiting for startSession tx
   | "active"      // session live, playing
-  | "submitting"  // waiting for submitScore tx
-  | "done";       // score submitted
+  | "submitting"  // waiting for submitScore tx (sent but not mined)
+  | "finalizing"  // submitScore sent, waiting for receipt (mined)
+  | "done";       // score submitted and confirmed on-chain
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -167,6 +168,7 @@ export function useGameSession() {
     activeSigner: any,
     data: `0x${string}`,
     gas: bigint,
+    waitForReceipt: boolean = false,
   ): Promise<`0x${string}`> => {
     if (!activeSigner || !address) throw new Error("Wallet not connected");
     if (!publicClient) throw new Error("Network unavailable");
@@ -264,6 +266,17 @@ export function useGameSession() {
       }
 
       setTxHash(hash);
+
+      // If waitForReceipt, block until the transaction is mined (confirmed)
+      if (waitForReceipt) {
+        try {
+          await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+        } catch (receiptErr) {
+          setIsPending(false);
+          throw new Error(`Transaction ${hash} failed to confirm: ${(receiptErr as Error).message}`);
+        }
+      }
+
       setIsPending(false);
       return hash;
     } catch (e) {
@@ -339,7 +352,16 @@ export function useGameSession() {
       } catch (e) {
         if (isInsufficientGasError(e)) triggerNoGas();
         const errMsg = parseContractError(e as Error);
-        setError(errMsg);
+
+        // If the error is "SessionAlreadyActive", refetch the on-chain session
+        // and provide clear guidance on what happened.
+        if (errMsg.includes("active session") || errMsg.includes("SessionAlreadyActive")) {
+          setError(`A game session is still in progress on-chain. This may happen if:\n• A previous game submission is being mined (wait 30-60 seconds)\n• A session expired before we cleared it locally\n\nPlease try again in a moment, or wait up to 2 hours for the session to expire.`);
+          refetchSession();
+        } else {
+          setError(errMsg);
+        }
+
         if (!errMsg.includes("rejected")) showToast(errMsg, "error");
         setPhase("idle");
         pendingActionRef.current = null;
@@ -461,11 +483,24 @@ export function useGameSession() {
       setPhase("submitting");
 
       try {
-        await signAndBroadcast(
+        const hash = await signAndBroadcast(
           signer,
           encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args }),
           500_000n,
+          false, // don't wait for receipt yet; show sending state first
         );
+
+        // Transaction sent — now show "Finalizing..." while waiting for receipt
+        setPhase("finalizing");
+
+        // Wait for receipt to confirm transaction is mined
+        if (!publicClient) throw new Error("Network unavailable");
+        try {
+          await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+        } catch (receiptErr) {
+          throw new Error(`Transaction ${hash} failed to confirm: ${(receiptErr as Error).message}`);
+        }
+
         setPhase("done");
         pendingActionRef.current = null;
         showToast("Score submitted! 🎉", "success");
