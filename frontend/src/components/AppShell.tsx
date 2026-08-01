@@ -2,7 +2,7 @@
 
 import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
 import { useIdentity } from "../hooks/useIdentity";
@@ -28,18 +28,21 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { address } = useAuth();
   const { username } = useUsername();
   const { status: identityStatus } = useIdentity();
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [tab, setTab] = useState<string>("home");
 
   useEffect(() => {
-    // Hydration: check if sound is enabled in localStorage
+    // Hydration: read tab from search params and sound preference from localStorage
     try {
+      setTab(searchParams.get("tab") || "home");
       const stored = localStorage.getItem("sound-enabled");
       if (stored !== null) setSoundEnabled(stored === "true");
     } catch {}
-  }, []);
+  }, [searchParams]);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -48,11 +51,10 @@ export default function AppShell({ children }: AppShellProps) {
       localStorage.setItem("sound-enabled", String(next));
     } catch {}
   };
-
-  const isHome = pathname === "/";
-  const isGame = pathname === "/";
-  const isLeaderboard = pathname === "/";
-  const isShop = pathname === "/";
+  const isHome = pathname === "/" && (!tab || tab === "home");
+  const isGame = pathname === "/" && tab === "game";
+  const isLeaderboard = pathname === "/" && tab === "leaderboard";
+  const isShop = pathname === "/" && tab === "shop";
   const isBounty = pathname === "/bounty";
   const isProfile = pathname.startsWith("/profile");
 
@@ -83,14 +85,14 @@ export default function AppShell({ children }: AppShellProps) {
             </Link>
           </span>
           <span className="tooltip" data-tip="Play">
-            <Link href="/">
+            <Link href="/?tab=game">
               <button className={`icon-btn ${isGame ? "icon-btn--active" : ""}`} aria-label="Play">
                 <GamepadIcon />
               </button>
             </Link>
           </span>
           <span className="tooltip" data-tip="Leaderboard">
-            <Link href="/">
+            <Link href="/?tab=leaderboard">
               <button className={`icon-btn ${isLeaderboard ? "icon-btn--active" : ""}`} aria-label="Leaderboard">
                 <TrophyIcon />
               </button>
@@ -111,7 +113,7 @@ export default function AppShell({ children }: AppShellProps) {
             </Link>
           </span>
           <span className="tooltip" data-tip="Shop">
-            <Link href="/">
+            <Link href="/?tab=shop">
               <button className={`icon-btn ${isShop ? "icon-btn--active" : ""}`} aria-label="Shop">
                 <CartIcon />
               </button>

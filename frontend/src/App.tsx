@@ -1,4 +1,7 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "./auth/AuthContext";
 import { getDeviceStorage, setDeviceStorage, getUserStorage, setUserStorage } from "./lib/unifiedStorage";
 import { migrateStorageKeys } from "./lib/storageMigration";
@@ -24,6 +27,8 @@ import { sounds } from "./lib/sounds";
 type View = "home" | "game" | "leaderboard" | "shop";
 
 export default function App() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { address, isConnected, isFundingWallet } = useAuth();
   const { status: identityStatus, refetch: refetchIdentity, markPending: markIdentityPending } = useIdentity();
 
@@ -45,7 +50,34 @@ export default function App() {
 
   // Which screen is showing. Game state/hooks live at this level so navigating
   // away and back never resets an in-progress game.
+  // View is derived from the tab query param; when in-app navigation happens,
+  // router.replace() updates the URL to keep state in sync.
   const [view, setView] = useState<View>("home");
+
+  // Initialize view from tab param on mount and sync when param changes
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") || "home";
+    const newView = (tabParam === "game" || tabParam === "leaderboard" || tabParam === "shop" ? tabParam : "home") as View;
+    if (newView !== view) {
+      setView(newView);
+    }
+  }, [searchParams]);
+
+  // When view changes from in-app buttons (e.g., "Play now"), update URL
+  useEffect(() => {
+    const newTabParam = view === "home" ? null : view;
+    const currentTabParam = searchParams.get("tab");
+    if (newTabParam !== currentTabParam) {
+      const newParams = new URLSearchParams(searchParams);
+      if (newTabParam) {
+        newParams.set("tab", newTabParam);
+      } else {
+        newParams.delete("tab");
+      }
+      const newSearch = newParams.toString();
+      router.replace(newSearch ? `/?${newSearch}` : "/", { scroll: false });
+    }
+  }, [view, searchParams, router]);
 
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(() =>
     !getDeviceStorage("seen_htp")

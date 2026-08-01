@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, Suspense } from "react";
 import { DualAuthBridge } from "../src/auth/DualAuthBridge";
 import { NoGasProvider } from "../src/contexts/NoGasContext";
 import { ToastProvider } from "../src/contexts/ToastContext";
@@ -22,7 +22,9 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
           <RefCaptureWrapper />
           <NetworkGuardBanner />
           <ToastContainer />
-          <AppShell>{children}</AppShell>
+          <Suspense fallback={<div>{children}</div>}>
+            <AppShell>{children}</AppShell>
+          </Suspense>
         </NoGasProvider>
       </DualAuthBridge>
     </ToastProvider>
