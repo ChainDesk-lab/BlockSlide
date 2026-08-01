@@ -190,3 +190,14 @@ export function UserIcon({ className, size = 20 }: IconProps) {
     </svg>
   );
 }
+
+export function BountyIcon({ className, size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className={className} aria-hidden="true">
+      <path d="M6 9h12M6 9l1-5h10l1 5M6 9v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9" />
+      <circle cx="12" cy="16" r="1" fill="currentColor" />
+    </svg>
+  );
+}

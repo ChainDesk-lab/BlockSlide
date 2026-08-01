@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- WalletConnect official logo: blue double brackets -->
+  <defs>
+    <linearGradient id="wcGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B99FC;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1B5DC8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Left bracket -->
+  <path d="M 16 12 L 24 12 L 24 20 M 24 44 L 24 52 L 16 52"
+        stroke="url(#wcGradient)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Right bracket -->
+  <path d="M 48 12 L 40 12 L 40 20 M 40 44 L 40 52 L 48 52"
+        stroke="url(#wcGradient)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
