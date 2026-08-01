@@ -57,6 +57,7 @@ export default function AppShell({ children }: AppShellProps) {
   const isShop = pathname === "/" && tab === "shop";
   const isBounty = pathname === "/bounty";
   const isProfile = pathname.startsWith("/profile");
+  const isHowToPlay = pathname === "/how-to-play";
 
   return (
     <div className="app">
@@ -120,9 +121,11 @@ export default function AppShell({ children }: AppShellProps) {
             </Link>
           </span>
           <span className="tooltip" data-tip="How to play">
-            <button className="icon-btn" aria-label="How to play">
-              <HelpIcon />
-            </button>
+            <Link href="/how-to-play" aria-label="How to play">
+              <button className={`icon-btn ${isHowToPlay ? "icon-btn--active" : ""}`} aria-label="How to play">
+                <HelpIcon />
+              </button>
+            </Link>
           </span>
           <span className="tooltip" data-tip={soundEnabled ? "Sound on" : "Sound off"}>
             <button
