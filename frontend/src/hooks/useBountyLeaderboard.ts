@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { usePublicClient } from "wagmi";
 import type { Bounty } from "../config/bounties";
+import { resolveBlockByTime } from "../lib/blockResolver";
 
 interface BountyPlayerEntry {
   id: string;
@@ -57,15 +59,20 @@ async function fetchVerifiedPlayers(
   return result;
 }
 
+// In-memory cache for baseline XP at start block (per bounty)
+const baselineCache = new Map<string, Map<string, { xp: bigint; username: string | null; isVerified: boolean }>>();
+
 export function useBountyLeaderboard(
   bounty: Bounty,
   subgraphUrl: string,
   status: "upcoming" | "live" | "ended"
 ): BountyLeaderboardData {
+  const publicClient = usePublicClient();
   const [entries, setEntries] = useState<BountyPlayerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFrozen, setIsFrozen] = useState(false);
+  const startBlockRef = useRef<bigint | null>(null);
 
   useEffect(() => {
     if (!subgraphUrl) {
@@ -104,22 +111,47 @@ export function useBountyLeaderboard(
           setEntries(topPlayers);
           setIsFrozen(false);
         } else if (status === "live" || status === "ended") {
-          // Live/ended: compute delta XP from start block to now (or end block)
-          // For now, we'll show current XP as bountyXp since block resolution requires async viem calls
-          // This will be populated once the bounty goes live
-          const players = await fetchVerifiedPlayers(subgraphUrl);
+          // Live/ended: compute delta XP from start block baseline to current
+          if (!publicClient) {
+            throw new Error("Public client not available");
+          }
+
+          // Resolve start block from bounty startTime (cached across renders)
+          if (!startBlockRef.current) {
+            const startTime = new Date(bounty.startTime);
+            startBlockRef.current = await resolveBlockByTime(publicClient, startTime);
+            console.log(`[Bounty] Resolved start block: ${startBlockRef.current} (${startTime.toISOString()})`);
+          }
+
+          const startBlock = startBlockRef.current;
+          const cacheKey = `${bounty.id}-${startBlock}`;
+
+          // Check if baseline is already cached
+          let baseline = baselineCache.get(cacheKey);
+          if (!baseline) {
+            // Fetch baseline XP at start block
+            baseline = await fetchVerifiedPlayers(subgraphUrl, startBlock);
+            baselineCache.set(cacheKey, baseline);
+          }
+
+          // Fetch current XP
+          const current = await fetchVerifiedPlayers(subgraphUrl);
 
           if (cancelled) return;
 
+          // Compute delta XP for all current verified players
           const deltas: BountyPlayerEntry[] = [];
-          players.forEach((playerData, playerId) => {
-            if (playerData.xp > 0n) {
+          current.forEach((currentData, playerId) => {
+            const baselineXp = baseline!.get(playerId)?.xp ?? 0n;
+            const bountyXp = currentData.xp > baselineXp ? currentData.xp - baselineXp : 0n;
+
+            if (bountyXp > 0n) {
               deltas.push({
                 id: playerId,
-                username: playerData.username,
-                xpAtStart: 0n,
-                xpAtEnd: playerData.xp,
-                bountyXp: playerData.xp,
+                username: currentData.username,
+                xpAtStart: baselineXp,
+                xpAtEnd: currentData.xp,
+                bountyXp,
                 isVerified: true,
               });
             }
@@ -145,7 +177,7 @@ export function useBountyLeaderboard(
     return () => {
       cancelled = true;
     };
-  }, [bounty, subgraphUrl, status]);
+  }, [bounty, subgraphUrl, status, publicClient]);
 
   return { entries, loading, error, isFrozen };
 }
