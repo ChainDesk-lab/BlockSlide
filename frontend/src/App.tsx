@@ -50,34 +50,10 @@ export default function App() {
 
   // Which screen is showing. Game state/hooks live at this level so navigating
   // away and back never resets an in-progress game.
-  // View is derived from the tab query param; when in-app navigation happens,
-  // router.replace() updates the URL to keep state in sync.
-  const [view, setView] = useState<View>("home");
-
-  // Initialize view from tab param on mount and sync when param changes
-  useEffect(() => {
-    const tabParam = searchParams.get("tab") || "home";
-    const newView = (tabParam === "game" || tabParam === "leaderboard" || tabParam === "shop" ? tabParam : "home") as View;
-    if (newView !== view) {
-      setView(newView);
-    }
-  }, [searchParams]);
-
-  // When view changes from in-app buttons (e.g., "Play now"), update URL
-  useEffect(() => {
-    const newTabParam = view === "home" ? null : view;
-    const currentTabParam = searchParams.get("tab");
-    if (newTabParam !== currentTabParam) {
-      const newParams = new URLSearchParams(searchParams);
-      if (newTabParam) {
-        newParams.set("tab", newTabParam);
-      } else {
-        newParams.delete("tab");
-      }
-      const newSearch = newParams.toString();
-      router.replace(newSearch ? `/?${newSearch}` : "/", { scroll: false });
-    }
-  }, [view, searchParams, router]);
+  // View is DERIVED from the tab URL param only; no internal state mirror.
+  // Router.replace() is the ONLY mechanism that changes the tab.
+  const tabParam = searchParams.get("tab") || "home";
+  const view = (tabParam === "game" || tabParam === "leaderboard" || tabParam === "shop" ? tabParam : "home") as View;
 
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(() =>
     !getDeviceStorage("seen_htp")
@@ -242,8 +218,8 @@ export default function App() {
         {/* ── Home screen ───────────────────────────────────────────────── */}
         {view === "home" && (
           <Home
-            onPlay={() => setView("game")}
-            onLeaderboard={() => setView("leaderboard")}
+            onPlay={() => router.replace("/?tab=game", { scroll: false })}
+            onLeaderboard={() => router.replace("/?tab=leaderboard", { scroll: false })}
           />
         )}
 
