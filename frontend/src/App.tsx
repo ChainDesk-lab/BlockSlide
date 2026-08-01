@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "./auth/AuthContext";
 import { getDeviceStorage, setDeviceStorage, getUserStorage, setUserStorage } from "./lib/unifiedStorage";
 import { migrateStorageKeys } from "./lib/storageMigration";
-import BlockSlideMark from "./components/BlockSlideMark";
 import Board from "./components/Board";
 import GameControls from "./components/GameControls";
 import Home from "./components/Home";
@@ -13,11 +11,9 @@ import Leaderboard from "./components/Leaderboard";
 import SignInModal from "./components/SignInModal";
 import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
-import ThemeToggle from "./components/ThemeToggle";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
-import WalletButton from "./components/WalletButton";
-import { SoundOnIcon, SoundOffIcon, HomeIcon, GamepadIcon, TrophyIcon, CartIcon, HelpIcon, VerifiedIcon, UserIcon } from "./components/icons";
+import { TrophyIcon, CartIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
@@ -54,7 +50,6 @@ export default function App() {
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(() =>
     !getDeviceStorage("seen_htp")
   );
-  const openHowToPlay  = () => setShowHowToPlay(true);
   const closeHowToPlay = () => {
     setDeviceStorage("seen_htp", "1");
     setShowHowToPlay(false);
@@ -99,14 +94,6 @@ export default function App() {
 
   const showUsernameModal =
     !!address && !isWrongChain && !usernameLoading && !username && !usernameModalDismissed && !isFundingWallet;
-
-  // ── Sound toggle ───────────────────────────────────────────────────────────
-  const [soundEnabled, setSoundEnabled] = useState(sounds.enabled);
-  const toggleSound = () => {
-    const next = !soundEnabled;
-    setSoundEnabled(next);
-    sounds.setEnabled(next);
-  };
 
   // ── Sound effects ──────────────────────────────────────────────────────────
   const prevStateRef = useRef(state);
@@ -169,7 +156,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <>
       {showHowToPlay && <HowToPlay onClose={closeHowToPlay} />}
       {isFundingWallet && (
         <div
@@ -199,99 +186,6 @@ export default function App() {
           }}
         />
       )}
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="header">
-        <div
-          className="header__left"
-          onClick={() => setView("home")}
-          role="button"
-          tabIndex={0}
-          title="Home"
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setView("home"); }}
-        >
-          <div className="header__logo">
-            <BlockSlideMark size={36} variant="color" />
-            <span className="header__logo-text">BlockSlide</span>
-          </div>
-        </div>
-        <div className="header__right">
-          <span className="tooltip" data-tip="Home">
-            <button
-              className={`icon-btn ${view === "home" ? "icon-btn--active" : ""}`}
-              onClick={() => setView("home")}
-              aria-label="Home"
-            >
-              <HomeIcon />
-            </button>
-          </span>
-          <span className="tooltip" data-tip="Play">
-            <button
-              className={`icon-btn ${view === "game" ? "icon-btn--active" : ""}`}
-              onClick={() => setView("game")}
-              aria-label="Play"
-            >
-              <GamepadIcon />
-            </button>
-          </span>
-          <span className="tooltip" data-tip="Leaderboard">
-            <button
-              className={`icon-btn ${view === "leaderboard" ? "icon-btn--active" : ""}`}
-              onClick={() => setView("leaderboard")}
-              aria-label="Leaderboard"
-            >
-              <TrophyIcon />
-            </button>
-          </span>
-          <span className="tooltip" data-tip="Profile">
-            <Link href={`/profile/${address}`} aria-label="Profile">
-              <button className="icon-btn" aria-label="Profile">
-                <UserIcon />
-              </button>
-            </Link>
-          </span>
-          <span className="tooltip" data-tip="Shop">
-            <button
-              className={`icon-btn ${view === "shop" ? "icon-btn--active" : ""}`}
-              onClick={() => setView("shop")}
-              aria-label="Shop"
-            >
-              <CartIcon />
-            </button>
-          </span>
-          <span className="tooltip" data-tip="How to play">
-            <button
-              className="icon-btn"
-              onClick={openHowToPlay}
-              aria-label="How to play"
-            >
-              <HelpIcon />
-            </button>
-          </span>
-          <span className="tooltip" data-tip={soundEnabled ? "Sound on" : "Sound off"}>
-            <button
-              className="icon-btn"
-              onClick={toggleSound}
-              aria-label={soundEnabled ? "Mute sounds" : "Enable sounds"}
-            >
-              {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
-            </button>
-          </span>
-          <ThemeToggle />
-          {username ? (
-            <span className="header__username" title="Your username">
-              <span className="header__username-name">{username}</span>
-              {identityStatus === "verified" && (
-                <VerifiedIcon size={15} className="header__verified" />
-              )}
-            </span>
-          ) : identityStatus === "verified" ? (
-            <span className="header__username header__username--badge-only" title="Verified with GoodDollar">
-              <VerifiedIcon size={15} className="header__verified" /> Verified
-            </span>
-          ) : null}
-          <WalletButton />
-        </div>
-      </header>
 
       <main className="main">
         {/* Identity gate modal — shown only when trying to claim without verification */}
@@ -425,7 +319,7 @@ export default function App() {
           </div>
         )}
       </main>
-    </div>
+    </>
   );
 }
 
