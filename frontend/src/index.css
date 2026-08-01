@@ -3791,7 +3791,7 @@ html.dark-mode {
   font-size: 32px;
   font-weight: 700;
   color: white;
-  background: linear-gradient(135deg, var(--brand), #8b6eff);
+  background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 60%, var(--accent)));
 }
 
 .profile-name {
@@ -4154,7 +4154,7 @@ html.dark-mode {
 }
 
 .bounty-leaderboard__entry--prize {
-  background: linear-gradient(135deg, rgba(107, 78, 255, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, var(--surface)) 0%, color-mix(in srgb, var(--warning) 10%, var(--surface)) 100%);
   border-left: 3px solid var(--brand);
   padding-left: 9px;
 }

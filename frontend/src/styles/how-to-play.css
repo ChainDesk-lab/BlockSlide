@@ -2,7 +2,7 @@
   max-width: 900px;
   margin: 0 auto;
   padding: 2rem 1rem;
-  color: var(--color-text, #1a1a1a);
+  color: var(--text);
 }
 
 .how-to-play__header {
@@ -15,22 +15,24 @@
   font-weight: 800;
   margin: 0 0 0.5rem;
   letter-spacing: -0.02em;
+  color: var(--text);
 }
 
 .how-to-play__subtitle {
   font-size: 1.1rem;
-  color: var(--color-text-secondary, #666);
+  color: var(--text-muted);
   margin: 0;
   font-weight: 500;
 }
 
-/* Table of contents */
+/* Table of contents card — uses same styling as stat-card for consistency */
 .how-to-play__toc {
-  background: var(--color-bg-card, #f8f8f8);
-  border-radius: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
   padding: 1.5rem;
   margin-bottom: 2.5rem;
-  border: 1px solid var(--color-border, #e0e0e0);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .how-to-play__toc-title {
@@ -39,7 +41,7 @@
   margin: 0 0 1rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-text, #1a1a1a);
+  color: var(--text);
 }
 
 .how-to-play__toc-list {
@@ -59,15 +61,17 @@
   display: block;
   padding: 0.5rem 0.75rem;
   text-decoration: none;
-  color: var(--color-text-link, #0066cc);
+  color: var(--accent);
   border-radius: 6px;
   transition: background-color 0.2s ease, color 0.2s ease;
   font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .how-to-play__toc-link:hover {
-  background-color: var(--color-bg-hover, #e8e8e8);
-  color: var(--color-text-link-hover, #0052a3);
+  background-color: var(--surface-2);
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 /* Main content */
@@ -85,8 +89,8 @@
   font-size: 1.5rem;
   font-weight: 700;
   margin: 0 0 1rem;
-  color: var(--color-text, #1a1a1a);
-  border-bottom: 2px solid var(--color-accent, #0066cc);
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
   padding-bottom: 0.75rem;
 }
 
@@ -100,20 +104,21 @@
   margin: 0;
   line-height: 1.6;
   font-size: 1rem;
-  color: var(--color-text, #1a1a1a);
+  color: var(--text);
 }
 
 .how-to-play__text strong {
   font-weight: 600;
+  color: var(--text);
 }
 
 .how-to-play__text code {
-  background: var(--color-bg-code, #f0f0f0);
+  background: var(--surface-2);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
   font-family: "Monaco", "Courier New", monospace;
   font-size: 0.9rem;
-  color: var(--color-text-code, #c41d7f);
+  color: var(--brand);
 }
 
 /* List styling within sections */
@@ -121,37 +126,40 @@
 .how-to-play__text ol {
   margin: 0.5rem 0 0.5rem 1.5rem;
   padding: 0;
+  color: var(--text);
 }
 
 .how-to-play__text li {
   margin: 0.4rem 0;
   line-height: 1.6;
+  color: var(--text);
 }
 
-/* CTA Section */
+/* CTA Section — uses same card styling as TOC */
 .how-to-play__cta {
   margin-top: 3rem;
   padding: 2rem;
-  background: var(--color-bg-card, #f8f8f8);
-  border-radius: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
   text-align: center;
-  border: 1px solid var(--color-border, #e0e0e0);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .how-to-play__cta-link {
   display: inline-block;
   padding: 1rem 2rem;
-  background: var(--color-accent, #0066cc);
+  background: var(--accent);
   color: white;
   text-decoration: none;
   border-radius: 8px;
   font-weight: 600;
   font-size: 1.05rem;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
 }
 
 .how-to-play__cta-link:hover {
-  background: var(--color-accent-hover, #0052a3);
+  opacity: 0.9;
   transform: translateY(-2px);
 }
 
@@ -196,17 +204,5 @@
   .how-to-play__cta-link {
     padding: 0.75rem 1.5rem;
     font-size: 1rem;
-  }
-}
-
-/* Dark mode support (if theme toggle exists) */
-@media (prefers-color-scheme: dark) {
-  .how-to-play {
-    --color-text: #f0f0f0;
-    --color-text-secondary: #a0a0a0;
-    --color-bg-card: #1a1a1a;
-    --color-border: #333;
-    --color-bg-code: #2a2a2a;
-    --color-text-code: #ff6b9d;
   }
 }
