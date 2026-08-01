@@ -85,8 +85,9 @@ export default function BountyPage() {
   );
 
   const statusBadgeText = status === "upcoming" ? "Upcoming" : status === "live" ? "LIVE 🔴" : "Ended";
+  // Countdown target derives from status: upcoming → startTime, live → endTime, ended → no countdown
   const targetTime =
-    status === "ended" ? new Date(currentBounty.endTime) : new Date(currentBounty.startTime);
+    status === "upcoming" ? new Date(currentBounty.startTime) : new Date(currentBounty.endTime);
   const isUpcoming = status === "upcoming";
 
   // Auto-flip status when countdown reaches zero
