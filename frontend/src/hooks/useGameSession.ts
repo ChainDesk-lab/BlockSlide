@@ -40,7 +40,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function useGameSession() {
   const address = useContractAddress();
-  const { isConnected } = useAuth();
+  const { isConnected, authType } = useAuth();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
   const { triggerNoGas } = useNoGas();
@@ -198,7 +198,11 @@ export function useGameSession() {
       // expose eth_signTransaction. Go straight to eth_sendTransaction with a
       // simple legacy-style tx (gasPrice only, no EIP-1559 fields, no explicit
       // nonce) so Magic's provider can apply chain defaults without confusion.
-      const isMagicWallet = (activeSigner as any)?.key === "magic";
+      //
+      // Must use authType, not activeSigner.key — viem's createWalletClient()
+      // defaults `key` to "wallet" when unset, so the Magic client from
+      // useSigner() is never distinguishable by .key.
+      const isMagicWallet = authType === "magic";
 
       if (isMagicWallet) {
         // Fetch live gas price immediately before broadcast — never send a stale hardcoded value.
@@ -283,7 +287,7 @@ export function useGameSession() {
       setIsPending(false);
       throw e;
     }
-  }, [publicClient, address]);
+  }, [publicClient, address, authType]);
 
 
   // ── startSession ─────────────────────────────────────────────────────────
