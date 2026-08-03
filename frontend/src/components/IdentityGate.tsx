@@ -33,8 +33,11 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
   // Use unified GoodDollar identity hook
   const {
     isVerifying,
+    isWrongChain,
+    chainSwitchPending,
     error: verificationError,
     startVerification: startGoodDollarVerification,
+    switchToTargetChain,
   } = useGoodDollarIdentity();
   const { logout } = useAuth();
 
@@ -93,7 +96,30 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
       </div>
 
       <div className="identity-gate__body">
-        {status === "loading" ? (
+        {isWrongChain ? (
+          <>
+            <p className="identity-gate__title">Wrong network</p>
+            <p className="identity-gate__desc">
+              To verify your identity and claim rewards, you need to be on the Celo mainnet.
+              Switch your wallet network now.
+            </p>
+            <div className="identity-gate__actions">
+              <button
+                className="btn btn--primary identity-gate__btn"
+                onClick={switchToTargetChain}
+                disabled={chainSwitchPending}
+              >
+                {chainSwitchPending ? (
+                  <>
+                    <span className="spinner" aria-hidden="true" /> Switching…
+                  </>
+                ) : (
+                  "Switch to Celo"
+                )}
+              </button>
+            </div>
+          </>
+        ) : status === "loading" ? (
           <p className="identity-gate__title">Checking GoodDollar verification…</p>
         ) : status === "pending" ? (
           <>

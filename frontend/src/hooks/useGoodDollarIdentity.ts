@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useChainId } from "wagmi";
+import { useChainId, useSwitchChain } from "wagmi";
 import { IdentitySDK } from "@goodsdks/citizen-sdk";
 import { TARGET_CHAIN } from "../lib/constants";
 import { useAuth } from "../auth/AuthContext";
@@ -11,7 +11,10 @@ interface UseGoodDollarIdentityResult {
   isLoading: boolean;
   isVerifying: boolean;
   error: string | null;
+  isWrongChain: boolean;
+  chainSwitchPending: boolean;
   startVerification: () => Promise<void>;
+  switchToTargetChain: () => void;
   recheckVerification: () => Promise<void>;
 }
 
@@ -30,14 +33,9 @@ interface UseGoodDollarIdentityResult {
 export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { authType } = useAuth();
   const contractPublicClient = useContractPublicClient();
-  // Single source of truth for signer — all three features (game, username, identity)
-  // call useSigner() so there's exactly one code path, one retry strategy, one error handler.
   const { signer, error: signerError } = useSigner();
-  // The wallet's actively-selected network (as MetaMask itself reports it),
-  // not just whether an address is connected. IdentitySDK's constructor
-  // throws synchronously on a missing/undefined wallet client — if we're on wrong chain,
-  // signer will have the error message already.
   const chainId = useChainId();
+  const { switchChain, isPending: chainSwitchPending } = useSwitchChain();
   const isWrongChain = authType !== "magic" && chainId !== TARGET_CHAIN.id;
 
   const [isVerified, setIsVerified] = useState(false);
@@ -139,23 +137,27 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         throw new Error("Failed to generate verification link");
       }
 
+      console.log("[Identity] Redirecting to GoodDollar face scan...", { address: addressToVerify });
+
       // Full-page redirect. checkVerificationStatus() will run again on
       // mount when GoodDollar redirects back to this same URL.
       window.location.href = verificationLink;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("Face verification error:", message);
+      console.error("[Identity] Face verification error:", { address: addressToVerify, error: message });
 
-      // Check if this was a wallet signature rejection
+      // Map specific SDK errors to user-friendly messages
       if (
         message.toLowerCase().includes("reject") ||
         message.toLowerCase().includes("denied") ||
         message.toLowerCase().includes("cancel")
       ) {
         setError(null); // Don't show error for user cancellation
-      } else if (message.includes("wallet isn't ready")) {
-        // One of our own clear, actionable messages — show it as-is instead
-        // of masking it behind the generic fallback below.
+      } else if (message.includes("already linked") || message.includes("duplicate") || message.includes("twin")) {
+        setError("This face is already verified on a different wallet. Please connect your verified wallet to claim.");
+      } else if (message.includes("network") || message.includes("chain")) {
+        setError("Network error during verification. Check your internet connection or try switching networks again.");
+      } else if (message.includes("wallet isn't ready") || message.includes("signer")) {
         setError(message);
       } else {
         setError("Could not start face verification. Please try again.");
@@ -169,12 +171,19 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     await checkVerificationStatus();
   }, [checkVerificationStatus]);
 
+  const switchToTargetChain = useCallback(() => {
+    switchChain({ chainId: TARGET_CHAIN.id });
+  }, [switchChain]);
+
   return {
     isVerified,
     isLoading,
     isVerifying,
     error,
+    isWrongChain,
+    chainSwitchPending,
     startVerification,
+    switchToTargetChain,
     recheckVerification,
   };
 }

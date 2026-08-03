@@ -3,6 +3,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useAccount, useChainId, useConnections } from "wagmi";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
 import { useIdentity } from "../hooks/useIdentity";
@@ -155,6 +156,43 @@ export default function AppShell({ children }: AppShellProps) {
 
       {/* Route content */}
       {children}
+
+      {/* Diagnostic footer for support/debugging */}
+      <DiagnosticFooter />
+    </div>
+  );
+}
+
+function DiagnosticFooter() {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const connections = useConnections();
+
+  // Get the currently active connector name
+  const activeConnector = connections.find(c => c.accounts.length > 0);
+  const connectorName = activeConnector?.connector?.name || "unknown";
+
+  // Format address (show first 6 and last 4 chars)
+  const displayAddress = address
+    ? `${address.slice(0, 6)}…${address.slice(-4)}`
+    : "not connected";
+
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: 0,
+      right: 0,
+      padding: "4px 8px",
+      fontSize: "11px",
+      color: "var(--text-muted)",
+      fontFamily: "monospace",
+      zIndex: 1000,
+      cursor: "pointer",
+      opacity: 0.6,
+    }}
+    title="Debug info: address | connector | chainId"
+    >
+      {displayAddress} | {connectorName} | {chainId}
     </div>
   );
 }
