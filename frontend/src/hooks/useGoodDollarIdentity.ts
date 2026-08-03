@@ -23,8 +23,9 @@ interface UseGoodDollarIdentityResult {
  * - On-chain verification status check against identity registry
  * - SDK initialization with wallet and public clients
  * - Face verification link generation with wallet signature
- * - Verification popup management
- * - Post-verification status recheck
+ * - Full-page redirect to GoodDollar's face scan and back (no popup window,
+ *   so there's nothing for a browser popup blocker to catch)
+ * - Post-verification status recheck on return
  */
 export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { authType } = useAuth();
@@ -111,9 +112,6 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     setError(null);
     setIsVerifying(true);
 
-    let popup: Window | null = null;
-    let pollInterval: ReturnType<typeof setTimeout> | undefined;
-
     try {
       // Initialize SDK with wallet and public clients
       if (!signer) {
@@ -125,7 +123,12 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         env: "production",
       });
 
-      // Generate face verification link with wallet signature attached
+      // popupMode=false generates a *redirect*-mode link (GoodDollar's SDK
+      // encodes the callback as `rdu`, not `cbu`) — it's built for GoodDollar's
+      // face-scan page to navigate the browser straight back to callbackUrl
+      // when it's done, not for postMessage-to-a-popup. So we navigate the
+      // current tab instead of window.open()-ing it: no new window is ever
+      // created, which means there's nothing for a popup blocker to catch.
       const verificationLink = await sdk.generateFVLink(
         false,
         window.location.href,
@@ -136,70 +139,10 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         throw new Error("Failed to generate verification link");
       }
 
-      console.log("Opening face verification popup...");
-
-      // Open popup immediately on user-click stack frame to avoid popup blockers
-      const width = 500;
-      const height = 700;
-      const left = window.innerWidth / 2 - width / 2;
-      const top = window.innerHeight / 2 - height / 2;
-
-      popup = window.open(
-        verificationLink,
-        "FaceVerification",
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
-
-      if (!popup) {
-        // Popup was blocked - provide direct link
-        setError(
-          `Please enable popups for this site, or click the link below to verify. We'll check your verification status when you return.`
-        );
-
-        // Create a clickable link as fallback
-        const link = document.createElement("a");
-        link.href = verificationLink;
-        link.target = "_blank";
-        link.textContent = "Open Face Verification";
-        link.style.display = "block";
-        link.style.marginTop = "10px";
-        link.style.color = "#845ef7";
-
-        setIsVerifying(false);
-        return;
-      }
-
-      // Focus the popup window
-      if (popup) {
-        popup.focus();
-      }
-
-      // Poll for popup closure with longer interval and timeout
-      let pollCount = 0;
-      const maxPolls = 300; // 5 minutes max (300 * 1000ms)
-
-      pollInterval = setInterval(async () => {
-        pollCount++;
-
-        // Check if popup is closed
-        if (popup?.closed || pollCount > maxPolls) {
-          clearInterval(pollInterval);
-
-          // User closed the popup - recheck their verification status on-chain
-          console.log("Popup closed, checking verification status...");
-          setTimeout(() => {
-            checkVerificationStatus();
-          }, 2000); // Wait 2s for on-chain confirmation
-
-          setIsVerifying(false);
-          return;
-        }
-      }, 1000); // Check every 1 second
-
+      // Full-page redirect. checkVerificationStatus() will run again on
+      // mount when GoodDollar redirects back to this same URL.
+      window.location.href = verificationLink;
     } catch (err) {
-      if (pollInterval) clearInterval(pollInterval);
-      if (popup && !popup.closed) popup.close();
-
       const message = err instanceof Error ? err.message : String(err);
       console.error("Face verification error:", message);
 
@@ -220,7 +163,7 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
 
       setIsVerifying(false);
     }
-  }, [addressToVerify, contractPublicClient, authType, isWrongChain, signer, signerError, checkVerificationStatus]);
+  }, [addressToVerify, contractPublicClient, authType, isWrongChain, signer, signerError]);
 
   const recheckVerification = useCallback(async () => {
     await checkVerificationStatus();

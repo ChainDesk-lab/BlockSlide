@@ -373,7 +373,7 @@ export default function ClaimUBI() {
         </button>
         {isVerifying && (
           <p className="daily-claim__help-text">
-            Complete the face scan in the popup window. When done, come back and we'll check your status.
+            You'll be redirected to GoodDollar to complete the face scan, then brought back here automatically.
           </p>
         )}
       </section>

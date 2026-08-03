@@ -99,8 +99,9 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
           <>
             <p className="identity-gate__title">Verification in progress</p>
             <p className="identity-gate__desc">
-              Finish the face scan in the GoodDollar tab. Once it completes, come
-              back and check again — it can take a moment to confirm on-chain.
+              You were redirected to GoodDollar to finish the face scan and
+              should already be back here. If you completed it, check again
+              below - it can take a moment to confirm on-chain.
             </p>
 
             {verificationError && (
@@ -143,7 +144,7 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
             <p className="identity-gate__desc">
               Verify once with GoodDollar to submit scores on-chain. Your wallet
               will ask you to sign a message, then you will be taken directly to
-              the face scan.
+              the face scan and brought back here automatically when you're done.
             </p>
 
             {verificationError && (
