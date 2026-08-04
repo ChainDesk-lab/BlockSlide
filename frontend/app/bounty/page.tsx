@@ -74,9 +74,11 @@ function BountyLeaderboardRow({
 }
 
 export default function BountyPage() {
-  const currentBounty = bounties[0];
+  // Find the first non-ended bounty (upcoming or live)
+  const currentBounty = bounties.find((b) => getBountyStatus(b) !== "ended") || bounties[bounties.length - 1];
   const [status, setStatus] = useState<"upcoming" | "live" | "ended">(getBountyStatus(currentBounty));
-  const pastBounties = bounties.filter((b) => getBountyStatus(b) === "ended").slice(1);
+  // Show all ended bounties EXCEPT the current one (to avoid duplication if it's the fallback)
+  const pastBounties = bounties.filter((b) => getBountyStatus(b) === "ended" && b.id !== currentBounty.id);
 
   const { entries: leaderboardEntries, loading, error } = useBountyLeaderboard(
     currentBounty,

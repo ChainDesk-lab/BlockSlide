@@ -11,6 +11,8 @@ export interface Bounty {
 
 // Bounty times: Aug 1 2026 12:00 PM WAT (UTC+1) = 2026-08-01T11:00:00Z
 // Bounty times: Aug 3 2026 23:59:59 WAT (UTC+1) = 2026-08-03T22:59:59Z
+// Bounty #2 times: Aug 7 2026 12:00 PM WAT (UTC+1) = 2026-08-07T11:00:00Z
+// Bounty #2 times: Aug 14 2026 12:00 PM WAT (UTC+1) = 2026-08-14T11:00:00Z
 export const bounties: Bounty[] = [
   {
     id: "bounty-1",
@@ -19,6 +21,23 @@ export const bounties: Bounty[] = [
     startTime: "2026-08-01T11:00:00Z",
     endTime: "2026-08-03T22:59:59Z",
     prizes: "$30 prize pool",
+    howToParticipate: [
+      "Follow BlockSlide on X (@BlockSlideGame)",
+      "Join our Telegram community for updates and tips",
+      "Sign up on blockslide.app via email or wallet",
+      "Verify your identity with GoodDollar (one-face-one-wallet)",
+      "Play games during the bounty period",
+      "Use shop boosts to climb faster on the leaderboard",
+    ],
+    winnerCriteria: "Top 5 verified players by XP earned during the bounty period",
+  },
+  {
+    id: "bounty-2",
+    title: "BlockSlide Week 2 Bounty",
+    description: "Keep the momentum going! Compete in our second bounty week with verified players worldwide to earn top rankings and prizes.",
+    startTime: "2026-08-07T11:00:00Z",
+    endTime: "2026-08-14T11:00:00Z",
+    prizes: "$20 prize pool",
     howToParticipate: [
       "Follow BlockSlide on X (@BlockSlideGame)",
       "Join our Telegram community for updates and tips",
