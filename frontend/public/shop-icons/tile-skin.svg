@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="t2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+    <linearGradient id="t4" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset="1" stop-color="#ea580c"/></linearGradient>
+    <linearGradient id="t8" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f472b6"/><stop offset="1" stop-color="#c026d3"/></linearGradient>
+    <filter id="glowS" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g transform="rotate(-14 128 150)">
+    <rect x="42" y="76" width="112" height="112" rx="22" fill="url(#t2)" filter="url(#glowS)"/>
+    <text x="98" y="152" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="bold" text-anchor="middle" fill="#7c2d12">2</text>
+  </g>
+  <g transform="rotate(2 128 140)">
+    <rect x="74" y="64" width="112" height="112" rx="22" fill="url(#t4)" filter="url(#glowS)"/>
+    <text x="130" y="140" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="bold" text-anchor="middle" fill="#431407">4</text>
+  </g>
+  <g transform="rotate(16 150 140)">
+    <rect x="106" y="82" width="112" height="112" rx="22" fill="url(#t8)" filter="url(#glowS)"/>
+    <text x="162" y="158" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="bold" text-anchor="middle" fill="#4a044e">8</text>
+  </g>
+</svg>

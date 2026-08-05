@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="hoG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f472b6"/><stop offset="1" stop-color="#a21caf"/>
+    </linearGradient>
+    <filter id="shH" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#701a75" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <path d="M96 58 C104 40 152 40 160 58 L196 74 C210 80 218 96 218 112 V150 C218 158 212 164 204 164 H196 V196 C196 210 186 220 172 220 H84 C70 220 60 210 60 196 V164 H52 C44 164 38 158 38 150 V112 C38 96 46 80 60 74 Z" fill="url(#hoG)" filter="url(#shH)"/>
+  <path d="M94 56 C104 80 152 80 162 56 C162 88 148 100 128 100 C108 100 94 88 94 56 Z" fill="#86198f" stroke="#fbcfe8" stroke-width="4"/>
+  <line x1="116" y1="98" x2="116" y2="134" stroke="#fce7f3" stroke-width="7" stroke-linecap="round"/>
+  <line x1="140" y1="98" x2="140" y2="134" stroke="#fce7f3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M92 168 H164 V196 C164 202 160 206 154 206 H102 C96 206 92 202 92 196 Z" fill="#c026d3" opacity="0.75"/>
+  <line x1="60" y1="164" x2="60" y2="120" stroke="#fce7f3" stroke-opacity="0.5" stroke-width="5"/>
+  <line x1="196" y1="164" x2="196" y2="120" stroke="#fce7f3" stroke-opacity="0.5" stroke-width="5"/>
+</svg>

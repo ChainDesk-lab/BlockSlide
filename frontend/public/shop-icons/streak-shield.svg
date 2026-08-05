@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="shG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#6d28d9"/>
+    </linearGradient>
+    <linearGradient id="flG" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#f97316"/><stop offset="0.55" stop-color="#fbbf24"/><stop offset="1" stop-color="#fef3c7"/>
+    </linearGradient>
+    <filter id="sh1" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#4c1d95" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <path d="M128 22 L214 52 V126 C214 184 178 220 128 238 C78 220 42 184 42 126 V52 Z" fill="url(#shG)" filter="url(#sh1)"/>
+  <path d="M128 42 L196 66 V126 C196 172 168 202 128 218 C88 202 60 172 60 126 V66 Z" fill="none" stroke="#ede9fe" stroke-opacity="0.55" stroke-width="6"/>
+  <path d="M128 82 C143 103 162 114 162 143 C162 170 147 187 128 187 C109 187 94 170 94 143 C94 126 105 118 110 105 C112 120 120 126 125 123 C117 109 121 95 128 82 Z" fill="url(#flG)"/>
+  <ellipse cx="128" cy="165" rx="13" ry="15" fill="#fffbeb"/>
+</svg>

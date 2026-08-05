@@ -77,14 +77,14 @@ export function renderAvatarHtml(
 
 /**
  * Final cosmetics lineup (5 items exactly as specified).
- * Used for shopping interface.
+ * Prices read from contract; shown as 0n until seeded on-chain.
  */
 export const COSMETICS_CATALOG = [
-  { id: 1, name: 'Tile Skin', category: 'tile', price: 150n, emoji: '🎨' },
-  { id: 2, name: 'Fits', category: 'avatar', price: 125n, emoji: '👔' },
-  { id: 3, name: 'Leaderboard Flair', category: 'flair', price: 100n, emoji: '⭐' },
-  { id: 4, name: 'Goggles', category: 'avatar', price: 75n, emoji: '🥽' },
-  { id: 5, name: 'Caps', category: 'avatar', price: 50n, emoji: '🧢' },
+  { id: 1, name: 'Tile Skin', category: 'tile', price: 0n, emoji: '🎨' },
+  { id: 2, name: 'Fits', category: 'avatar', price: 0n, emoji: '👔' },
+  { id: 3, name: 'Leaderboard Flair', category: 'flair', price: 0n, emoji: '⭐' },
+  { id: 4, name: 'Goggles', category: 'avatar', price: 0n, emoji: '🥽' },
+  { id: 5, name: 'Caps', category: 'avatar', price: 0n, emoji: '🧢' },
 ];
 
 export function getCosmetic(itemId: number) {

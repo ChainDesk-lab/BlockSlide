@@ -1682,6 +1682,30 @@ html.dark-mode {
   line-height: 1;
 }
 
+.shop-item__icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 120px;
+  padding: 16px;
+}
+
+.shop-icon {
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  color: var(--text);
+  display: block;
+}
+
+.shop-icon--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .shop-item__quantity-selector {
   display: flex;
   align-items: center;

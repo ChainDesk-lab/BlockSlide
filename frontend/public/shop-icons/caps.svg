@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="capG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="brimG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4338ca"/><stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="logoG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="glowCap" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <circle cx="130" cy="54" r="9" fill="#312e81"/>
+  <path d="M54 142 C54 88 90 54 130 54 C170 54 206 88 206 142 V150 H54 Z" fill="url(#capG)" filter="url(#glowCap)"/>
+  <path d="M130 54 C137 78 139 112 138 150 M98 62 C89 86 85 116 86 150 M162 62 C171 86 175 116 174 150" stroke="#312e81" stroke-width="5" fill="none" opacity="0.65"/>
+  <path d="M40 158 C40 146 50 140 62 140 H198 C210 140 220 146 220 158 C220 174 200 184 168 184 H92 C60 184 40 174 40 158 Z" fill="url(#brimG)" stroke="#818cf8" stroke-width="4" filter="url(#glowCap)"/>
+  <rect x="106" y="86" width="48" height="48" rx="10" fill="url(#logoG)" filter="url(#glowCap)"/>
+  <text x="130" y="121" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold" text-anchor="middle" fill="#78350f">2</text>
+</svg>

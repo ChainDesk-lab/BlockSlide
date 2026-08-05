@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useShop } from "../hooks/useShop";
-import { ShieldIcon, BoltIcon } from "./icons";
-import { IconBadge } from "./IconBadge";
+import { ShopIcon } from "./ShopIcon";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
 
 function fmtG(val: bigint | undefined): string {
@@ -167,8 +166,10 @@ export default function Shop() {
         <div className="shop__items">
           {/* Streak Shield */}
           <div className="shop-item">
+            <div className="shop-item__icon-wrapper">
+              <ShopIcon type="shield" size={110} />
+            </div>
             <div className="shop-item__top">
-              <IconBadge icon={<ShieldIcon size={32} />} size="lg" />
               <p className="shop-item__name">Streak Shield</p>
             </div>
             <p className="shop-item__desc">
@@ -187,8 +188,10 @@ export default function Shop() {
 
           {/* 2x XP Boost */}
           <div className="shop-item">
+            <div className="shop-item__icon-wrapper">
+              <ShopIcon type="boost2" size={110} />
+            </div>
             <div className="shop-item__top">
-              <IconBadge icon={<BoltIcon size={32} />} size="lg" />
               <p className="shop-item__name">XP Boost 2x</p>
             </div>
             <p className="shop-item__desc">
@@ -207,8 +210,10 @@ export default function Shop() {
 
           {/* 5x XP Boost */}
           <div className="shop-item">
+            <div className="shop-item__icon-wrapper">
+              <ShopIcon type="boost5" size={110} />
+            </div>
             <div className="shop-item__top">
-              <IconBadge icon={<BoltIcon size={32} />} size="lg" />
               <p className="shop-item__name">XP Boost 5x</p>
             </div>
             <p className="shop-item__desc">
@@ -227,8 +232,10 @@ export default function Shop() {
 
           {/* Undo Step */}
           <div className="shop-item">
+            <div className="shop-item__icon-wrapper">
+              <ShopIcon type="undo" size={110} />
+            </div>
             <div className="shop-item__top">
-              <div className="shop-item__icon">↶</div>
               <p className="shop-item__name">Undo Step</p>
             </div>
             <p className="shop-item__desc">
@@ -288,10 +295,20 @@ export default function Shop() {
         </div>
 
         <div className="shop__items">
-          {COSMETICS_CATALOG.map((cosmetic) => (
+          {COSMETICS_CATALOG.map((cosmetic) => {
+            const iconMap: Record<number, any> = {
+              1: "tile",
+              2: "fits",
+              3: "flair",
+              4: "goggles",
+              5: "caps",
+            };
+            return (
             <div key={cosmetic.id} className="shop-item">
+              <div className="shop-item__icon-wrapper">
+                <ShopIcon type={iconMap[cosmetic.id]} size={110} />
+              </div>
               <div className="shop-item__top">
-                <div className="shop-item__emoji">{cosmetic.emoji}</div>
                 <p className="shop-item__name">{cosmetic.name}</p>
               </div>
               <p className="shop-item__desc">
@@ -308,7 +325,8 @@ export default function Shop() {
                 pendingKey="cosmetic"
               />
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {error && <p className="shop__error">{error}</p>}
