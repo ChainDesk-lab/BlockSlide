@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useShop } from "../hooks/useShop";
-import { ShieldIcon, BoltIcon, FlameIcon } from "./icons";
+import { ShieldIcon, BoltIcon } from "./icons";
 import { IconBadge } from "./IconBadge";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
 
@@ -18,9 +18,13 @@ function fmtTimeLeft(expiry: bigint): string {
   return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
 }
 
+type View = "landing" | "powerups" | "cosmetics";
+
 export default function Shop() {
   const { isConnected } = useAccount();
+  const [view, setView] = useState<View>("landing");
   const [undoQuantity, setUndoQuantity] = useState(1);
+
   const {
     shieldPrice, boost2xPrice, boost5xPrice,
     shieldCount, xpBoost, boostActive,
@@ -49,11 +53,10 @@ export default function Shop() {
     const pending = isPending(pendingKey);
     const approvePending = isPending("approve");
 
-    // Block purchases if price is not set (0 or undefined)
     if (price === undefined || price === 0n) {
       return (
         <button className="shop-btn shop-btn--disabled" disabled>
-          Price not set
+          Coming soon
         </button>
       );
     }
@@ -89,168 +92,231 @@ export default function Shop() {
     );
   }
 
-  return (
-    <section className="shop">
-      {/* Header */}
-      <div className="shop__header">
-        <div>
-          <h2 className="shop__title">Shop</h2>
-          <p className="shop__subtitle">Boost your game with power-ups</p>
-        </div>
-        <div className="shop__balance">
-          <div className="shop__balance-label">Balance</div>
-          <div className="shop__balance-value">{fmtG(gdBalance)}</div>
-        </div>
-      </div>
-
-      {/* Player stats row */}
-      <div className="shop__stats">
-        <div className="shop__stat">
-          <span className="shop__stat-label">XP</span>
-          <span className="shop__stat-value">{Number(playerXp).toLocaleString()}</span>
-        </div>
-        <div className="shop__stat">
-          <span className="shop__stat-label">Streak</span>
-          <span className="shop__stat-value">{Number(streakCount)} day{streakCount !== 1n ? "s" : ""}</span>
-        </div>
-        <div className="shop__stat">
-          <span className="shop__stat-label">Shields</span>
-          <span className="shop__stat-value">{Number(shieldCount)}</span>
-        </div>
-      </div>
-
-      {/* Items Grid */}
-      <div className="shop__items">
-
-        {/* Streak Shield */}
-        <div className="shop-item">
-          <div className="shop-item__top">
-            <IconBadge icon={<ShieldIcon size={32} />} size="lg" />
-            <p className="shop-item__name">Streak Shield</p>
+  // Landing Page: Category Cards
+  if (view === "landing") {
+    return (
+      <section className="shop">
+        <div className="shop__header">
+          <div>
+            <h2 className="shop__title">Game Shop</h2>
+            <p className="shop__subtitle">Enhance your gameplay</p>
           </div>
-          <p className="shop-item__desc">
-            Protects your streak for one missed day. Shields stack in your inventory.
-          </p>
-          <p className="shop-item__status">
-            {Number(shieldCount) > 0
-              ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""} in inventory`
-              : "No shields"}
-          </p>
-          <div className="shop-item__price-section">
-            <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+          <div className="shop__balance">
+            <div className="shop__balance-label">Balance</div>
+            <div className="shop__balance-value">{fmtG(gdBalance)}</div>
           </div>
-          <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
         </div>
 
-        {/* 2x XP Boost */}
-        <div className="shop-item">
-          <div className="shop-item__top">
-            <IconBadge icon={<BoltIcon size={32} />} size="lg" />
-            <p className="shop-item__name">2x XP Boost</p>
+        <div className="shop__categories">
+          <div
+            className="shop__category-card"
+            onClick={() => setView("powerups")}
+          >
+            <div className="shop__category-icon">⚡</div>
+            <h3 className="shop__category-name">Power-Ups</h3>
+            <p className="shop__category-desc">Shields, XP boosts, and undo moves</p>
           </div>
-          <p className="shop-item__desc">
-            Doubles all XP earned from games for 5 hours.
-          </p>
-          <p className="shop-item__status">
-            {boostActive && xpBoost?.multiplier === 2
-              ? fmtTimeLeft(xpBoost.expiry)
-              : "Not active"}
-          </p>
-          <div className="shop-item__price-section">
-            <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+
+          <div
+            className="shop__category-card"
+            onClick={() => setView("cosmetics")}
+          >
+            <div className="shop__category-icon">✨</div>
+            <h3 className="shop__category-name">Cosmetics</h3>
+            <p className="shop__category-desc">Customize your look and leaderboard presence</p>
           </div>
-          <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
         </div>
 
-        {/* 5x XP Boost */}
-        <div className="shop-item">
-          <div className="shop-item__top">
-            <IconBadge icon={<FlameIcon size={32} />} size="lg" />
-            <p className="shop-item__name">5x XP Boost</p>
+        {error && <p className="shop__error">{error}</p>}
+      </section>
+    );
+  }
+
+  // Power-Ups Category
+  if (view === "powerups") {
+    return (
+      <section className="shop">
+        <div className="shop__header">
+          <button
+            className="shop__back-btn"
+            onClick={() => setView("landing")}
+          >
+            ← Back
+          </button>
+          <div>
+            <h2 className="shop__title">Power-Ups</h2>
+            <p className="shop__subtitle">Strengthen your game</p>
           </div>
-          <p className="shop-item__desc">
-            Multiplies all XP earned from games by 5 for 5 hours.
-          </p>
-          <p className="shop-item__status">
-            {boostActive && xpBoost?.multiplier === 5
-              ? fmtTimeLeft(xpBoost.expiry)
-              : "Not active"}
-          </p>
-          <div className="shop-item__price-section">
-            <span className="shop-item__price-label">Price:</span>
-            <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+          <div className="shop__balance">
+            <div className="shop__balance-label">Balance</div>
+            <div className="shop__balance-value">{fmtG(gdBalance)}</div>
           </div>
-          <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
         </div>
 
-        {/* Undo Move (V6) */}
-        <div className="shop-item">
-          <div className="shop-item__top">
-            <IconBadge icon={<span style={{ fontSize: '32px' }}>↶</span>} size="lg" />
-            <p className="shop-item__name">Undo Move</p>
+        <div className="shop__stats">
+          <div className="shop__stat">
+            <span className="shop__stat-label">XP</span>
+            <span className="shop__stat-value">{Number(playerXp).toLocaleString()}</span>
           </div>
-          <p className="shop-item__desc">
-            Revert your last move during gameplay. Consumable — use within a game session.
-          </p>
-          <p className="shop-item__status">
-            {Number(undoCredits) > 0
-              ? `${Number(undoCredits)} credit${undoCredits !== 1n ? "s" : ""} available`
-              : "No credits"}
-          </p>
-          <div className="shop-item__price-section">
-            <span className="shop-item__price">{fmtG(undoPrice)}</span>
+          <div className="shop__stat">
+            <span className="shop__stat-label">Streak</span>
+            <span className="shop__stat-value">{Number(streakCount)} day{streakCount !== 1n ? "s" : ""}</span>
           </div>
-          <div className="shop-item__quantity-selector">
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={undoQuantity}
-              onChange={(e) => setUndoQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-              className="shop-item__quantity-input"
-              disabled={!!pendingAction}
-            />
-          </div>
-          <ItemButton
-            price={undoPrice ? undoPrice * BigInt(undoQuantity) : undefined}
-            buyAction={() => buyUndoMove(undoQuantity)}
-            pendingKey="undo"
-          />
         </div>
 
-        {/* Cosmetics Section Header */}
-        <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
-          <h3 className="shop__section-title">Cosmetics</h3>
-          <p className="shop__section-subtitle">Customize your avatar and gameplay</p>
-        </div>
-
-        {/* Avatar Accessories */}
-        {COSMETICS_CATALOG.avatarAccessories.map((cosmetic) => (
-          <div key={cosmetic.id} className="shop-item">
+        <div className="shop__items">
+          {/* Streak Shield */}
+          <div className="shop-item">
             <div className="shop-item__top">
-              <IconBadge icon={<span style={{ fontSize: '32px' }}>{cosmetic.emoji}</span>} size="lg" />
-              <p className="shop-item__name">{cosmetic.name}</p>
+              <IconBadge icon={<ShieldIcon size={32} />} size="lg" />
+              <p className="shop-item__name">Streak Shield</p>
             </div>
-            <p className="shop-item__desc">Avatar accessory. Equip from your profile.</p>
+            <p className="shop-item__desc">
+              Protects your streak for one missed day.
+            </p>
             <p className="shop-item__status">
-              {Math.random() < 0.3 ? '✓ Owned' : 'Available'}
+              {Number(shieldCount) > 0
+                ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""}`
+                : "No shields"}
             </p>
             <div className="shop-item__price-section">
-              <span className="shop-item__price">{fmtG(cosmetic.price)}</span>
+              <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+            </div>
+            <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
+          </div>
+
+          {/* 2x XP Boost */}
+          <div className="shop-item">
+            <div className="shop-item__top">
+              <IconBadge icon={<BoltIcon size={32} />} size="lg" />
+              <p className="shop-item__name">XP Boost 2x</p>
+            </div>
+            <p className="shop-item__desc">
+              Double all XP earned from games for 5 hours.
+            </p>
+            <p className="shop-item__status">
+              {boostActive && xpBoost?.multiplier === 2
+                ? fmtTimeLeft(xpBoost.expiry)
+                : "Not active"}
+            </p>
+            <div className="shop-item__price-section">
+              <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+            </div>
+            <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
+          </div>
+
+          {/* 5x XP Boost */}
+          <div className="shop-item">
+            <div className="shop-item__top">
+              <IconBadge icon={<BoltIcon size={32} />} size="lg" />
+              <p className="shop-item__name">XP Boost 5x</p>
+            </div>
+            <p className="shop-item__desc">
+              Multiply all XP earned from games by 5 for 5 hours.
+            </p>
+            <p className="shop-item__status">
+              {boostActive && xpBoost?.multiplier === 5
+                ? fmtTimeLeft(xpBoost.expiry)
+                : "Not active"}
+            </p>
+            <div className="shop-item__price-section">
+              <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+            </div>
+            <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
+          </div>
+
+          {/* Undo Step */}
+          <div className="shop-item">
+            <div className="shop-item__top">
+              <div className="shop-item__icon">↶</div>
+              <p className="shop-item__name">Undo Step</p>
+            </div>
+            <p className="shop-item__desc">
+              Revert your last move during gameplay.
+            </p>
+            <p className="shop-item__status">
+              {Number(undoCredits) > 0
+                ? `${Number(undoCredits)} credit${undoCredits !== 1n ? "s" : ""}`
+                : "No credits"}
+            </p>
+            <div className="shop-item__price-section">
+              <span className="shop-item__price">{fmtG(undoPrice)}</span>
+            </div>
+            <div className="shop-item__quantity-selector">
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={undoQuantity}
+                onChange={(e) => setUndoQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                className="shop-item__quantity-input"
+                disabled={!!pendingAction}
+              />
             </div>
             <ItemButton
-              price={cosmetic.price}
-              buyAction={() => buyCosmetic(cosmetic.id)}
-              pendingKey="cosmetic"
+              price={undoPrice ? undoPrice * BigInt(undoQuantity) : undefined}
+              buyAction={() => buyUndoMove(undoQuantity)}
+              pendingKey="undo"
             />
           </div>
-        ))}
+        </div>
 
-      </div>
+        {error && <p className="shop__error">{error}</p>}
+      </section>
+    );
+  }
 
-      {error && <p className="shop__error">{error}</p>}
-    </section>
-  );
+  // Cosmetics Category
+  if (view === "cosmetics") {
+    return (
+      <section className="shop">
+        <div className="shop__header">
+          <button
+            className="shop__back-btn"
+            onClick={() => setView("landing")}
+          >
+            ← Back
+          </button>
+          <div>
+            <h2 className="shop__title">Cosmetics</h2>
+            <p className="shop__subtitle">Personalize your game</p>
+          </div>
+          <div className="shop__balance">
+            <div className="shop__balance-label">Balance</div>
+            <div className="shop__balance-value">{fmtG(gdBalance)}</div>
+          </div>
+        </div>
+
+        <div className="shop__items">
+          {COSMETICS_CATALOG.map((cosmetic) => (
+            <div key={cosmetic.id} className="shop-item">
+              <div className="shop-item__top">
+                <div className="shop-item__emoji">{cosmetic.emoji}</div>
+                <p className="shop-item__name">{cosmetic.name}</p>
+              </div>
+              <p className="shop-item__desc">
+                {cosmetic.category === 'tile' && 'Applies to the game board when equipped.'}
+                {cosmetic.category === 'avatar' && 'Avatar accessory.'}
+                {cosmetic.category === 'flair' && 'Renders next to your name on leaderboards.'}
+              </p>
+              <div className="shop-item__price-section">
+                <span className="shop-item__price">{fmtG(cosmetic.price)}</span>
+              </div>
+              <ItemButton
+                price={cosmetic.price}
+                buyAction={() => buyCosmetic(cosmetic.id)}
+                pendingKey="cosmetic"
+              />
+            </div>
+          ))}
+        </div>
+
+        {error && <p className="shop__error">{error}</p>}
+      </section>
+    );
+  }
+
+  return null;
 }
 
 function Spinner() {

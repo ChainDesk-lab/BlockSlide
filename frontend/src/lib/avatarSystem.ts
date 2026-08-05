@@ -2,15 +2,12 @@
 // Base avatar is deterministic emoji from address, accessories are cosmetics
 
 const BASE_AVATARS = ['🦁', '🐯', '🐻', '🐼', '🐨', '🐯', '🦊', '🐻', '🐼', '🐨', '🦋', '🐝', '🦗', '🐢', '🐍'];
+// Cosmetic itemId to emoji mapping (final lineup)
 const ACCESSORY_EMOJI: Record<number, string> = {
-  20: '😎', // sunglasses
-  21: '🎩',  // top hat
-  22: '👑',  // crown
-  23: '🕶️',  // cool shades
-  24: '🥽',  // goggles
-  25: '🧢',  // cap
-  26: '🎭',  // mask
-  27: '⚡',  // spark
+  2: '👔',  // Fits
+  4: '🥽',  // Goggles
+  5: '🧢',  // Caps
+  3: '⭐', // Leaderboard Flair
 };
 
 /**
@@ -79,33 +76,17 @@ export function renderAvatarHtml(
 }
 
 /**
- * Get list of cosmetic items by category.
+ * Final cosmetics lineup (5 items exactly as specified).
  * Used for shopping interface.
  */
-export const COSMETICS_CATALOG = {
-  tileSkins: [
-    { id: 1, name: 'Dark Mode', price: 100n, emoji: '🌑' },
-    { id: 2, name: 'Neon', price: 150n, emoji: '⚡' },
-    { id: 3, name: 'Retro', price: 125n, emoji: '📺' },
-  ],
-  leaderboardFlair: [
-    { id: 10, name: '🔥 Fire', price: 200n, emoji: '🔥' },
-    { id: 11, name: '🎯 Marksman', price: 180n, emoji: '🎯' },
-    { id: 12, name: '⚡ Speed', price: 175n, emoji: '⚡' },
-  ],
-  avatarAccessories: [
-    { id: 20, name: 'Sunglasses', price: 100n, emoji: '😎' },
-    { id: 21, name: 'Top Hat', price: 120n, emoji: '🎩' },
-    { id: 22, name: 'Crown', price: 150n, emoji: '👑' },
-    { id: 23, name: 'Cool Shades', price: 110n, emoji: '🕶️' },
-    { id: 24, name: 'Goggles', price: 115n, emoji: '🥽' },
-    { id: 25, name: 'Cap', price: 95n, emoji: '🧢' },
-  ],
-};
+export const COSMETICS_CATALOG = [
+  { id: 1, name: 'Tile Skin', category: 'tile', price: 150n, emoji: '🎨' },
+  { id: 2, name: 'Fits', category: 'avatar', price: 125n, emoji: '👔' },
+  { id: 3, name: 'Leaderboard Flair', category: 'flair', price: 100n, emoji: '⭐' },
+  { id: 4, name: 'Goggles', category: 'avatar', price: 75n, emoji: '🥽' },
+  { id: 5, name: 'Caps', category: 'avatar', price: 50n, emoji: '🧢' },
+];
 
-export function getAccessoryCategory(itemId: number): 'avatar' | 'tile' | 'flair' | null {
-  if (COSMETICS_CATALOG.avatarAccessories.some(a => a.id === itemId)) return 'avatar';
-  if (COSMETICS_CATALOG.tileSkins.some(a => a.id === itemId)) return 'tile';
-  if (COSMETICS_CATALOG.leaderboardFlair.some(a => a.id === itemId)) return 'flair';
-  return null;
+export function getCosmetic(itemId: number) {
+  return COSMETICS_CATALOG.find(c => c.id === itemId);
 }
