@@ -163,7 +163,7 @@ export default function Shop() {
           </div>
         </div>
 
-        <div className="shop__items">
+        <div className="shop__items shop__items--powerups">
           {/* Streak Shield */}
           <div className="shop-item">
             <div className="shop-item__icon-wrapper">
@@ -172,18 +172,22 @@ export default function Shop() {
             <div className="shop-item__top">
               <p className="shop-item__name">Streak Shield</p>
             </div>
-            <p className="shop-item__desc">
-              Protects your streak for one missed day.
-            </p>
-            <p className="shop-item__status">
-              {Number(shieldCount) > 0
-                ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""}`
-                : "No shields"}
-            </p>
-            <div className="shop-item__price-section">
-              <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+            <div className="shop-item__content">
+              <p className="shop-item__desc">
+                Protects your streak for one missed day.
+              </p>
+              <p className="shop-item__status">
+                {Number(shieldCount) > 0
+                  ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""}`
+                  : "No shields"}
+              </p>
             </div>
-            <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
+            <div className="shop-item__footer">
+              <div className="shop-item__price-section">
+                <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+              </div>
+              <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
+            </div>
           </div>
 
           {/* 2x XP Boost */}
@@ -194,18 +198,22 @@ export default function Shop() {
             <div className="shop-item__top">
               <p className="shop-item__name">XP Boost 2x</p>
             </div>
-            <p className="shop-item__desc">
-              Double all XP earned from games for 5 hours.
-            </p>
-            <p className="shop-item__status">
-              {boostActive && xpBoost?.multiplier === 2
-                ? fmtTimeLeft(xpBoost.expiry)
-                : "Not active"}
-            </p>
-            <div className="shop-item__price-section">
-              <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+            <div className="shop-item__content">
+              <p className="shop-item__desc">
+                Double all XP earned from games for 5 hours.
+              </p>
+              <p className="shop-item__status">
+                {boostActive && xpBoost?.multiplier === 2
+                  ? fmtTimeLeft(xpBoost.expiry)
+                  : "Not active"}
+              </p>
             </div>
-            <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
+            <div className="shop-item__footer">
+              <div className="shop-item__price-section">
+                <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+              </div>
+              <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
+            </div>
           </div>
 
           {/* 5x XP Boost */}
@@ -216,18 +224,22 @@ export default function Shop() {
             <div className="shop-item__top">
               <p className="shop-item__name">XP Boost 5x</p>
             </div>
-            <p className="shop-item__desc">
-              Multiply all XP earned from games by 5 for 5 hours.
-            </p>
-            <p className="shop-item__status">
-              {boostActive && xpBoost?.multiplier === 5
-                ? fmtTimeLeft(xpBoost.expiry)
-                : "Not active"}
-            </p>
-            <div className="shop-item__price-section">
-              <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+            <div className="shop-item__content">
+              <p className="shop-item__desc">
+                Multiply all XP earned from games by 5 for 5 hours.
+              </p>
+              <p className="shop-item__status">
+                {boostActive && xpBoost?.multiplier === 5
+                  ? fmtTimeLeft(xpBoost.expiry)
+                  : "Not active"}
+              </p>
             </div>
-            <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
+            <div className="shop-item__footer">
+              <div className="shop-item__price-section">
+                <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+              </div>
+              <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
+            </div>
           </div>
 
           {/* Undo Step */}
@@ -238,33 +250,37 @@ export default function Shop() {
             <div className="shop-item__top">
               <p className="shop-item__name">Undo Step</p>
             </div>
-            <p className="shop-item__desc">
-              Revert your last move during gameplay.
-            </p>
-            <p className="shop-item__status">
-              {Number(undoCredits) > 0
-                ? `${Number(undoCredits)} credit${undoCredits !== 1n ? "s" : ""}`
-                : "No credits"}
-            </p>
-            <div className="shop-item__price-section">
-              <span className="shop-item__price">{fmtG(undoPrice)}</span>
+            <div className="shop-item__content">
+              <p className="shop-item__desc">
+                Revert your last move during gameplay.
+              </p>
+              <p className="shop-item__status">
+                {Number(undoCredits) > 0
+                  ? `${Number(undoCredits)} credit${undoCredits !== 1n ? "s" : ""}`
+                  : "No credits"}
+              </p>
             </div>
-            <div className="shop-item__quantity-selector">
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={undoQuantity}
-                onChange={(e) => setUndoQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                className="shop-item__quantity-input"
-                disabled={!!pendingAction}
+            <div className="shop-item__footer">
+              <div className="shop-item__price-section">
+                <span className="shop-item__price">{fmtG(undoPrice)}</span>
+              </div>
+              <div className="shop-item__quantity-selector">
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={undoQuantity}
+                  onChange={(e) => setUndoQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                  className="shop-item__quantity-input"
+                  disabled={!!pendingAction}
+                />
+              </div>
+              <ItemButton
+                price={undoPrice ? undoPrice * BigInt(undoQuantity) : undefined}
+                buyAction={() => buyUndoMove(undoQuantity)}
+                pendingKey="undo"
               />
             </div>
-            <ItemButton
-              price={undoPrice ? undoPrice * BigInt(undoQuantity) : undefined}
-              buyAction={() => buyUndoMove(undoQuantity)}
-              pendingKey="undo"
-            />
           </div>
         </div>
 
@@ -294,7 +310,7 @@ export default function Shop() {
           </div>
         </div>
 
-        <div className="shop__items">
+        <div className="shop__items shop__items--cosmetics">
           {COSMETICS_CATALOG.map((cosmetic) => {
             const iconMap: Record<number, any> = {
               1: "tile",
@@ -311,19 +327,23 @@ export default function Shop() {
               <div className="shop-item__top">
                 <p className="shop-item__name">{cosmetic.name}</p>
               </div>
-              <p className="shop-item__desc">
-                {cosmetic.category === 'tile' && 'Applies to the game board when equipped.'}
-                {cosmetic.category === 'avatar' && 'Avatar accessory.'}
-                {cosmetic.category === 'flair' && 'Renders next to your name on leaderboards.'}
-              </p>
-              <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(cosmetic.price)}</span>
+              <div className="shop-item__content">
+                <p className="shop-item__desc">
+                  {cosmetic.category === 'tile' && 'Applies to the game board when equipped.'}
+                  {cosmetic.category === 'avatar' && 'Avatar accessory.'}
+                  {cosmetic.category === 'flair' && 'Renders next to your name on leaderboards.'}
+                </p>
               </div>
-              <ItemButton
-                price={cosmetic.price}
-                buyAction={() => buyCosmetic(cosmetic.id)}
-                pendingKey="cosmetic"
-              />
+              <div className="shop-item__footer">
+                <div className="shop-item__price-section">
+                  <span className="shop-item__price">{fmtG(cosmetic.price)}</span>
+                </div>
+                <ItemButton
+                  price={cosmetic.price}
+                  buyAction={() => buyCosmetic(cosmetic.id)}
+                  pendingKey="cosmetic"
+                />
+              </div>
             </div>
             );
           })}
