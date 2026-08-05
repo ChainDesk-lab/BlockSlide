@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
+import { useSearchParams } from "next/navigation";
 import { useShop } from "../hooks/useShop";
 import { ShopIcon } from "./ShopIcon";
+import { CategoryIcon } from "./CategoryIcon";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
 
 function fmtG(val: bigint | undefined): string {
@@ -18,11 +20,38 @@ function fmtTimeLeft(expiry: bigint): string {
 }
 
 type View = "landing" | "powerups" | "cosmetics";
+type Category = "power-ups" | "cosmetics";
 
 export default function Shop() {
   const { isConnected } = useAccount();
+  const searchParams = useSearchParams();
   const [view, setView] = useState<View>("landing");
+  const [activeCategory, setActiveCategory] = useState<Category>("power-ups");
   const [undoQuantity, setUndoQuantity] = useState(1);
+
+  useEffect(() => {
+    const category = searchParams.get("category") as Category | null;
+    const tab = searchParams.get("tab");
+    if (tab === "shop" && category) {
+      setView(category as View);
+      setActiveCategory(category);
+    }
+  }, [searchParams]);
+
+  const updateView = (newView: View, newCategory?: Category) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newView === "landing") {
+      params.delete("category");
+      window.history.pushState({}, "", `?${params.toString()}`);
+    } else {
+      const cat = newCategory || activeCategory;
+      params.set("tab", "shop");
+      params.set("category", cat);
+      window.history.pushState({}, "", `?${params.toString()}`);
+      setActiveCategory(cat);
+    }
+    setView(newView);
+  };
 
   const {
     shieldPrice, boost2xPrice, boost5xPrice,
@@ -109,18 +138,22 @@ export default function Shop() {
         <div className="shop__categories">
           <div
             className="shop__category-card"
-            onClick={() => setView("powerups")}
+            onClick={() => updateView("powerups", "power-ups")}
           >
-            <div className="shop__category-icon">⚡</div>
+            <div className="shop__category-icon-wrapper">
+              <CategoryIcon type="power-ups" size={110} />
+            </div>
             <h3 className="shop__category-name">Power-Ups</h3>
             <p className="shop__category-desc">Shields, XP boosts, and undo moves</p>
           </div>
 
           <div
             className="shop__category-card"
-            onClick={() => setView("cosmetics")}
+            onClick={() => updateView("cosmetics", "cosmetics")}
           >
-            <div className="shop__category-icon">✨</div>
+            <div className="shop__category-icon-wrapper">
+              <CategoryIcon type="cosmetics" size={110} />
+            </div>
             <h3 className="shop__category-name">Cosmetics</h3>
             <p className="shop__category-desc">Customize your look and leaderboard presence</p>
           </div>
@@ -138,7 +171,7 @@ export default function Shop() {
         <div className="shop__header">
           <button
             className="shop__back-btn"
-            onClick={() => setView("landing")}
+            onClick={() => updateView("landing")}
           >
             ← Back
           </button>
@@ -150,6 +183,21 @@ export default function Shop() {
             <div className="shop__balance-label">Balance</div>
             <div className="shop__balance-value">{fmtG(gdBalance)}</div>
           </div>
+        </div>
+
+        <div className="shop__category-tabs">
+          <button
+            className={`shop__category-tab ${activeCategory === "power-ups" ? "shop__category-tab--active" : ""}`}
+            onClick={() => updateView("powerups", "power-ups")}
+          >
+            Power-Ups
+          </button>
+          <button
+            className={`shop__category-tab ${activeCategory === "cosmetics" ? "shop__category-tab--active" : ""}`}
+            onClick={() => updateView("cosmetics", "cosmetics")}
+          >
+            Cosmetics
+          </button>
         </div>
 
         <div className="shop__stats">
@@ -296,7 +344,7 @@ export default function Shop() {
         <div className="shop__header">
           <button
             className="shop__back-btn"
-            onClick={() => setView("landing")}
+            onClick={() => updateView("landing")}
           >
             ← Back
           </button>
@@ -308,6 +356,21 @@ export default function Shop() {
             <div className="shop__balance-label">Balance</div>
             <div className="shop__balance-value">{fmtG(gdBalance)}</div>
           </div>
+        </div>
+
+        <div className="shop__category-tabs">
+          <button
+            className={`shop__category-tab ${activeCategory === "power-ups" ? "shop__category-tab--active" : ""}`}
+            onClick={() => updateView("powerups", "power-ups")}
+          >
+            Power-Ups
+          </button>
+          <button
+            className={`shop__category-tab ${activeCategory === "cosmetics" ? "shop__category-tab--active" : ""}`}
+            onClick={() => updateView("cosmetics", "cosmetics")}
+          >
+            Cosmetics
+          </button>
         </div>
 
         <div className="shop__items shop__items--cosmetics">
