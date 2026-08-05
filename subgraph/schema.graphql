@@ -25,4 +25,8 @@ type Player @entity(immutable: false) {
   referredBy: Bytes
   "Count of players who used this player's referral link"
   referralCount: BigInt!
+  "Total undo move credits purchased (cumulative from UndoPurchased events, V6+)"
+  undoCreditsPurchased: BigInt!
+  "Array of cosmetic itemIds owned by this player (V6+)"
+  cosmeticsOwned: [Int!]!
 }

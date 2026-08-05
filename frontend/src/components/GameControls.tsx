@@ -11,6 +11,9 @@ interface GameControlsProps {
   identityStatus: IdentityStatus;
   onNewGame: () => void;
   onSubmit: () => void;
+  undoCredits?: bigint;
+  onUndo?: () => void;
+  undoPending?: boolean;
 }
 
 export default function GameControls({
@@ -20,6 +23,9 @@ export default function GameControls({
   identityStatus,
   onNewGame,
   onSubmit,
+  undoCredits,
+  onUndo,
+  undoPending,
 }: GameControlsProps) {
   const { isConnected } = useAccount();
   const gameEnded = state && (state.over || state.won);
@@ -63,6 +69,22 @@ export default function GameControls({
       {phase === "finalizing" && (
         <button className="btn btn--secondary" disabled>
           <Spinner /> Finalizing your game…
+        </button>
+      )}
+
+      {/* Undo button — shown during active gameplay */}
+      {phase === "active" && !gameEnded && onUndo && (
+        <button
+          className="btn btn--tertiary undo-btn"
+          onClick={onUndo}
+          disabled={!undoCredits || undoCredits === 0n || undoPending || isPending}
+          title={
+            !undoCredits || undoCredits === 0n
+              ? "No undo credits available"
+              : `Undo move (${Number(undoCredits || 0)} credits left)`
+          }
+        >
+          {undoPending ? <Spinner /> : `↶ Undo (${Number(undoCredits || 0)})`}
         </button>
       )}
 

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { maxUint256 } from "viem";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
+import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
 import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED } from "../lib/constants";
 import { useContractAddress } from "./useContractData";
 
-export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | null;
+export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
 export function useShop() {
   const address = useContractAddress();
@@ -18,10 +19,17 @@ export function useShop() {
 
   const { isLoading: isTxPending } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // ── Shop prices ────────────────────────────────────────────────────────────
-  const { data: shieldPrice  } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "shieldPrice",   query: { enabled } });
-  const { data: boost2xPrice } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost2xPrice",  query: { enabled } });
-  const { data: boost5xPrice } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost5xPrice",  query: { enabled } });
+  // ── Shop prices (V5 + V6) ──────────────────────────────────────────────────
+  const { data: shieldPrice  } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "shieldPrice",   query: { enabled } });
+  const { data: boost2xPrice } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "boost2xPrice",  query: { enabled } });
+  const { data: boost5xPrice } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "boost5xPrice",  query: { enabled } });
+  const { data: undoPrice, refetch: refetchUndoPrice } = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "undoPrice", query: { enabled },
+  });
+  const { data: undoCreditsRaw, refetch: refetchUndoCredits } = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "undoCredits",
+    args: address ? [address] : undefined, query: { enabled },
+  });
 
   // ── Player state ───────────────────────────────────────────────────────────
   const { data: shieldCount, refetch: refetchShield } = useReadContract({
@@ -56,6 +64,8 @@ export function useShop() {
     refetchBoost();
     refetchBalance();
     refetchAllowance();
+    refetchUndoPrice();
+    refetchUndoCredits();
   };
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -104,9 +114,39 @@ export function useShop() {
     run(multiplier === 2 ? "boost2" : "boost5", () =>
       writeContractAsync({
         address: GAME2048_ADDRESS,
-        abi: GAME2048_ABI,
+        abi: GAME2048_MERGED_ABI,
         functionName: "buyXpBoost",
         args: [multiplier],
+      })
+    );
+
+  const buyUndoMove = (quantity: number) =>
+    run("undo", () =>
+      writeContractAsync({
+        address: GAME2048_ADDRESS,
+        abi: GAME2048_MERGED_ABI,
+        functionName: "buyUndoMove",
+        args: [BigInt(quantity)],
+      })
+    );
+
+  const consumeUndo = () =>
+    run("undo", () =>
+      writeContractAsync({
+        address: GAME2048_ADDRESS,
+        abi: GAME2048_MERGED_ABI,
+        functionName: "consumeUndo",
+        args: [],
+      })
+    );
+
+  const buyCosmetic = (itemId: number) =>
+    run("cosmetic", () =>
+      writeContractAsync({
+        address: GAME2048_ADDRESS,
+        abi: GAME2048_MERGED_ABI,
+        functionName: "buyCosmetic",
+        args: [BigInt(itemId)],
       })
     );
 
@@ -163,6 +203,7 @@ export function useShop() {
   }
 
   return {
+    // V5 prices & state
     shieldPrice: normalizedShieldPrice,
     boost2xPrice: normalizedBoost2xPrice,
     boost5xPrice: normalizedBoost5xPrice,
@@ -172,8 +213,15 @@ export function useShop() {
     streakCount: normalizedStreakCount,
     gdBalance: gdBalance ?? 0n,
     gdAllowance: gdAllowance ?? 0n,
+
+    // V6 prices & state
+    undoPrice: undoPrice ?? 0n,
+    undoCredits: undoCreditsRaw ?? 0n,
+
+    // Actions
     pendingAction, isTxPending, error,
     approve, buyShield, buyBoost,
+    buyUndoMove, consumeUndo, buyCosmetic,
     isApproved, canAfford,
   };
 }

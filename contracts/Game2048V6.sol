@@ -1,0 +1,620 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
+// GoodDollar IdentityV2 — isWhitelisted returns true for verified humans
+interface IIdentity {
+    function isWhitelisted(address user) external view returns (bool);
+}
+
+/// @title BlockSlide V6 — onchain 2048 with G$ milestone rewards, XP, streaks, shop, and cosmetics
+///
+/// Anti-cheat: player commits keccak256(seed) before playing. On submit, the seed
+/// is revealed and verified, preventing cherry-picking a lucky seed post-game.
+///
+/// Shop (G$ payments go to treasury):
+///   - Streak Shield: non-consumable, protects against one streak break per shield owned
+///   - 2x / 5x XP Boost: applies multiplier for 5 hours (changed from 24h)
+///   - Undo Move: consumable, credits per player, consumeUndo decrements
+///   - Cosmetics: catalog of visual items (tile skins, avatar accessories, etc)
+///
+/// XP:
+///   - Base XP per game = score / 10.
+///   - Achieving a 5-move combo (5 consecutive merging moves) multiplies that
+///     game's XP by 5 before any boost is applied.
+///   - An active XP boost then multiplies the result by 2 or 5.
+///
+/// Upgradeable via UUPS proxy — only the owner can authorize upgrades.
+contract Game2048V6 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+
+    // ─── Interfaces ───────────────────────────────────────────────────────────
+
+    IERC20    public gDollar;
+    IIdentity public identity;
+
+    // ─── Milestone reward constants ───────────────────────────────────────────
+
+    uint256 public constant REWARD_256  = 5e18;
+    uint256 public constant REWARD_512  = 15e18;
+    uint256 public constant REWARD_1024 = 40e18;
+    uint256 public constant REWARD_2048 = 100e18;
+
+    uint256 public constant SESSION_TIMEOUT = 2 hours;
+    uint256 public constant BOOST_DURATION_V6  = 5 hours;  // Changed from 24 hours in V5
+
+    uint8 private constant MILESTONE_256  = 1 << 0;
+    uint8 private constant MILESTONE_512  = 1 << 1;
+    uint8 private constant MILESTONE_1024 = 1 << 2;
+    uint8 private constant MILESTONE_2048 = 1 << 3;
+
+    uint256 public constant COMBO_THRESHOLD    = 5;  // moves needed to trigger 5x XP
+    uint256 public constant COMBO_XP_MULTIPLIER = 5;
+
+    // ─── Structs ──────────────────────────────────────────────────────────────
+
+    struct Session {
+        bool   active;
+        uint64 startTime;
+        bytes32 seedHash;
+    }
+
+    struct LeaderboardEntry {
+        address player;
+        uint256 score;
+        uint32  highestTile;
+    }
+
+    struct XpBoost {
+        uint8  multiplier; // 2 or 5
+        uint64 expiry;     // unix timestamp
+    }
+
+    struct CosmeticItem {
+        uint256 price;
+        bool    exists;
+    }
+
+    // ─── Core game state ──────────────────────────────────────────────────────
+
+    mapping(address => Session)          public sessions;
+    mapping(address => uint256)          public bestScore;
+    mapping(address => uint32)           public bestTile;
+    mapping(address => uint8)            public claimedMilestones;
+
+    LeaderboardEntry[10] private _leaderboard;
+    bool                 public leaderboardSeeded = false;
+
+    // ─── XP & shop state ──────────────────────────────────────────────────────
+
+    mapping(address => uint256)  public xp;
+    mapping(address => uint256)  public streakCount;
+    mapping(address => uint256)  public lastPlayTimestamp;
+    mapping(address => uint256)  public shieldCount;    // shields in inventory
+    mapping(address => XpBoost)  public xpBoost;
+
+    // Shop prices (G$, owner-adjustable)
+    uint256 public shieldPrice;
+    uint256 public boost2xPrice;
+    uint256 public boost5xPrice;
+
+    // ─── Username state (appended in V4 — keep at end for UUPS layout safety) ──
+
+    mapping(address => string)  public usernames;   // player => display name
+    mapping(bytes32 => address) public nameOwner;    // keccak(lowercased name) => owner
+    mapping(address => bytes32) private _nameKey;     // owner => their current name hash
+
+    // ─── Referral state (appended in V5 — keep at end for UUPS layout safety) ──
+
+    mapping(address => address) public referrerOf;   // player => their referrer (set once, immutable)
+    mapping(address => uint256) public referralCount; // referrer => count of players they referred
+
+    // ─── V6: New shop items — appended after referral state ─────────────────────
+
+    // Undo Move shop item: consumable credits per player
+    mapping(address => uint256) public undoCredits;
+    uint256 public undoPrice;
+
+    // Cosmetics catalog: itemId => CosmeticItem (price, exists flag)
+    mapping(uint256 => CosmeticItem) public cosmeticCatalog;
+    // Cosmetics ownership: player => (itemId => owned)
+    mapping(address => mapping(uint256 => bool)) public cosmeticsOwned;
+
+    // ─── Events ───────────────────────────────────────────────────────────────
+
+    event SessionStarted(address indexed player);
+    event ScoreSubmitted(address indexed player, uint256 score, uint32 highestTile);
+    event RewardPaid(address indexed player, uint32 milestone, uint256 amount);
+    event XpEarned(address indexed player, uint256 amount, uint256 total);
+    event StreakUpdated(address indexed player, uint256 streak);
+    event ShieldPurchased(address indexed player, uint256 count, uint256 pricePaid);
+    event XpBoostPurchased(address indexed player, uint8 multiplier, uint64 expiry, uint256 pricePaid);
+    event UndoPurchased(address indexed player, uint256 quantity, uint256 pricePaid);
+    event UndoConsumed(address indexed player);
+    event CosmeticPurchased(address indexed player, uint256 indexed itemId, uint256 pricePaid);
+    event ShopPricesUpdated(uint256 shield, uint256 boost2x, uint256 boost5x, uint256 undo);
+    event CosmeticCatalogUpdated(uint256 indexed itemId, uint256 price, bool exists);
+    event UsernameSet(address indexed player, string name);
+    event ReferrerSet(address indexed player, address indexed referrer);
+
+    // ─── Errors ───────────────────────────────────────────────────────────────
+
+    error NotVerifiedHuman();
+    error SessionAlreadyActive();
+    error NoActiveSession();
+    error SessionExpired();
+    error InvalidSeed();
+    error InvalidMoveCount();
+    error InvalidTileValue();
+    error InvalidComboCount();
+    error InvalidBoostMultiplier();
+    error UsernameTaken();
+    error InvalidUsername();
+    error LeaderboardAlreadySeeded();
+    error ZeroPriceNotAllowed();
+    error CosmeticDoesNotExist();
+    error InsufficientUndoCredits();
+    error ReferrerAlreadySet();
+    error CannotReferSelf();
+    error InvalidReferrer();
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _gDollar, address _identity) external initializer {
+        __Ownable_init(msg.sender);
+        gDollar  = IERC20(_gDollar);
+        identity = IIdentity(_identity);
+        // Default shop prices
+        shieldPrice  = 25e18;  // 25 G$
+        boost2xPrice = 50e18;  // 50 G$
+        boost5xPrice = 125e18; // 125 G$
+        undoPrice    = 40e18;  // 40 G$ for undo move credit
+    }
+
+    // ─── Game ─────────────────────────────────────────────────────────────────
+
+    /// Start a new game session. No wallet verification required at this stage.
+    /// Verification is only required when submitting the score to claim rewards.
+    /// @param seedHash keccak256(seed) — seed drives tile spawning client-side
+    function startSession(bytes32 seedHash) external {
+        Session storage session = sessions[msg.sender];
+
+        if (session.active && block.timestamp > session.startTime + SESSION_TIMEOUT) {
+            session.active = false;
+        }
+        if (session.active) revert SessionAlreadyActive();
+
+        sessions[msg.sender] = Session({
+            active:    true,
+            startTime: uint64(block.timestamp),
+            seedHash:  seedHash
+        });
+
+        emit SessionStarted(msg.sender);
+    }
+
+    /// Submit result of a completed game.
+    /// NOTE: V6 removes verification gate from submission itself. Verification is only
+    /// required for G$ milestone rewards (see _payMilestoneRewards).
+    /// @param score        Final score
+    /// @param highestTile  Highest tile reached (power of 2, 2–131072)
+    /// @param moveCount    Total moves made (1–10 000)
+    /// @param seed         Seed revealed to match the committed hash
+    /// @param comboMoves   Longest run of consecutive merging moves achieved
+    function submitScore(
+        uint256 score,
+        uint32  highestTile,
+        uint256 moveCount,
+        bytes32 seed,
+        uint256 comboMoves
+    ) external {
+        // V6: Removed verification gate — players can submit without verification,
+        // but only verified players receive G$ rewards (checked in _payMilestoneRewards).
+
+        Session storage session = sessions[msg.sender];
+        if (!session.active)                                              revert NoActiveSession();
+        if (block.timestamp > session.startTime + SESSION_TIMEOUT)       revert SessionExpired();
+        if (keccak256(abi.encodePacked(seed)) != session.seedHash)       revert InvalidSeed();
+        if (moveCount < 1 || moveCount > 10_000)                         revert InvalidMoveCount();
+        if (comboMoves > moveCount)                                       revert InvalidComboCount();
+        if (highestTile < 2 || highestTile > 131_072)                    revert InvalidTileValue();
+        if ((highestTile & (highestTile - 1)) != 0)                      revert InvalidTileValue();
+
+        session.active = false;
+
+        if (score > bestScore[msg.sender]) bestScore[msg.sender] = score;
+        if (highestTile > bestTile[msg.sender]) bestTile[msg.sender] = highestTile;
+
+        emit ScoreSubmitted(msg.sender, score, highestTile);
+
+        _awardXp(msg.sender, score, comboMoves);
+        _updateStreak(msg.sender);
+        _payMilestoneRewards(highestTile);
+        _updateLeaderboard(msg.sender, score, highestTile);
+    }
+
+    /// Anyone can expire a timed-out session.
+    function expireSession(address player) external {
+        Session storage session = sessions[player];
+        if (!session.active) revert NoActiveSession();
+        require(block.timestamp > session.startTime + SESSION_TIMEOUT, "Not expired yet");
+        session.active = false;
+    }
+
+    // ─── Shop ─────────────────────────────────────────────────────────────────
+
+    /// Buy one streak shield. Shields sit in inventory until a missed day consumes one.
+    function buyStreakShield() external {
+        if (shieldPrice == 0) revert ZeroPriceNotAllowed();
+        gDollar.transferFrom(msg.sender, address(this), shieldPrice);
+        uint256 count = ++shieldCount[msg.sender];
+        emit ShieldPurchased(msg.sender, count, shieldPrice);
+    }
+
+    /// Buy an XP boost that multiplies game XP earned for 5 hours (changed from 24h).
+    /// @param multiplier 2 for 2× boost, 5 for 5× boost
+    function buyXpBoost(uint8 multiplier) external {
+        if (multiplier != 2 && multiplier != 5) revert InvalidBoostMultiplier();
+        uint256 price = multiplier == 2 ? boost2xPrice : boost5xPrice;
+        if (price == 0) revert ZeroPriceNotAllowed();
+        gDollar.transferFrom(msg.sender, address(this), price);
+        uint64 expiry = uint64(block.timestamp + BOOST_DURATION_V6);
+        xpBoost[msg.sender] = XpBoost({ multiplier: multiplier, expiry: expiry });
+        emit XpBoostPurchased(msg.sender, multiplier, expiry, price);
+    }
+
+    /// Buy undo move credits (consumable). Each credit can be used once per game session.
+    /// @param quantity Number of undo credits to purchase
+    function buyUndoMove(uint256 quantity) external {
+        if (quantity == 0) revert("Quantity must be > 0");
+        if (undoPrice == 0) revert ZeroPriceNotAllowed();
+        uint256 totalCost = undoPrice * quantity;
+        gDollar.transferFrom(msg.sender, address(this), totalCost);
+        undoCredits[msg.sender] += quantity;
+        emit UndoPurchased(msg.sender, quantity, totalCost);
+    }
+
+    /// Consume one undo credit (called during game session).
+    /// Must be called by game logic to decrement the player's undo credits.
+    function consumeUndo(address player) external {
+        if (undoCredits[player] == 0) revert InsufficientUndoCredits();
+        undoCredits[player]--;
+        emit UndoConsumed(player);
+    }
+
+    /// Buy a cosmetic item from the catalog.
+    /// @param itemId ID of the cosmetic item to purchase
+    function buyCosmetic(uint256 itemId) external {
+        CosmeticItem storage item = cosmeticCatalog[itemId];
+        if (!item.exists) revert CosmeticDoesNotExist();
+        if (item.price == 0) revert ZeroPriceNotAllowed();
+        gDollar.transferFrom(msg.sender, address(this), item.price);
+        cosmeticsOwned[msg.sender][itemId] = true;
+        emit CosmeticPurchased(msg.sender, itemId, item.price);
+    }
+
+    // ─── Referrals ────────────────────────────────────────────────────────────
+
+    /// Register a referrer for this player. Can only be called once per player (immutable).
+    /// Referrer must be a valid address (not zero, not self).
+    function registerReferrer(address referrer) external {
+        if (referrer == address(0)) revert InvalidReferrer();
+        if (referrer == msg.sender) revert CannotReferSelf();
+        if (referrerOf[msg.sender] != address(0)) revert ReferrerAlreadySet();
+
+        referrerOf[msg.sender] = referrer;
+        referralCount[referrer]++;
+        emit ReferrerSet(msg.sender, referrer);
+    }
+
+    // ─── Username ───────────────────────────────────────────────────────────────
+
+    /// Claim or change your display name shown on the leaderboard.
+    /// Rules: 3–20 chars, only a–z A–Z 0–9 and underscore. Case-insensitive
+    /// uniqueness — "Alice" and "alice" are the same name. Free to re-claim your
+    /// own name; reverts if someone else owns it.
+    function setUsername(string calldata name) external {
+        bytes memory b = bytes(name);
+        if (b.length < 3 || b.length > 20) revert InvalidUsername();
+
+        // Validate chars and build a lowercased copy for the uniqueness key.
+        bytes memory lower = new bytes(b.length);
+        for (uint256 i = 0; i < b.length; i++) {
+            bytes1 c = b[i];
+            if (c >= 0x41 && c <= 0x5A) {
+                lower[i] = bytes1(uint8(c) + 32);          // A–Z → a–z
+            } else if (
+                (c >= 0x61 && c <= 0x7A) ||                 // a–z
+                (c >= 0x30 && c <= 0x39) ||                 // 0–9
+                c == 0x5F                                    // _
+            ) {
+                lower[i] = c;
+            } else {
+                revert InvalidUsername();
+            }
+        }
+
+        bytes32 key = keccak256(lower);
+        address owner_ = nameOwner[key];
+        if (owner_ != address(0) && owner_ != msg.sender) revert UsernameTaken();
+
+        // Release the caller's previous name so it can be reused by others.
+        bytes32 prevKey = _nameKey[msg.sender];
+        if (prevKey != bytes32(0) && prevKey != key) {
+            delete nameOwner[prevKey];
+        }
+
+        nameOwner[key]        = msg.sender;
+        _nameKey[msg.sender]  = key;
+        usernames[msg.sender] = name;
+        emit UsernameSet(msg.sender, name);
+    }
+
+    /// Batch-resolve display names for a list of players (empty string if unset).
+    /// Used by the leaderboard to show names instead of addresses in one call.
+    function getUsernames(address[] calldata players)
+        external
+        view
+        returns (string[] memory names)
+    {
+        names = new string[](players.length);
+        for (uint256 i = 0; i < players.length; i++) {
+            names[i] = usernames[players[i]];
+        }
+    }
+
+    // ─── Owner ────────────────────────────────────────────────────────────────
+
+    event TokensUpdated(address gDollar, address identity);
+
+    /// Update the G$ token and GoodDollar identity addresses. Needed because
+    /// the original initialize() committed an incorrect G$ address with no code
+    /// on Celo, which made the milestone reward path revert. Owner-only.
+    function setTokens(address _gDollar, address _identity) external onlyOwner {
+        require(_gDollar != address(0) && _identity != address(0), "zero address");
+        gDollar  = IERC20(_gDollar);
+        identity = IIdentity(_identity);
+        emit TokensUpdated(_gDollar, _identity);
+    }
+
+    function fundTreasury(uint256 amount) external onlyOwner {
+        gDollar.transferFrom(msg.sender, address(this), amount);
+    }
+
+    function withdrawTreasury(uint256 amount) external onlyOwner {
+        gDollar.transfer(owner(), amount);
+    }
+
+    /// Update shop prices for existing items (shield, boosts) and new undo item.
+    function setShopPrices(
+        uint256 _shieldPrice,
+        uint256 _boost2xPrice,
+        uint256 _boost5xPrice,
+        uint256 _undoPrice
+    ) external onlyOwner {
+        shieldPrice  = _shieldPrice;
+        boost2xPrice = _boost2xPrice;
+        boost5xPrice = _boost5xPrice;
+        undoPrice    = _undoPrice;
+        emit ShopPricesUpdated(_shieldPrice, _boost2xPrice, _boost5xPrice, _undoPrice);
+    }
+
+    /// Add or update a cosmetic item in the catalog.
+    /// @param itemId   Unique ID for this cosmetic
+    /// @param price    Price in G$ (must be > 0)
+    function setCosmeticPrice(uint256 itemId, uint256 price) external onlyOwner {
+        if (price == 0) revert ZeroPriceNotAllowed();
+        cosmeticCatalog[itemId] = CosmeticItem({ price: price, exists: true });
+        emit CosmeticCatalogUpdated(itemId, price, true);
+    }
+
+    /// Remove a cosmetic item from the catalog (sets exists=false).
+    /// @param itemId   ID of the cosmetic to remove
+    function removeCosmeticItem(uint256 itemId) external onlyOwner {
+        delete cosmeticCatalog[itemId];
+        emit CosmeticCatalogUpdated(itemId, 0, false);
+    }
+
+    /// Seed the leaderboard with historical data during migration. Owner-only,
+    /// can only be called once per contract lifetime.
+    /// @param players Array of player addresses
+    /// @param scores  Array of scores (indices match players array)
+    function seedLeaderboard(address[] calldata players, uint256[] calldata scores)
+        external
+        onlyOwner
+    {
+        if (leaderboardSeeded) revert LeaderboardAlreadySeeded();
+        require(players.length == scores.length, "Length mismatch");
+        require(players.length <= 10, "Max 10 entries");
+
+        leaderboardSeeded = true;
+
+        // Sort entries by score descending and populate leaderboard
+        uint8 count = uint8(players.length);
+        for (uint8 i = 0; i < count; i++) {
+            _leaderboard[i] = LeaderboardEntry({
+                player:      players[i],
+                score:       scores[i],
+                highestTile: 0
+            });
+        }
+    }
+
+    // ─── Views ────────────────────────────────────────────────────────────────
+
+    function getLeaderboard() external view returns (LeaderboardEntry[10] memory) {
+        return _leaderboard;
+    }
+
+    function getSession(address player) external view returns (Session memory) {
+        return sessions[player];
+    }
+
+    function getXpBoost(address player) external view returns (XpBoost memory) {
+        return xpBoost[player];
+    }
+
+    function getCosmeticItem(uint256 itemId) external view returns (CosmeticItem memory) {
+        return cosmeticCatalog[itemId];
+    }
+
+    function getCosmeticsOwned(address player, uint256[] calldata itemIds)
+        external
+        view
+        returns (bool[] memory owned)
+    {
+        owned = new bool[](itemIds.length);
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            owned[i] = cosmeticsOwned[player][itemIds[i]];
+        }
+    }
+
+    // ─── UUPS ─────────────────────────────────────────────────────────────────
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    // ─── Internal ─────────────────────────────────────────────────────────────
+
+    function _awardXp(address player, uint256 score, uint256 comboMoves) internal {
+        uint256 earned = score / 10;
+
+        // 5-move combo: 5× this game's XP
+        if (comboMoves >= COMBO_THRESHOLD) {
+            earned *= COMBO_XP_MULTIPLIER;
+        }
+
+        // Active XP boost: applies on top of combo
+        XpBoost storage boost = xpBoost[player];
+        if (boost.expiry > block.timestamp) {
+            earned *= boost.multiplier;
+        }
+
+        xp[player] += earned;
+        emit XpEarned(player, earned, xp[player]);
+    }
+
+    function _updateStreak(address player) internal {
+        uint256 last = lastPlayTimestamp[player];
+
+        if (last == 0) {
+            // First ever game
+            streakCount[player] = 1;
+        } else {
+            uint256 elapsed = block.timestamp - last;
+
+            if (elapsed < 24 hours) {
+                // Multiple sessions same day — streak unchanged
+            } else if (elapsed <= 48 hours) {
+                // Played the next day — extend streak
+                streakCount[player]++;
+            } else {
+                // Missed at least one day
+                if (shieldCount[player] > 0) {
+                    // Burn one shield from inventory — streak continues
+                    shieldCount[player]--;
+                    streakCount[player]++;
+                } else {
+                    // No shield — streak resets
+                    streakCount[player] = 1;
+                }
+            }
+        }
+
+        lastPlayTimestamp[player] = block.timestamp;
+        emit StreakUpdated(player, streakCount[player]);
+    }
+
+    function _payMilestoneRewards(uint32 highestTile) internal {
+        // V6: Verification gate moved here. Only verified humans receive G$ rewards,
+        // but anyone can submit scores.
+        if (!identity.isWhitelisted(msg.sender)) return;
+
+        uint8 claimed = claimedMilestones[msg.sender];
+
+        // Only mark a milestone claimed once the reward is actually paid, so a
+        // dry/unset treasury doesn't permanently burn the player's reward — it
+        // will pay out on a later submission once the treasury is funded.
+        if (highestTile >= 2048 && (claimed & MILESTONE_2048) == 0) {
+            if (_sendReward(2048, REWARD_2048)) claimedMilestones[msg.sender] |= MILESTONE_2048;
+        }
+        if (highestTile >= 1024 && (claimed & MILESTONE_1024) == 0) {
+            if (_sendReward(1024, REWARD_1024)) claimedMilestones[msg.sender] |= MILESTONE_1024;
+        }
+        if (highestTile >= 512 && (claimed & MILESTONE_512) == 0) {
+            if (_sendReward(512, REWARD_512)) claimedMilestones[msg.sender] |= MILESTONE_512;
+        }
+        if (highestTile >= 256 && (claimed & MILESTONE_256) == 0) {
+            if (_sendReward(256, REWARD_256)) claimedMilestones[msg.sender] |= MILESTONE_256;
+        }
+    }
+
+    /// Sends a milestone reward, returning true only if it was actually paid.
+    /// All external token interaction is wrapped in try/catch so a broken,
+    /// unset, or paused G$ token can NEVER revert score submission — the score,
+    /// XP and leaderboard still record even when the reward can't be paid.
+    function _sendReward(uint32 milestone, uint256 amount) internal returns (bool) {
+        try gDollar.balanceOf(address(this)) returns (uint256 bal) {
+            if (bal >= amount) {
+                try gDollar.transfer(msg.sender, amount) returns (bool ok) {
+                    if (ok) {
+                        emit RewardPaid(msg.sender, milestone, amount);
+                        return true;
+                    }
+                } catch { /* transfer failed — leave unclaimed */ }
+            }
+        } catch { /* token has no code / reverted — leave unclaimed */ }
+        return false;
+    }
+
+    function _updateLeaderboard(address player, uint256 score, uint32 highestTile) internal {
+        // First pass: check if player already exists and only update if score is higher
+        for (uint8 i = 0; i < 10; i++) {
+            if (_leaderboard[i].player == player) {
+                if (score > _leaderboard[i].score) {
+                    _leaderboard[i] = LeaderboardEntry({
+                        player:      player,
+                        score:       score,
+                        highestTile: highestTile
+                    });
+                }
+                return; // Player found — done, never add them twice
+            }
+        }
+
+        // Second pass: player not in leaderboard, find slot for new entry
+        uint8 lowestIdx  = 0;
+        bool  foundEmpty = false;
+
+        for (uint8 i = 0; i < 10; i++) {
+            if (_leaderboard[i].player == address(0)) {
+                lowestIdx  = i;
+                foundEmpty = true;
+                break;
+            }
+            if (_leaderboard[i].score < _leaderboard[lowestIdx].score) {
+                lowestIdx = i;
+            }
+        }
+
+        if (foundEmpty || score > _leaderboard[lowestIdx].score) {
+            _leaderboard[lowestIdx] = LeaderboardEntry({
+                player:      player,
+                score:       score,
+                highestTile: highestTile
+            });
+        }
+    }
+}

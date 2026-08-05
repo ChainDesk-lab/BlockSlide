@@ -28,10 +28,16 @@ dataSources:
           handler: handleScoreSubmitted
         - event: RewardPaid(indexed address,uint32,uint256)
           handler: handleRewardPaid
-        - event: ShieldPurchased(indexed address,uint256)
+        - event: ShieldPurchased(indexed address,uint256,uint256)
           handler: handleShieldPurchased
-        - event: XpBoostPurchased(indexed address,uint8,uint64)
+        - event: XpBoostPurchased(indexed address,uint8,uint64,uint256)
           handler: handleXpBoostPurchased
         - event: ReferrerSet(indexed address,indexed address)
           handler: handleReferrerSet
+        - event: UndoPurchased(indexed address,uint256,uint256)
+          handler: handleUndoPurchased
+        - event: UndoConsumed(indexed address)
+          handler: handleUndoConsumed
+        - event: CosmeticPurchased(indexed address,indexed uint256,uint256)
+          handler: handleCosmeticPurchased
       file: ./src/mapping.ts

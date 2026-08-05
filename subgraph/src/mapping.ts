@@ -7,7 +7,9 @@ import {
   ShieldPurchased,
   XpBoostPurchased,
   ReferrerSet,
-  Game2048,
+  UndoPurchased,
+  UndoConsumed,
+  CosmeticPurchased,
 } from "../generated/Game2048/Game2048";
 import { Player } from "../generated/schema";
 
@@ -25,6 +27,8 @@ function loadPlayer(addr: Address, ts: BigInt): Player {
     p.totalGSpent = BigInt.zero();
     p.lastShieldCount = BigInt.zero();
     p.referralCount = BigInt.zero();
+    p.undoCreditsPurchased = BigInt.zero();
+    p.cosmeticsOwned = [];
   }
   return p as Player;
 }
@@ -65,22 +69,11 @@ export function handleRewardPaid(event: RewardPaid): void {
 export function handleShieldPurchased(event: ShieldPurchased): void {
   let p = loadPlayer(event.params.player, event.block.timestamp);
 
-  // Calculate delta: the quantity purchased is the difference from last seen count
-  let delta = event.params.count.minus(p.lastShieldCount);
+  // In V6+, pricePaid is emitted directly in the event
+  let pricePaid = event.params.pricePaid;
 
-  // Read shield price from contract at the event block
-  let contract = Game2048.bind(event.address);
-  let shieldPrice: BigInt;
-  let priceCall = contract.try_shieldPrice();
-  if (priceCall.reverted) {
-    shieldPrice = BigInt.zero();
-  } else {
-    shieldPrice = priceCall.value;
-  }
-
-  // Add delta * price to totalGSpent
-  let spend = delta.times(shieldPrice);
-  p.totalGSpent = p.totalGSpent.plus(spend);
+  // Add total price paid to totalGSpent
+  p.totalGSpent = p.totalGSpent.plus(pricePaid);
 
   // Update last seen count
   p.lastShieldCount = event.params.count;
@@ -91,31 +84,11 @@ export function handleShieldPurchased(event: ShieldPurchased): void {
 export function handleXpBoostPurchased(event: XpBoostPurchased): void {
   let p = loadPlayer(event.params.player, event.block.timestamp);
 
-  // Read boost price from contract, selected by multiplier
-  let contract = Game2048.bind(event.address);
-  let boostPrice: BigInt;
-
-  let multiplier = event.params.multiplier;
-  if (multiplier == 2) {
-    let priceCall = contract.try_boost2xPrice();
-    if (priceCall.reverted) {
-      boostPrice = BigInt.zero();
-    } else {
-      boostPrice = priceCall.value;
-    }
-  } else if (multiplier == 5) {
-    let priceCall = contract.try_boost5xPrice();
-    if (priceCall.reverted) {
-      boostPrice = BigInt.zero();
-    } else {
-      boostPrice = priceCall.value;
-    }
-  } else {
-    boostPrice = BigInt.zero();
-  }
+  // In V6+, pricePaid is emitted directly in the event
+  let pricePaid = event.params.pricePaid;
 
   // Add price to totalGSpent
-  p.totalGSpent = p.totalGSpent.plus(boostPrice);
+  p.totalGSpent = p.totalGSpent.plus(pricePaid);
   p.lastUpdated = event.block.timestamp;
   p.save();
 }
@@ -132,4 +105,41 @@ export function handleReferrerSet(event: ReferrerSet): void {
   referrer.referralCount = referrer.referralCount.plus(BigInt.fromI32(1));
   referrer.lastUpdated = event.block.timestamp;
   referrer.save();
+}
+
+export function handleUndoPurchased(event: UndoPurchased): void {
+  let p = loadPlayer(event.params.player, event.block.timestamp);
+
+  // Add quantity to total undo credits purchased
+  p.undoCreditsPurchased = p.undoCreditsPurchased.plus(event.params.quantity);
+
+  // Add total amount paid to totalGSpent
+  p.totalGSpent = p.totalGSpent.plus(event.params.pricePaid);
+  p.lastUpdated = event.block.timestamp;
+  p.save();
+}
+
+export function handleUndoConsumed(event: UndoConsumed): void {
+  let p = loadPlayer(event.params.player, event.block.timestamp);
+  p.lastUpdated = event.block.timestamp;
+  p.save();
+}
+
+export function handleCosmeticPurchased(event: CosmeticPurchased): void {
+  let p = loadPlayer(event.params.player, event.block.timestamp);
+
+  // Track cosmetic ownership
+  let cosmetics = p.cosmeticsOwned;
+  let itemId = event.params.itemId.toI32();
+
+  // Add itemId if not already owned
+  if (!cosmetics.includes(itemId)) {
+    cosmetics.push(itemId);
+  }
+  p.cosmeticsOwned = cosmetics;
+
+  // Add amount paid to totalGSpent
+  p.totalGSpent = p.totalGSpent.plus(event.params.pricePaid);
+  p.lastUpdated = event.block.timestamp;
+  p.save();
 }

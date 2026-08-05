@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
+import Avatar from "./Avatar";
 
 // Goldsky subgraph GraphQL endpoint. Set NEXT_PUBLIC_SUBGRAPH_URL after deploying
 // the subgraph in /subgraph (see its README/deploy step).
@@ -176,13 +177,14 @@ export default function Leaderboard() {
           {topThree.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            const avatar = getAvatar(entry.id);
             const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
 
             return (
               <div key={entry.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
                 <div className="leaderboard__podium-medal">{medals[idx]}</div>
-                <div className="leaderboard__podium-avatar">{avatar}</div>
+                <div className="leaderboard__podium-avatar">
+                  <Avatar address={entry.id} size="lg" />
+                </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
                   {isVerified ? <span className="badge badge--verified">✓</span> : <span className="badge badge--unverified">⏳</span>}
@@ -199,13 +201,14 @@ export default function Leaderboard() {
           {topThree.map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            const avatar = getAvatar(entry.id);
             const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
 
             return (
               <div key={entry.id} className="leaderboard__podium-item">
                 <div className="leaderboard__podium-medal">{medals[idx]}</div>
-                <div className="leaderboard__podium-avatar">{avatar}</div>
+                <div className="leaderboard__podium-avatar">
+                  <Avatar address={entry.id} size="lg" />
+                </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
                   {isVerified ? <span className="badge badge--verified">✓</span> : <span className="badge badge--unverified">⏳</span>}
@@ -231,7 +234,6 @@ export default function Leaderboard() {
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
               const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
               const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
-              const avatar = getAvatar(entry.id);
 
               return (
                 <li
@@ -239,7 +241,9 @@ export default function Leaderboard() {
                   className={`leaderboard__entry ${isCurrentUser ? "leaderboard__entry--current-user" : ""}`}
                 >
                   <span className="leaderboard__rank">#{rank}</span>
-                  <div className="leaderboard__avatar-sm">{avatar}</div>
+                  <div className="leaderboard__avatar-sm">
+                    <Avatar address={entry.id} size="sm" />
+                  </div>
                   <div className="leaderboard__player">
                     <div className="leaderboard__name-badge">
                       {isEditingThis ? (
@@ -354,12 +358,4 @@ function shortAddr(addr: string): string {
 // Deterministic friendly name when a player hasn't claimed an on-chain username.
 function generatedName(addr: string): string {
   return `Player-${addr.slice(-4).toUpperCase()}`;
-}
-
-// Avatar placeholder: initials or letter-based on address
-function getAvatar(addr: string): string {
-  // Use first 2 chars of address (after 0x) as a seed for a letter
-  const seed = parseInt(addr.slice(2, 4), 16) % 26;
-  const letter = String.fromCharCode(65 + seed); // A-Z
-  return letter;
 }

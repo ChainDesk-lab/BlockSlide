@@ -22,6 +22,7 @@ import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
+import { useShop } from "./hooks/useShop";
 import { sounds } from "./lib/sounds";
 
 type View = "home" | "game" | "leaderboard" | "shop";
@@ -89,6 +90,21 @@ export default function App() {
 
   // Register referrer after connect (Phase 3)
   useReferrerRegistration();
+
+  // Shop state for undo button
+  const { undoCredits, consumeUndo, pendingAction: shopPending } = useShop();
+  const [undoLocalPending, setUndoLocalPending] = useState(false);
+
+  const handleUndo = async () => {
+    setUndoLocalPending(true);
+    try {
+      await consumeUndo();
+      // TODO: Revert the last move in the game state
+      // This would require integrating with the game logic
+    } finally {
+      setUndoLocalPending(false);
+    }
+  };
 
   useEffect(() => {
     // On wallet change, read the dismiss state from storage.
@@ -302,6 +318,9 @@ export default function App() {
               identityStatus={identityStatus}
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
+              undoCredits={undoCredits}
+              onUndo={handleUndo}
+              undoPending={undoLocalPending || shopPending === "undo"}
             />
           </div>
         )}

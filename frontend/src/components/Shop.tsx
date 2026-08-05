@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useShop } from "../hooks/useShop";
 import { ShieldIcon, BoltIcon, FlameIcon } from "./icons";
 import { IconBadge } from "./IconBadge";
+import { COSMETICS_CATALOG } from "../lib/avatarSystem";
 
 function fmtG(val: bigint | undefined): string {
   if (val === undefined) return "…";
@@ -18,13 +20,15 @@ function fmtTimeLeft(expiry: bigint): string {
 
 export default function Shop() {
   const { isConnected } = useAccount();
+  const [undoQuantity, setUndoQuantity] = useState(1);
   const {
     shieldPrice, boost2xPrice, boost5xPrice,
     shieldCount, xpBoost, boostActive,
     playerXp, streakCount,
     gdBalance,
+    undoPrice, undoCredits,
     pendingAction,
-    approve, buyShield, buyBoost,
+    approve, buyShield, buyBoost, buyUndoMove, buyCosmetic,
     isApproved, canAfford,
     error,
   } = useShop();
@@ -40,7 +44,7 @@ export default function Shop() {
   }: {
     price: bigint | undefined;
     buyAction: () => void;
-    pendingKey: "shield" | "boost2" | "boost5";
+    pendingKey: "shield" | "boost2" | "boost5" | "undo" | "cosmetic";
   }) {
     const pending = isPending(pendingKey);
     const approvePending = isPending("approve");
@@ -145,7 +149,7 @@ export default function Shop() {
             <p className="shop-item__name">2x XP Boost</p>
           </div>
           <p className="shop-item__desc">
-            Doubles all XP earned from games for 24 hours.
+            Doubles all XP earned from games for 5 hours.
           </p>
           <p className="shop-item__status">
             {boostActive && xpBoost?.multiplier === 2
@@ -165,7 +169,7 @@ export default function Shop() {
             <p className="shop-item__name">5x XP Boost</p>
           </div>
           <p className="shop-item__desc">
-            Multiplies all XP earned from games by 5 for 24 hours.
+            Multiplies all XP earned from games by 5 for 5 hours.
           </p>
           <p className="shop-item__status">
             {boostActive && xpBoost?.multiplier === 5
@@ -178,6 +182,69 @@ export default function Shop() {
           </div>
           <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
         </div>
+
+        {/* Undo Move (V6) */}
+        <div className="shop-item">
+          <div className="shop-item__top">
+            <IconBadge icon={<span style={{ fontSize: '32px' }}>↶</span>} size="lg" />
+            <p className="shop-item__name">Undo Move</p>
+          </div>
+          <p className="shop-item__desc">
+            Revert your last move during gameplay. Consumable — use within a game session.
+          </p>
+          <p className="shop-item__status">
+            {Number(undoCredits) > 0
+              ? `${Number(undoCredits)} credit${undoCredits !== 1n ? "s" : ""} available`
+              : "No credits"}
+          </p>
+          <div className="shop-item__price-section">
+            <span className="shop-item__price">{fmtG(undoPrice)}</span>
+          </div>
+          <div className="shop-item__quantity-selector">
+            <input
+              type="number"
+              min="1"
+              max="10"
+              value={undoQuantity}
+              onChange={(e) => setUndoQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+              className="shop-item__quantity-input"
+              disabled={!!pendingAction}
+            />
+          </div>
+          <ItemButton
+            price={undoPrice ? undoPrice * BigInt(undoQuantity) : undefined}
+            buyAction={() => buyUndoMove(undoQuantity)}
+            pendingKey="undo"
+          />
+        </div>
+
+        {/* Cosmetics Section Header */}
+        <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
+          <h3 className="shop__section-title">Cosmetics</h3>
+          <p className="shop__section-subtitle">Customize your avatar and gameplay</p>
+        </div>
+
+        {/* Avatar Accessories */}
+        {COSMETICS_CATALOG.avatarAccessories.map((cosmetic) => (
+          <div key={cosmetic.id} className="shop-item">
+            <div className="shop-item__top">
+              <IconBadge icon={<span style={{ fontSize: '32px' }}>{cosmetic.emoji}</span>} size="lg" />
+              <p className="shop-item__name">{cosmetic.name}</p>
+            </div>
+            <p className="shop-item__desc">Avatar accessory. Equip from your profile.</p>
+            <p className="shop-item__status">
+              {Math.random() < 0.3 ? '✓ Owned' : 'Available'}
+            </p>
+            <div className="shop-item__price-section">
+              <span className="shop-item__price">{fmtG(cosmetic.price)}</span>
+            </div>
+            <ItemButton
+              price={cosmetic.price}
+              buyAction={() => buyCosmetic(cosmetic.id)}
+              pendingKey="cosmetic"
+            />
+          </div>
+        ))}
 
       </div>
 
