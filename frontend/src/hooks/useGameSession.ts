@@ -61,7 +61,7 @@ export function useGameSession() {
     setIsPending(false);
   }, []);
 
-  const { isSuccess: txConfirmed, isError: txWaitError, error: txWaitErrorObj, data: txReceipt } =
+  const { isSuccess: txConfirmed, isError: txWaitError, data: txReceipt } =
     useWaitForTransactionReceipt({ hash: txHash });
 
   const [phase, setPhase] = useState<SessionPhase>("idle");
@@ -111,53 +111,25 @@ export function useGameSession() {
     if (!onChainSession?.active) setSessionStuck(false);
   }, [onChainSession?.active]);
 
+  // Only watches "start" here — submitScore owns its own completion (including
+  // the reverted-receipt check) via its own imperative wait below, so a single
+  // path decides the outcome instead of two watchers racing on the same hash.
   useEffect(() => {
-    if (!pendingActionRef.current) return;
-    // Handle both outcomes from useWaitForTransactionReceipt:
-    //  - resolved receipt (txConfirmed) — may be success OR reverted status
-    //  - wait error (txWaitError) — node returned an error fetching the receipt
+    if (pendingActionRef.current !== "start") return;
     if (!txConfirmed && !txWaitError) return;
 
     const reverted = txReceipt?.status === "reverted" || txWaitError;
-    if (reverted) {
-      if (pendingActionRef.current === "submit") {
-        setError(
-          txWaitErrorObj
-            ? parseContractError(txWaitErrorObj as Error)
-            : "Score submission reverted on-chain. Your session is still open — try submitting again.",
-        );
-        setPhase("active");
-      } else {
-        setError("Session start reverted on-chain. Make sure you are GoodDollar verified and have enough CELO for gas.");
-        setPhase("idle");
-      }
-      pendingActionRef.current = null;
-      setIsPending(false);
-      refetchSession();
-      return;
-    }
-
-    if (pendingActionRef.current === "start") setPhase("active");
-    else if (pendingActionRef.current === "submit") {
-      setPhase("done");
-      setSessionStuck(false);
-      // Session is spent — drop the durable committed-seed copy.
-      try {
-        if (address) {
-          removeUserStorage(address, SESSION_SEED_KEY);
-        }
-      } catch { /* ignore */ }
-      showToast("✓ Score submitted! Check your rewards.", "success");
-      // Emit event to notify other components to refetch balances after milestone rewards are paid
-      const event = new CustomEvent("scoreSubmitted", {
-        detail: { txHash, timestamp: Date.now() },
-      });
-      window.dispatchEvent(event);
-    }
     pendingActionRef.current = null;
     setIsPending(false);
+
+    if (reverted) {
+      setError("Session start reverted on-chain. Make sure you are GoodDollar verified and have enough CELO for gas.");
+      setPhase("idle");
+    } else {
+      setPhase("active");
+    }
     refetchSession();
-  }, [txConfirmed, txWaitError, txWaitErrorObj, txReceipt, txHash, refetchSession, showToast, address]);
+  }, [txConfirmed, txWaitError, txReceipt, refetchSession]);
 
   // ── Core transaction helper ───────────────────────────────────────────────
   // Takes the wallet client as a parameter (rather than closing over the
@@ -499,16 +471,34 @@ export function useGameSession() {
 
         // Wait for receipt to confirm transaction is mined
         if (!publicClient) throw new Error("Network unavailable");
+        let receipt;
         try {
-          await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+          receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
         } catch (receiptErr) {
           throw new Error(`Transaction ${hash} failed to confirm: ${(receiptErr as Error).message}`);
         }
+        if (receipt.status === "reverted") {
+          throw new Error("Score submission reverted on-chain. Your session is still open — try submitting again.");
+        }
 
-        setPhase("done");
         pendingActionRef.current = null;
+        setSessionStuck(false);
+        // Session is spent — drop the durable committed-seed copy.
+        try {
+          if (address) removeUserStorage(address, SESSION_SEED_KEY);
+        } catch { /* ignore */ }
+
+        // Wait for the on-chain session read to reflect the cleared session
+        // *before* flipping to "done" — startSession's active-session guard
+        // trusts this same cached value, so re-enabling "New Game" any earlier
+        // lets a fast click hit a stale "active" cache and throw a false
+        // "already have an active session" error.
+        await refetchSession();
+        setPhase("done");
         showToast("Score submitted! 🎉", "success");
-        refetchSession();
+        window.dispatchEvent(
+          new CustomEvent("scoreSubmitted", { detail: { txHash: hash, timestamp: Date.now() } }),
+        );
       } catch (e) {
         if (isInsufficientGasError(e)) triggerNoGas();
         const errMsg = parseContractError(e as Error);
