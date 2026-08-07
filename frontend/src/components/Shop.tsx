@@ -65,6 +65,17 @@ export default function Shop() {
     error,
   } = useShop();
 
+  // Debug: log shop state
+  useEffect(() => {
+    console.log("[Shop Component] Shop prices:", {
+      shieldPrice: shieldPrice?.toString() ?? "undefined",
+      boost2xPrice: boost2xPrice?.toString() ?? "undefined",
+      boost5xPrice: boost5xPrice?.toString() ?? "undefined",
+      undoPrice: undoPrice?.toString() ?? "undefined",
+      error,
+    });
+  }, [shieldPrice, boost2xPrice, boost5xPrice, undoPrice, error]);
+
   if (!isConnected) return null;
 
   const isPending = (a: typeof pendingAction) => pendingAction === a;

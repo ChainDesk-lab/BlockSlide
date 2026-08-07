@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { maxUint256 } from "viem";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
@@ -20,16 +20,43 @@ export function useShop() {
   const { isLoading: isTxPending } = useWaitForTransactionReceipt({ hash: txHash });
 
   // ── Shop prices (V5 + V6) ──────────────────────────────────────────────────
-  const { data: shieldPrice  } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "shieldPrice",   query: { enabled } });
-  const { data: boost2xPrice } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "boost2xPrice",  query: { enabled } });
-  const { data: boost5xPrice } = useReadContract({ address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "boost5xPrice",  query: { enabled } });
-  const { data: undoPrice, refetch: refetchUndoPrice } = useReadContract({
-    address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "undoPrice", query: { enabled },
+  const { data: shieldPrice, error: shieldPriceError } = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "shieldPrice", query: { enabled }
   });
-  const { data: undoCreditsRaw, refetch: refetchUndoCredits } = useReadContract({
+  const { data: boost2xPrice, error: boost2xPriceError } = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost2xPrice", query: { enabled }
+  });
+  const { data: boost5xPrice, error: boost5xPriceError } = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost5xPrice", query: { enabled }
+  });
+  // V6 functions may not exist on deployed contract - handle gracefully
+  const { data: undoPrice, error: undoPriceError, refetch: refetchUndoPrice } = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI,
+    functionName: "undoPrice", query: { enabled },
+  });
+  const { data: undoCreditsRaw, error: undoCreditsError, refetch: refetchUndoCredits } = useReadContract({
     address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "undoCredits",
     args: address ? [address] : undefined, query: { enabled },
   });
+
+  // Log price read errors for debugging
+  useEffect(() => {
+    if (shieldPriceError) console.warn("[Shop] shieldPrice read error:", shieldPriceError);
+    if (boost2xPriceError) console.warn("[Shop] boost2xPrice read error:", boost2xPriceError);
+    if (boost5xPriceError) console.warn("[Shop] boost5xPrice read error:", boost5xPriceError);
+    if (undoPriceError) console.warn("[Shop] undoPrice read error:", undoPriceError);
+    if (undoCreditsError) console.warn("[Shop] undoCredits read error:", undoCreditsError);
+  }, [shieldPriceError, boost2xPriceError, boost5xPriceError, undoPriceError, undoCreditsError]);
+
+  // Log price values for debugging
+  useEffect(() => {
+    console.log("[Shop] Raw prices from contract:", {
+      shieldPrice: shieldPrice?.toString() ?? "undefined",
+      boost2xPrice: boost2xPrice?.toString() ?? "undefined",
+      boost5xPrice: boost5xPrice?.toString() ?? "undefined",
+      undoPrice: undoPrice?.toString() ?? "undefined",
+    });
+  }, [shieldPrice, boost2xPrice, boost5xPrice, undoPrice]);
 
   // ── Player state ───────────────────────────────────────────────────────────
   const { data: shieldCount, refetch: refetchShield } = useReadContract({
