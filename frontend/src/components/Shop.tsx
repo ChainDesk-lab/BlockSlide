@@ -33,12 +33,18 @@ export default function Shop() {
     const category = searchParams.get("category") as Category | null;
     const tab = searchParams.get("tab");
     if (tab === "shop" && category) {
-      setView(category as View);
+      // Map category ("power-ups", "cosmetics") to view ("powerups", "cosmetics")
+      const viewMap: Record<Category, View> = {
+        "power-ups": "powerups",
+        "cosmetics": "cosmetics",
+      };
+      setView(viewMap[category]);
       setActiveCategory(category);
     }
   }, [searchParams]);
 
   const updateView = (newView: View, newCategory?: Category) => {
+    console.log("[Shop] updateView called:", { newView, newCategory, currentView: view });
     const params = new URLSearchParams(searchParams.toString());
     if (newView === "landing") {
       params.delete("category");
@@ -51,6 +57,7 @@ export default function Shop() {
       setActiveCategory(cat);
     }
     setView(newView);
+    console.log("[Shop] updateView completed, new view:", newView);
   };
 
   const {
@@ -67,16 +74,26 @@ export default function Shop() {
 
   // Debug: log shop state
   useEffect(() => {
-    console.log("[Shop Component] Shop prices:", {
-      shieldPrice: shieldPrice?.toString() ?? "undefined",
-      boost2xPrice: boost2xPrice?.toString() ?? "undefined",
-      boost5xPrice: boost5xPrice?.toString() ?? "undefined",
-      undoPrice: undoPrice?.toString() ?? "undefined",
+    console.log("[Shop Component] Rendered", {
+      view,
+      activeCategory,
+      isConnected,
+      prices: {
+        shield: shieldPrice?.toString() ?? "undefined",
+        boost2x: boost2xPrice?.toString() ?? "undefined",
+        boost5x: boost5xPrice?.toString() ?? "undefined",
+        undo: undoPrice?.toString() ?? "undefined",
+      },
       error,
     });
-  }, [shieldPrice, boost2xPrice, boost5xPrice, undoPrice, error]);
+  }, [view, activeCategory, isConnected, shieldPrice, boost2xPrice, boost5xPrice, undoPrice, error]);
 
-  if (!isConnected) return null;
+  if (!isConnected) {
+    console.log("[Shop] Not connected, returning null");
+    return null;
+  }
+
+  console.log("[Shop] Rendering view:", view);
 
   const isPending = (a: typeof pendingAction) => pendingAction === a;
 
@@ -149,7 +166,10 @@ export default function Shop() {
         <div className="shop__categories">
           <div
             className="shop__category-card"
-            onClick={() => updateView("powerups", "power-ups")}
+            onClick={() => {
+              console.log("[Shop] Power-Ups card clicked");
+              updateView("powerups", "power-ups");
+            }}
           >
             <div className="shop__category-icon-wrapper">
               <CategoryIcon type="power-ups" size={110} />
