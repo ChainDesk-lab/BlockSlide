@@ -71,7 +71,17 @@ export function useGameSession() {
   // unrecoverable on this device — the only escape is waiting for it to expire.
   const [sessionStuck, setSessionStuck] = useState(false);
 
-  const isWrongChain = !!address && chainId !== TARGET_CHAIN.id;
+  // For Magic users, the embedded wallet is hardcoded to Celo (42220) via Magic's config,
+  // so we never need to check/switch chains. For Web3 wallet users, check against the
+  // actual wagmi chainId which reflects their connected wallet's network.
+  const isWrongChain = authType === "magic" ? false : (!!address && chainId !== TARGET_CHAIN.id);
+
+  // Log auth state for debugging (especially Magic/email submit issues)
+  useEffect(() => {
+    if (phase === "submitting" || phase === "starting") {
+      console.log(`[Game Session] Submitting with authType=${authType}, chainId=${chainId}, isWrongChain=${isWrongChain}`);
+    }
+  }, [phase, authType, chainId, isWrongChain]);
 
   const { data: celoBalance } = useBalance({
     address,
@@ -303,7 +313,13 @@ export function useGameSession() {
       }
 
       if (!signer) {
-        setError(signerError || "Wallet signer not available — please try again.");
+        const msg = signerError || "Wallet signer not available — please try again.";
+        // For Magic users, provide specific guidance since they can't switch wallets
+        const errorMsg = authType === "magic" && signerError?.includes("network")
+          ? "Magic wallet should auto-connect to Celo. Try refreshing the page."
+          : msg;
+        setError(errorMsg);
+        console.log(`[Game Session] No signer available. authType=${authType}, signerError=${signerError}`);
         return;
       }
 
@@ -312,6 +328,7 @@ export function useGameSession() {
       setSessionStuck(false);
       pendingActionRef.current = "start";
       setPhase("starting");
+      console.log(`[Game Session] Starting session with authType=${authType}, chainId=${chainId}`);
       // Durably persist the committed seed *before* handing it to the game, so a
       // later board reset / remount / "play locally" can't orphan this session.
       try {
@@ -365,9 +382,16 @@ export function useGameSession() {
       }
 
       if (!signer) {
-        setError(signerError || "Wallet signer not available — please try again.");
+        const msg = signerError || "Wallet signer not available — please try again.";
+        const errorMsg = authType === "magic" && signerError?.includes("network")
+          ? "Magic wallet should auto-connect to Celo. Try refreshing the page."
+          : msg;
+        setError(errorMsg);
+        console.log(`[Game Session Submit] No signer. authType=${authType}, signerError=${signerError}, chainId=${chainId}`);
         return;
       }
+
+      console.log(`[Game Session Submit] Submitting score with authType=${authType}, chainId=${chainId}, isWrongChain=${isWrongChain}`);
 
       let session = onChainSession;
       try {
