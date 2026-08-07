@@ -1730,6 +1730,10 @@ html.dark-mode {
   justify-content: center;
   line-height: 1;
   flex-shrink: 0;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface-2));
+  border: 2px solid color-mix(in srgb, var(--brand) 25%, var(--border));
+  border-radius: var(--radius);
+  color: var(--text);
 }
 
 .shop__category-tabs {
@@ -1796,6 +1800,10 @@ html.dark-mode {
   justify-content: center;
   line-height: 1;
   flex-shrink: 0;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface-2));
+  border: 2px solid color-mix(in srgb, var(--brand) 25%, var(--border));
+  border-radius: var(--radius);
+  color: var(--text);
 }
 
 .shop-item__quantity-selector {

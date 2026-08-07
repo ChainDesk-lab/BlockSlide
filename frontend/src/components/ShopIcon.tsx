@@ -27,7 +27,13 @@ export function ShopIcon({ type, size = 110 }: ShopIconProps) {
     return (
       <div
         className="shop-icon shop-icon--fallback"
-        style={{ fontSize: `${size * 0.7}px` }}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          fontSize: `${size * 0.6}px`,
+          minWidth: `${size}px`,
+          minHeight: `${size}px`,
+        }}
       >
         {fallback}
       </div>

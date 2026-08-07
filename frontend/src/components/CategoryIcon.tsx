@@ -20,7 +20,13 @@ export function CategoryIcon({ type, size = 110 }: CategoryIconProps) {
     return (
       <div
         className="category-icon category-icon--fallback"
-        style={{ fontSize: `${size * 0.7}px` }}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          fontSize: `${size * 0.6}px`,
+          minWidth: `${size}px`,
+          minHeight: `${size}px`,
+        }}
       >
         {fallback}
       </div>
