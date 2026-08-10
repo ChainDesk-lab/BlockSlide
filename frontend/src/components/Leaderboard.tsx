@@ -34,7 +34,7 @@ function buildPlayersQuery(skip: number): string {
 
 function buildTotalQuery(): string {
   return `{
-    players {
+    players(first: 1000) {
       id
     }
   }`;
