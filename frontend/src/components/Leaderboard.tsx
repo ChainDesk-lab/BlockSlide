@@ -121,10 +121,11 @@ export default function Leaderboard() {
 
   const entries = data?.entries ?? [];
   const topThree = topThreeData ?? [];
-  const totalPages = data?.totalPages ?? 1;
+  const totalPages = data?.totalPages ?? 0;
   const totalPlayers = data?.totalPlayers ?? 0;
   const showEmpty = configured && !isLoading && (isError || totalPlayers === 0);
   const isLastPage = currentPage >= totalPages - 1;
+  const showPagination = entries.length > 0 && totalPages > 1;
 
   // Debug: log navigation state when page changes
   console.log(`[Leaderboard] Page ${currentPage + 1}/${totalPages}, skip=${skip}, entries=${entries.length}, isLoading=${isLoading}`);
@@ -312,33 +313,35 @@ export default function Leaderboard() {
             })}
           </ol>
 
-          <div className="leaderboard__pagination">
-            <button
-              className="leaderboard__pagination-btn"
-              onClick={() => {
-                console.log(`[Leaderboard] Previous clicked: currentPage ${currentPage} → ${Math.max(0, currentPage - 1)}`);
-                setCurrentPage(p => Math.max(0, p - 1));
-              }}
-              disabled={currentPage === 0 || isLoading}
-              aria-label="Previous page"
-            >
-              ← Previous
-            </button>
-            <span className="leaderboard__pagination-info">
-              Page {currentPage + 1} of {totalPages}
-            </span>
-            <button
-              className="leaderboard__pagination-btn"
-              onClick={() => {
-                console.log(`[Leaderboard] Next clicked: currentPage ${currentPage} → ${currentPage + 1}, isLastPage=${isLastPage}`);
-                setCurrentPage(p => p + 1);
-              }}
-              disabled={isLastPage || isLoading}
-              aria-label="Next page"
-            >
-              Next →
-            </button>
-          </div>
+          {showPagination && (
+            <div className="leaderboard__pagination">
+              <button
+                className="leaderboard__pagination-btn"
+                onClick={() => {
+                  console.log(`[Leaderboard] Previous clicked: currentPage ${currentPage} → ${Math.max(0, currentPage - 1)}`);
+                  setCurrentPage(p => Math.max(0, p - 1));
+                }}
+                disabled={currentPage === 0 || isLoading}
+                aria-label="Previous page"
+              >
+                ← Previous
+              </button>
+              <span className="leaderboard__pagination-info">
+                Page {currentPage + 1} of {totalPages}
+              </span>
+              <button
+                className="leaderboard__pagination-btn"
+                onClick={() => {
+                  console.log(`[Leaderboard] Next clicked: currentPage ${currentPage} → ${currentPage + 1}, isLastPage=${isLastPage}`);
+                  setCurrentPage(p => p + 1);
+                }}
+                disabled={isLastPage || isLoading}
+                aria-label="Next page"
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </>
       )}
 
