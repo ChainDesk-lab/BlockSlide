@@ -16,6 +16,7 @@ import Shop from "./components/Shop";
 import ScorePanel from "./components/ScorePanel";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
+import FeatureNotification from "./components/FeatureNotification";
 import { TrophyIcon, CartIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
@@ -23,6 +24,7 @@ import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { useShop } from "./hooks/useShop";
+import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
 import { sounds } from "./lib/sounds";
 
 type View = "home" | "game" | "leaderboard" | "shop";
@@ -161,6 +163,44 @@ export default function App() {
 
   const gameEnded = state && (state.over || state.won);
   const stuckActive = phase === "active" && !state;
+
+  // ── Session count & Feature notifications ──────────────────────────────────
+  const [sessionCount, setSessionCount] = useState(0);
+  useEffect(() => {
+    if (!address) return;
+    const key = `session_count_${address}`;
+    const stored = getUserStorage(address, key);
+    const count = parseInt(stored || "0", 10);
+    setSessionCount(count);
+  }, [address]);
+
+  // Track when a new game starts to increment session count
+  const prevPhaseRef = useRef(phase);
+  useEffect(() => {
+    if (prevPhaseRef.current === "idle" && phase === "starting" && address) {
+      const key = `session_count_${address}`;
+      setSessionCount((prev) => {
+        const newCount = prev + 1;
+        setUserStorage(address, key, newCount.toString());
+        return newCount;
+      });
+    }
+    prevPhaseRef.current = phase;
+  }, [phase, address]);
+
+  // Feature notifications
+  const isGameActive = !!(view === "game" && state && !state.over && !state.won);
+  const { activeNotifications, dismissNotification } = useFeatureNotifications(
+    address,
+    sessionCount,
+    state?.moveCount ?? 0,
+    isGameActive,
+    identityStatus === "verified"
+  );
+
+  // Don't show notifications if a modal is open (modals block gameplay)
+  const hasOpenModal = showHowToPlay || showUsernameModal || isFundingWallet || (view === "game" && gameEnded && identityStatus !== "verified");
+  const visibleNotifications = hasOpenModal ? [] : activeNotifications;
 
   // Auth gate — 3-state, to avoid a login loop. The two signals are independent
   // (see MagicBridge): `isConnected` is the SDK's auth truth; `address` is
@@ -346,8 +386,87 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Feature Notifications — render active notifications */}
+      {visibleNotifications.map((notif) => (
+        <FeatureNotificationRenderer
+          key={notif.id}
+          type={notif.type}
+          onDismiss={() => dismissNotification(notif.id)}
+        />
+      ))}
     </>
   );
+}
+
+/**
+ * Renders the appropriate notification content based on type.
+ */
+function FeatureNotificationRenderer({
+  type,
+  onDismiss,
+}: {
+  type: "undoStep" | "cosmetics" | "flowStateVoting";
+  onDismiss: () => void;
+}) {
+  if (type === "undoStep") {
+    return (
+      <FeatureNotification
+        type="undoStep"
+        title="✨ Undo Step"
+        message="Made a mistake? The new Undo Step feature in the shop lets you take back your last move once per game. Perfect for those tricky situations!"
+        actionLabel="Check it out"
+        onAction={() => {
+          // Could navigate to shop here if needed
+          window.location.hash = "#shop";
+        }}
+        onDismiss={onDismiss}
+      />
+    );
+  }
+
+  if (type === "cosmetics") {
+    return (
+      <FeatureNotification
+        type="cosmetics"
+        title="🎨 Customize Your Look"
+        message="Did you know? You can personalize your game with cosmetics — tile skins, avatars, leaderboard flair, and more from the shop. Make BlockSlide uniquely yours!"
+        actionLabel="Browse cosmetics"
+        onAction={() => {
+          window.location.hash = "#shop";
+        }}
+        onDismiss={onDismiss}
+      />
+    );
+  }
+
+  if (type === "flowStateVoting") {
+    return (
+      <FeatureNotification
+        type="flowStateVoting"
+        title="🗳️ Vote for BlockSlide"
+        message={
+          <>
+            Support BlockSlide by voting on{" "}
+            <a
+              href="https://flowstate.network/flow-councils/42220/0x582e3314d4ef56c18930acb10bb64313525e7820"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "inherit", textDecoration: "underline" }}
+            >
+              Flow States
+            </a>
+            . Your verified account can vote to help BlockSlide thrive! (Verified
+            players only.)
+          </>
+        }
+        autoHideDuration={0}
+        onDismiss={onDismiss}
+      />
+    );
+  }
+
+  return null;
 }
 
 function SessionCountdown({ expiresAt }: { expiresAt: number }) {

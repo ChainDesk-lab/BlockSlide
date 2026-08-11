@@ -4449,7 +4449,120 @@ html.dark-mode {
   margin: 0 0 16px 0;
 }
 
+/* ─── Feature Notifications ──────────────────────────────────────────────── */
+.feature-notification {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  max-width: 360px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-lg);
+  z-index: 8000;
+  animation: slideInUp 300ms ease-out;
+}
+
+.feature-notification--undoStep {
+  border-color: #7c3aed;
+  background: color-mix(in srgb, #7c3aed 12%, var(--surface));
+}
+
+.feature-notification--cosmetics {
+  border-color: #ec4899;
+  background: color-mix(in srgb, #ec4899 12%, var(--surface));
+}
+
+.feature-notification--flowStateVoting {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+}
+
+.feature-notification__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feature-notification__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.feature-notification__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.feature-notification--undoStep .feature-notification__title {
+  color: #7c3aed;
+}
+
+.feature-notification--cosmetics .feature-notification__title {
+  color: #ec4899;
+}
+
+.feature-notification--flowStateVoting .feature-notification__title {
+  color: var(--brand);
+}
+
+.feature-notification__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.feature-notification__close:hover {
+  opacity: 1;
+}
+
+.feature-notification__message {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.feature-notification__action {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 768px) {
+  .feature-notification {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    bottom: 12px;
+  }
+
   .bounty-card {
     padding: 16px;
   }
