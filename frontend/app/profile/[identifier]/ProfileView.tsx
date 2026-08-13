@@ -16,6 +16,7 @@ const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
 const PRODUCTION_URL = "https://blockslide.app";
 
 export default function ProfileView({ identifier }: { identifier: string }) {
+  // Get viewer's current address (safely, using try-catch for context errors)
   let viewerAddress: string | undefined;
   try {
     const auth = useAuth();

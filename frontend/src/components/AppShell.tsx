@@ -1,8 +1,8 @@
 "use client";
 
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { useAccount, useChainId, useConnections } from "wagmi";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
@@ -30,11 +30,24 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { address } = useAuth();
   const { username } = useUsername();
   const { status: identityStatus } = useIdentity();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [tab, setTab] = useState<string>("home");
+
+  // Handle "My Profile" click: always navigate to the CURRENT address, live
+  const handleMyProfileClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      if (address) {
+        // Always use the current address at click time, never a cached/stale value
+        router.push(`/profile/${address}`);
+      }
+    },
+    [address, router]
+  );
 
   useEffect(() => {
     // Hydration: read tab from search params and sound preference from localStorage
@@ -101,11 +114,15 @@ export default function AppShell({ children }: AppShellProps) {
             </Link>
           </span>
           <span className="tooltip" data-tip="Profile">
-            <Link href={address ? `/profile/${address}` : "/"} aria-label="Profile">
-              <button className={`icon-btn ${isProfile ? "icon-btn--active" : ""}`} aria-label="Profile">
-                <UserIcon />
-              </button>
-            </Link>
+            <button
+              className={`icon-btn ${isProfile ? "icon-btn--active" : ""}`}
+              aria-label="Profile"
+              onClick={handleMyProfileClick}
+              disabled={!address}
+              title={address ? "View your profile" : "Connect wallet to view profile"}
+            >
+              <UserIcon />
+            </button>
           </span>
           <span className="tooltip" data-tip="Bounties">
             <Link href="/bounty" aria-label="Bounties">
