@@ -5,8 +5,68 @@ import Link from "next/link";
 import { bounties, getBountyStatus } from "../../src/config/bounties";
 import { useBountyLeaderboard } from "../../src/hooks/useBountyLeaderboard";
 import { getAvatarGradient, formatAddress } from "../../src/lib/profileUtils";
+import { BOUNTY_WINNERS } from "../../src/lib/bountyWinners";
 
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
+
+function EndedBountyWinners({ bountyId }: { bountyId: string }) {
+  const winners = BOUNTY_WINNERS.filter((w) => w.bountyId === bountyId).sort(
+    (a, b) => a.placement - b.placement
+  );
+
+  if (winners.length === 0) {
+    return <p className="bounty-ended__no-winners">No winners recorded for this bounty.</p>;
+  }
+
+  return (
+    <div className="bounty-ended__winners">
+      <h4 className="bounty-ended__winners-title">Winners</h4>
+      <ol className="bounty-ended__winners-list">
+        {winners.map((winner) => {
+          const name = winner.username || formatAddress(winner.address || "");
+          return (
+            <li key={`${bountyId}-${winner.placement}`} className="bounty-ended__winner-entry">
+              <span className="bounty-ended__winner-rank">#{winner.placement}</span>
+              <span className="bounty-ended__winner-name">{name}</span>
+              <span className="bounty-ended__winner-prize">${winner.prizeAmount}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function UpcomingBountyCard({ bounty }: { bounty: typeof bounties[0] }) {
+  const startTime = new Date(bounty.startTime);
+  const startTimeStr = startTime.toLocaleDateString("en-US", {
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="bounty-card bounty-card--upcoming">
+      <div className="bounty-card__header">
+        <h3 className="bounty-card__title">{bounty.title}</h3>
+        <span className="bounty-card__badge">Coming Soon</span>
+      </div>
+
+      <p className="bounty-card__description">{bounty.description}</p>
+
+      <div className="bounty-card__info">
+        <div className="bounty-card__info-item">
+          <span className="bounty-card__info-label">Prize Pool</span>
+          <span className="bounty-card__info-value">{bounty.prizes}</span>
+        </div>
+        <div className="bounty-card__info-item">
+          <span className="bounty-card__info-label">Starts</span>
+          <span className="bounty-card__info-value">{startTimeStr}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CountdownTimer({ targetTime }: { targetTime: Date }) {
   const [time, setTime] = useState<string>("");
@@ -78,7 +138,9 @@ export default function BountyPage() {
   const currentBounty = bounties.find((b) => getBountyStatus(b) !== "ended") || bounties[bounties.length - 1];
   const [status, setStatus] = useState<"upcoming" | "live" | "ended">(getBountyStatus(currentBounty));
   // Show all ended bounties EXCEPT the current one (to avoid duplication if it's the fallback)
-  const pastBounties = bounties.filter((b) => getBountyStatus(b) === "ended" && b.id !== currentBounty.id);
+  const endedBounties = bounties.filter((b) => getBountyStatus(b) === "ended" && b.id !== currentBounty.id);
+  // Show upcoming bounties EXCEPT the current one (to avoid duplication)
+  const upcomingBounties = bounties.filter((b) => getBountyStatus(b) === "upcoming" && b.id !== currentBounty.id);
 
   const { entries: leaderboardEntries, loading, error } = useBountyLeaderboard(
     currentBounty,
@@ -188,20 +250,29 @@ export default function BountyPage() {
         </div>
       </div>
 
+      {/* Upcoming bounties section */}
+      {upcomingBounties.length > 0 && (
+        <div className="bounty-page__upcoming">
+          <h2 className="bounty-page__upcoming-title">Upcoming Bounties</h2>
+          <div className="bounty-page__upcoming-grid">
+            {upcomingBounties.map((bounty) => (
+              <UpcomingBountyCard key={bounty.id} bounty={bounty} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Past bounties section */}
-      {pastBounties.length > 0 && (
+      {endedBounties.length > 0 && (
         <div className="bounty-page__past">
           <h2 className="bounty-page__past-title">Past Bounties</h2>
-          {pastBounties.map((bounty) => (
-            <div key={bounty.id} className="bounty-card bounty-card--ended">
+          {endedBounties.map((bounty) => (
+            <div key={bounty.id} className="bounty-ended bounty-card--ended">
               <div className="bounty-card__header">
                 <h3 className="bounty-card__title">{bounty.title}</h3>
                 <span className="bounty-card__badge">Ended</span>
               </div>
-              <p className="bounty-card__description">{bounty.description}</p>
-              <p className="bounty-card__criteria">
-                <strong>Winner Criteria:</strong> {bounty.winnerCriteria}
-              </p>
+              <EndedBountyWinners bountyId={bounty.id} />
             </div>
           ))}
         </div>
