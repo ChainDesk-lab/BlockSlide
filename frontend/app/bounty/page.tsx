@@ -239,34 +239,36 @@ export default function BountyPage() {
           <p className="bounty-card__criteria">{currentBounty.winnerCriteria}</p>
         </div>
 
-        {/* Leaderboard section — visible in all states */}
-        <div className="bounty-card__section bounty-card__section--leaderboard">
-          <h3 className="bounty-card__section-title">
-            {status === "live" ? "Live Standings" : status === "ended" ? "Final Standings" : "Preview"}
-          </h3>
+        {/* Leaderboard section — visible only for live and ended bounties */}
+        {status !== "upcoming" && (
+          <div className="bounty-card__section bounty-card__section--leaderboard">
+            <h3 className="bounty-card__section-title">
+              {status === "live" ? "Live Standings" : "Final Standings"}
+            </h3>
 
-          {loading && <p className="bounty-leaderboard__loading">Loading leaderboard…</p>}
-          {error && <p className="bounty-leaderboard__error">Failed to load leaderboard: {error}</p>}
+            {loading && <p className="bounty-leaderboard__loading">Loading leaderboard…</p>}
+            {error && <p className="bounty-leaderboard__error">Failed to load leaderboard: {error}</p>}
 
-          {!loading && leaderboardEntries.length === 0 && (
-            <p className="bounty-leaderboard__empty">No verified players yet.</p>
-          )}
+            {!loading && leaderboardEntries.length === 0 && (
+              <p className="bounty-leaderboard__empty">No verified players yet.</p>
+            )}
 
-          {!loading && leaderboardEntries.length > 0 && (
-            <ol className="bounty-leaderboard__list">
-              {leaderboardEntries.map((entry, idx) => (
-                <BountyLeaderboardRow
-                  key={entry.id}
-                  rank={idx + 1}
-                  player={{ id: entry.id, username: entry.username }}
-                  bountyXp={entry.bountyXp}
-                  isPrizePosition={idx < 5 && !isUpcoming}
-                  isPreview={isUpcoming}
-                />
-              ))}
-            </ol>
-          )}
-        </div>
+            {!loading && leaderboardEntries.length > 0 && (
+              <ol className="bounty-leaderboard__list">
+                {leaderboardEntries.map((entry, idx) => (
+                  <BountyLeaderboardRow
+                    key={entry.id}
+                    rank={idx + 1}
+                    player={{ id: entry.id, username: entry.username }}
+                    bountyXp={entry.bountyXp}
+                    isPrizePosition={idx < 5}
+                    isPreview={false}
+                  />
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Upcoming bounties section */}
