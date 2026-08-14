@@ -8,33 +8,36 @@ import { getAvatarGradient, formatAddress } from "../../src/lib/profileUtils";
 
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
 
-function EndedBountyLeaderboard({ bounty }: { bounty: typeof bounties[0] }) {
+function EndedBountyWinners({ bounty }: { bounty: typeof bounties[0] }) {
   const { entries: leaderboardEntries, loading, error } = useBountyLeaderboard(
     bounty,
     SUBGRAPH_URL,
     "ended"
   );
 
+  // Show only top 5 winners
+  const topWinners = leaderboardEntries.slice(0, 5);
+
   return (
-    <div className="bounty-ended__leaderboard">
-      <h3 className="bounty-ended__section-title">Final Standings</h3>
+    <div className="bounty-ended__winners">
+      <h3 className="bounty-ended__section-title">Winners</h3>
 
-      {loading && <p className="bounty-leaderboard__loading">Loading leaderboard…</p>}
-      {error && <p className="bounty-leaderboard__error">Failed to load leaderboard: {error}</p>}
+      {loading && <p className="bounty-leaderboard__loading">Loading winners…</p>}
+      {error && <p className="bounty-leaderboard__error">Failed to load winners: {error}</p>}
 
-      {!loading && leaderboardEntries.length === 0 && (
-        <p className="bounty-leaderboard__empty">No verified players yet.</p>
+      {!loading && topWinners.length === 0 && (
+        <p className="bounty-leaderboard__empty">No winners recorded.</p>
       )}
 
-      {!loading && leaderboardEntries.length > 0 && (
+      {!loading && topWinners.length > 0 && (
         <ol className="bounty-leaderboard__list bounty-leaderboard__list--faded">
-          {leaderboardEntries.map((entry, idx) => (
+          {topWinners.map((entry, idx) => (
             <BountyLeaderboardRow
               key={entry.id}
               rank={idx + 1}
               player={{ id: entry.id, username: entry.username }}
               bountyXp={entry.bountyXp}
-              isPrizePosition={idx < 5}
+              isPrizePosition={true}
               isPreview={false}
             />
           ))}
@@ -48,7 +51,7 @@ function UpcomingBountyCard({ bounty }: { bounty: typeof bounties[0] }) {
   return (
     <div className="bounty-card bounty-card--upcoming">
       <div className="bounty-card__header">
-        <h3 className="bounty-card__title">{bounty.title}</h3>
+        <h2 className="bounty-card__title">{bounty.title}</h2>
         <span className="bounty-card__badge">Coming Soon</span>
       </div>
 
@@ -56,9 +59,25 @@ function UpcomingBountyCard({ bounty }: { bounty: typeof bounties[0] }) {
 
       <div className="bounty-card__info">
         <div className="bounty-card__info-item">
-          <span className="bounty-card__info-label">Prize Pool</span>
+          <span className="bounty-card__info-label">Prizes</span>
           <span className="bounty-card__info-value">{bounty.prizes}</span>
         </div>
+      </div>
+
+      <div className="bounty-card__section">
+        <h3 className="bounty-card__section-title">How to Participate</h3>
+        <ol className="bounty-card__list">
+          {bounty.howToParticipate.map((step, i) => (
+            <li key={i} className="bounty-card__list-item">
+              {step}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="bounty-card__section">
+        <h3 className="bounty-card__section-title">Winner Criteria</h3>
+        <p className="bounty-card__criteria">{bounty.winnerCriteria}</p>
       </div>
     </div>
   );
@@ -268,7 +287,7 @@ export default function BountyPage() {
                 <h3 className="bounty-card__title">{bounty.title}</h3>
                 <span className="bounty-card__badge">Ended</span>
               </div>
-              <EndedBountyLeaderboard bounty={bounty} />
+              <EndedBountyWinners bounty={bounty} />
             </div>
           ))}
         </div>
