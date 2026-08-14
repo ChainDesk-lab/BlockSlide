@@ -34,28 +34,42 @@ export function useIdentity() {
   const publicClient = useContractPublicClient();
 
   const [data, setData] = useState<string | undefined>();
+  const [isWhitelisted, setIsWhitelisted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Read identity status whenever address changes
   useEffect(() => {
     if (!address || !publicClient) {
       setData(undefined);
+      setIsWhitelisted(false);
       return;
     }
 
     const readIdentity = async () => {
       setIsLoading(true);
       try {
-        const result = await publicClient.readContract({
-          address: IDENTITY_ADDRESS,
-          abi: IDENTITY_ABI,
-          functionName: "getWhitelistedRoot",
-          args: [address],
-        });
-        setData(result as string);
+        // Read both getWhitelistedRoot (for linked wallets) and isWhitelisted (for submission)
+        const [root, whitelisted] = await Promise.all([
+          publicClient.readContract({
+            address: IDENTITY_ADDRESS,
+            abi: IDENTITY_ABI,
+            functionName: "getWhitelistedRoot",
+            args: [address],
+          }),
+          publicClient.readContract({
+            address: IDENTITY_ADDRESS,
+            abi: IDENTITY_ABI,
+            functionName: "isWhitelisted",
+            args: [address],
+          }),
+        ]);
+        setData(root as string);
+        setIsWhitelisted((whitelisted as boolean) ?? false);
+        console.log(`[useIdentity] Identity check for ${address}: root=${root !== "0x0000000000000000000000000000000000000000"}, whitelisted=${whitelisted}`);
       } catch (err) {
         console.error("Error reading identity:", err);
         setData(undefined);
+        setIsWhitelisted(false);
       } finally {
         setIsLoading(false);
       }
@@ -67,13 +81,23 @@ export function useIdentity() {
   const refetch = useCallback(async () => {
     if (!address || !publicClient) return;
     try {
-      const result = await publicClient.readContract({
-        address: IDENTITY_ADDRESS,
-        abi: IDENTITY_ABI,
-        functionName: "getWhitelistedRoot",
-        args: [address],
-      });
-      setData(result as string);
+      const [root, whitelisted] = await Promise.all([
+        publicClient.readContract({
+          address: IDENTITY_ADDRESS,
+          abi: IDENTITY_ABI,
+          functionName: "getWhitelistedRoot",
+          args: [address],
+        }),
+        publicClient.readContract({
+          address: IDENTITY_ADDRESS,
+          abi: IDENTITY_ABI,
+          functionName: "isWhitelisted",
+          args: [address],
+        }),
+      ]);
+      setData(root as string);
+      setIsWhitelisted((whitelisted as boolean) ?? false);
+      console.log(`[useIdentity refetch] Identity check for ${address}: root=${root !== "0x0000000000000000000000000000000000000000"}, whitelisted=${whitelisted}`);
     } catch (err) {
       console.error("Error refetching identity:", err);
     }
@@ -113,6 +137,9 @@ export function useIdentity() {
   }, [address]);
 
   const isVerified = onChainVerified || cachedVerified;
+  // isWhitelisted is the stricter check for score submission (only primary verified account)
+  // whereas isVerified also includes linked wallets. Use this for gating submission.
+  const isVerifiedForSubmission = isWhitelisted;
 
   let status: IdentityStatus;
   if (!address)            status = "no-wallet";
@@ -121,5 +148,5 @@ export function useIdentity() {
   else if (pendingActive)  status = "pending";
   else                     status = "unverified";
 
-  return { status, isVerified, refetch, markPending };
+  return { status, isVerified, isVerifiedForSubmission, refetch, markPending };
 }

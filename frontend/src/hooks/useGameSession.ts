@@ -19,6 +19,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useContractAddress } from "./useContractData";
 import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
 import { useSigner } from "./useSigner";
+import { useIdentity } from "./useIdentity";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
 
@@ -51,6 +52,8 @@ export function useGameSession() {
   // Single source of truth for signer — all three features (game, username, identity)
   // call useSigner() so there's exactly one code path, one retry strategy, one error handler.
   const { signer, error: signerError } = useSigner();
+  // Identity verification status — needed for submission gating
+  const { isVerifiedForSubmission } = useIdentity();
 
   // Manual tx state — replaces useSendTransaction so we can use signTransaction
   // + sendRawTransaction and keep the same interface for the rest of the hook.
@@ -381,6 +384,16 @@ export function useGameSession() {
         return;
       }
 
+      // Check verification status BEFORE attempting submission
+      // isVerifiedForSubmission uses the stricter isWhitelisted() check (not getWhitelistedRoot)
+      if (!isVerifiedForSubmission) {
+        const errMsg = "You need a verified GoodDollar account to submit scores on-chain. Verify your identity to proceed.";
+        setError(errMsg);
+        showToast(errMsg, "error");
+        console.warn(`[Game Session Submit] User ${address} not verified for submission (isVerifiedForSubmission=false)`);
+        return;
+      }
+
       if (!signer) {
         const msg = signerError || "Wallet signer not available — please try again.";
         const errorMsg = authType === "magic" && signerError?.includes("network")
@@ -391,7 +404,7 @@ export function useGameSession() {
         return;
       }
 
-      console.log(`[Game Session Submit] Submitting score with authType=${authType}, chainId=${chainId}, isWrongChain=${isWrongChain}`);
+      console.log(`[Game Session Submit] Submitting score with authType=${authType}, chainId=${chainId}, isWrongChain=${isWrongChain}, isVerifiedForSubmission=${isVerifiedForSubmission}`);
 
       let session = onChainSession;
       try {
@@ -524,15 +537,28 @@ export function useGameSession() {
           new CustomEvent("scoreSubmitted", { detail: { txHash: hash, timestamp: Date.now() } }),
         );
       } catch (e) {
-        if (isInsufficientGasError(e)) triggerNoGas();
-        const errMsg = parseContractError(e as Error);
+        const error = e as Error;
+        console.error(`[Game Session Submit] Score submission failed for ${address}:`, {
+          message: error.message,
+          code: (error as any).code,
+          name: error.name,
+          isGasError: isInsufficientGasError(error),
+          authType,
+          chainId,
+          isVerifiedForSubmission,
+        });
+
+        if (isInsufficientGasError(error)) triggerNoGas();
+        const errMsg = parseContractError(error);
+
         setError(errMsg);
-        if (!errMsg.includes("rejected")) showToast(errMsg, "error");
+        // ALWAYS show the error toast (removed the rejection filter so users see all errors)
+        showToast(errMsg, "error");
         setPhase("active");
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast],
+    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, isVerifiedForSubmission],
   );
 
   const reset = useCallback(() => {
@@ -587,7 +613,8 @@ function parseContractError(error: Error): string {
       };
       const errorName = r.data?.errorName;
       switch (errorName) {
-        case "NotVerifiedHuman":      return "You need a verified GoodDollar account to play. Visit gooddollar.org to get verified.";
+        case "NotVerifiedHuman":
+          return "Your GoodDollar account is not verified, or you're using a linked wallet that can't submit scores. Scores can only be submitted from the primary verified account. Visit gooddollar.org to verify, or switch to your verified wallet if you have one.";
         case "SessionAlreadyActive":  return "You already have an active session on-chain. It auto-expires after 2 hours.";
         case "NoActiveSession":       return "No active session found. Start a new game first.";
         case "SessionExpired":        return "Your session expired — start a new game.";
@@ -602,17 +629,18 @@ function parseContractError(error: Error): string {
       // Error(string) revert (require with a message)
       if (r.reason) return `Contract reverted: ${r.reason}`;
       // Couldn't decode the revert data — surface a clean, generic message.
-      return "Transaction reverted. Please try again.";
+      return "Score submission failed on-chain. Please try again or contact support.";
     }
     if (error.walk((e) => (e as { name?: string }).name === "UserRejectedRequestError"))
-      return "Transaction rejected.";
+      return "You rejected the transaction in your wallet.";
   }
 
   const msg = error.message ?? "";
-  if (msg.includes("NotVerifiedHuman"))     return "You need a verified GoodDollar account.";
+  if (msg.includes("NotVerifiedHuman"))
+    return "Your GoodDollar account is not verified. Visit gooddollar.org to verify.";
   if (msg.includes("SessionAlreadyActive")) return "Active session on-chain. Auto-expires in 2 hours.";
   if (msg.includes("rejected") || msg.includes("denied") || msg.includes("cancelled"))
-    return "Transaction rejected.";
+    return "You rejected the transaction.";
   if (msg.includes("signTransaction") || msg.includes("eth_signTransaction") || msg.includes("not supported"))
     return "Your wallet doesn't support transaction signing. Try MetaMask on Celo Mainnet.";
   if (msg.includes("resource not available") || msg.includes("too many errors"))
@@ -623,6 +651,8 @@ function parseContractError(error: Error): string {
     return "Wrong network — please switch to Celo mainnet in your wallet settings.";
   if (msg.includes("network"))
     return "Network connection error. Please check your internet and try again.";
+  if (msg.includes("timeout") || msg.includes("Timeout"))
+    return "Transaction took too long to complete. Your score may still be submitted — check your game history.";
 
-  return `Transaction failed: ${msg.slice(0, 120)}`;
+  return `Score submission failed: ${msg.slice(0, 100)}`;
 }
