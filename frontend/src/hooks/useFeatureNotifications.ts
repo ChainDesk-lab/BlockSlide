@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { shouldShowNotification, markNotificationShown } from "../lib/notificationManager";
+import { shouldShowNotification, markNotificationShown, shouldShowBountyWinnerNotification, markBountyWinnerNotificationShown } from "../lib/notificationManager";
 import { getUserStorage, setUserStorage } from "../lib/unifiedStorage";
+import { findBountyWinner } from "../lib/bountyWinners";
 
 interface ActiveNotification {
-  type: "undoStep" | "cosmetics" | "flowStateVoting";
+  type: "undoStep" | "cosmetics" | "flowStateVoting" | "bountyWinner";
   id: string;
+  bountyId?: string; // For bounty winner notifications
+  placement?: number;
+  week?: number;
+  prizeAmount?: number;
 }
 
 /**
@@ -16,7 +21,8 @@ export function useFeatureNotifications(
   sessionCount: number,
   moveCount: number,
   isGameActive: boolean,
-  isVerified: boolean
+  isVerified: boolean,
+  username?: string
 ) {
   const [activeNotifications, setActiveNotifications] = useState<ActiveNotification[]>([]);
   const [shownThisSession, setShownThisSession] = useState<Set<string>>(new Set());
@@ -34,6 +40,27 @@ export function useFeatureNotifications(
       setUserStorage(address, sessionCountKey, "1");
     }
   }, [address]);
+
+  // Check for bounty winner notification on mount or address change
+  useEffect(() => {
+    if (!address) return;
+
+    const winner = findBountyWinner(address as `0x${string}`, username);
+    if (winner && shouldShowBountyWinnerNotification(winner.bountyId)) {
+      setActiveNotifications((prev) => [
+        ...prev,
+        {
+          type: "bountyWinner",
+          id: `bounty-winner-${winner.bountyId}`,
+          bountyId: winner.bountyId,
+          placement: winner.placement,
+          week: winner.week,
+          prizeAmount: winner.prizeAmount,
+        },
+      ]);
+      markBountyWinnerNotificationShown(winner.bountyId);
+    }
+  }, [address, username]);
 
   // Trigger notifications based on game state
   useEffect(() => {

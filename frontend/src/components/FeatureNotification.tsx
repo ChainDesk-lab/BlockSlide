@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 
 export interface FeatureNotificationProps {
-  type: "undoStep" | "cosmetics" | "flowStateVoting";
+  type: "undoStep" | "cosmetics" | "flowStateVoting" | "bountyWinner";
   title: string;
   message: ReactNode;
   actionLabel?: string;

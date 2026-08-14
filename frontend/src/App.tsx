@@ -195,7 +195,8 @@ export default function App() {
     sessionCount,
     state?.moveCount ?? 0,
     isGameActive,
-    identityStatus === "verified"
+    identityStatus === "verified",
+    username
   );
 
   // Don't show notifications if a modal is open (modals block gameplay)
@@ -393,6 +394,10 @@ export default function App() {
           key={notif.id}
           type={notif.type}
           onDismiss={() => dismissNotification(notif.id)}
+          bountyId={notif.bountyId}
+          placement={notif.placement}
+          week={notif.week}
+          prizeAmount={notif.prizeAmount}
         />
       ))}
     </>
@@ -405,9 +410,16 @@ export default function App() {
 function FeatureNotificationRenderer({
   type,
   onDismiss,
+  placement,
+  week,
+  prizeAmount,
 }: {
-  type: "undoStep" | "cosmetics" | "flowStateVoting";
+  type: "undoStep" | "cosmetics" | "flowStateVoting" | "bountyWinner";
   onDismiss: () => void;
+  bountyId?: string;
+  placement?: number;
+  week?: number;
+  prizeAmount?: number;
 }) {
   if (type === "undoStep") {
     return (
@@ -460,6 +472,20 @@ function FeatureNotificationRenderer({
             players only.)
           </>
         }
+        autoHideDuration={0}
+        onDismiss={onDismiss}
+      />
+    );
+  }
+
+  if (type === "bountyWinner") {
+    return (
+      <FeatureNotification
+        type="bountyWinner"
+        title="🎉 Bounty Winner!"
+        message={`Congrats! You placed #${placement} in the Week ${week} Bounty and won $${prizeAmount}. Check Telegram/DM us to claim your reward.`}
+        actionLabel="Got it"
+        onAction={onDismiss}
         autoHideDuration={0}
         onDismiss={onDismiss}
       />
