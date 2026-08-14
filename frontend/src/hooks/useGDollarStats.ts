@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { usePublicClient } from "wagmi";
 import { GAME2048_ADDRESS } from "../lib/constants";
 import { TARGET_CHAIN } from "../lib/constants";
+import { decodeEventLog } from "viem";
+import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
 
 interface GDollarStats {
   totalEarned: string | null;
@@ -17,134 +19,82 @@ async function fetchGDollarStatsFromEvents(
   publicClient: any
 ): Promise<GDollarStats> {
   if (!publicClient || !address) {
-    return { totalEarned: null, totalSpent: null };
+    return { totalEarned: "0", totalSpent: "0" };
   }
 
   try {
-    const address_lower = address.toLowerCase() as `0x${string}`;
+    const address_lower = address.toLowerCase();
+    const deploymentBlock = 69294066n;
 
-    // Query RewardPaid events (indexed by player parameter)
-    const rewardLogs = await publicClient.getLogs({
+    // Query all logs from the contract since deployment
+    const logs = await publicClient.getLogs({
       address: GAME2048_ADDRESS as `0x${string}`,
-      event: {
-        type: "event",
-        name: "RewardPaid",
-        inputs: [
-          { type: "address", indexed: true, name: "player" },
-          { type: "uint32", indexed: false, name: "milestone" },
-          { type: "uint256", indexed: false, name: "amount" },
-        ],
-      },
-      args: { player: address_lower },
-      fromBlock: "69294066", // Deployment block from memory
+      fromBlock: deploymentBlock,
     });
 
     let totalEarned = 0n;
-    for (const log of rewardLogs) {
-      if (log.args && typeof log.args.amount === "bigint") {
-        totalEarned += log.args.amount;
-      }
-    }
-
-    // Query purchase events (indexed by player parameter)
-    // ShieldPurchased
-    const shieldLogs = await publicClient.getLogs({
-      address: GAME2048_ADDRESS as `0x${string}`,
-      event: {
-        type: "event",
-        name: "ShieldPurchased",
-        inputs: [
-          { type: "address", indexed: true, name: "player" },
-          { type: "uint256", indexed: false, name: "count" },
-          { type: "uint256", indexed: false, name: "pricePaid" },
-        ],
-      },
-      args: { player: address_lower },
-      fromBlock: "69294066",
-    });
-
-    // XpBoostPurchased
-    const boostLogs = await publicClient.getLogs({
-      address: GAME2048_ADDRESS as `0x${string}`,
-      event: {
-        type: "event",
-        name: "XpBoostPurchased",
-        inputs: [
-          { type: "address", indexed: true, name: "player" },
-          { type: "uint8", indexed: false, name: "multiplier" },
-          { type: "uint64", indexed: false, name: "expiry" },
-          { type: "uint256", indexed: false, name: "pricePaid" },
-        ],
-      },
-      args: { player: address_lower },
-      fromBlock: "69294066",
-    });
-
-    // UndoPurchased
-    const undoLogs = await publicClient.getLogs({
-      address: GAME2048_ADDRESS as `0x${string}`,
-      event: {
-        type: "event",
-        name: "UndoPurchased",
-        inputs: [
-          { type: "address", indexed: true, name: "player" },
-          { type: "uint256", indexed: false, name: "quantity" },
-          { type: "uint256", indexed: false, name: "pricePaid" },
-        ],
-      },
-      args: { player: address_lower },
-      fromBlock: "69294066",
-    });
-
-    // CosmeticPurchased
-    const cosmeticLogs = await publicClient.getLogs({
-      address: GAME2048_ADDRESS as `0x${string}`,
-      event: {
-        type: "event",
-        name: "CosmeticPurchased",
-        inputs: [
-          { type: "address", indexed: true, name: "player" },
-          { type: "uint256", indexed: false, name: "itemId" },
-          { type: "uint256", indexed: false, name: "pricePaid" },
-        ],
-      },
-      args: { player: address_lower },
-      fromBlock: "69294066",
-    });
-
     let totalSpent = 0n;
 
-    for (const log of shieldLogs) {
-      if (log.args && typeof log.args.pricePaid === "bigint") {
-        totalSpent += log.args.pricePaid;
+    // Parse and sum events
+    for (const log of logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: GAME2048_MERGED_ABI,
+          data: log.data,
+          topics: log.topics,
+        });
+
+        const args = decoded.args as Record<string, any>;
+
+        // Check if this event is for the target player (indexed parameter)
+        const eventPlayer = args?.player;
+        if (!eventPlayer || eventPlayer.toLowerCase() !== address_lower) {
+          continue;
+        }
+
+        switch (decoded.eventName) {
+          case "RewardPaid": {
+            // RewardPaid(address indexed player, uint32 milestone, uint256 amount)
+            const amount = args?.amount;
+            if (amount && typeof amount === "bigint") {
+              totalEarned += amount;
+              console.log(`[GDollarStats] RewardPaid: +${amount.toString()}`);
+            }
+            break;
+          }
+
+          case "ShieldPurchased":
+          case "XpBoostPurchased":
+          case "UndoPurchased":
+          case "CosmeticPurchased": {
+            // All purchase events have pricePaid parameter
+            const pricePaid = args?.pricePaid;
+            if (pricePaid && typeof pricePaid === "bigint") {
+              totalSpent += pricePaid;
+              console.log(
+                `[GDollarStats] ${decoded.eventName}: -${pricePaid.toString()}`
+              );
+            }
+            break;
+          }
+        }
+      } catch {
+        // Skip logs that can't be decoded
+        continue;
       }
     }
 
-    for (const log of boostLogs) {
-      if (log.args && typeof log.args.pricePaid === "bigint") {
-        totalSpent += log.args.pricePaid;
-      }
-    }
-
-    for (const log of undoLogs) {
-      if (log.args && typeof log.args.pricePaid === "bigint") {
-        totalSpent += log.args.pricePaid;
-      }
-    }
-
-    for (const log of cosmeticLogs) {
-      if (log.args && typeof log.args.pricePaid === "bigint") {
-        totalSpent += log.args.pricePaid;
-      }
-    }
+    console.log(`[GDollarStats] Final totals for ${address_lower}:`, {
+      earned: totalEarned.toString(),
+      spent: totalSpent.toString(),
+    });
 
     return {
-      totalEarned: totalEarned.toString(), // Returns "0" if no events, or the sum
-      totalSpent: totalSpent.toString(),   // Returns "0" if no events, or the sum
+      totalEarned: totalEarned.toString(),
+      totalSpent: totalSpent.toString(),
     };
   } catch (err) {
     console.error("[GDollarStats] Failed to fetch from events:", err);
-    // Return "0" as default instead of null, so UI shows "0 G$" instead of "Coming soon"
     return { totalEarned: "0", totalSpent: "0" };
   }
 }
