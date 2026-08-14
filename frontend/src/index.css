@@ -4455,7 +4455,7 @@ html.dark-mode {
   gap: 16px;
 }
 
-/* Ended bounty winners display */
+/* Ended bounty display */
 .bounty-ended {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -4490,11 +4490,11 @@ html.dark-mode {
   white-space: nowrap;
 }
 
-.bounty-ended__winners {
+.bounty-ended__leaderboard {
   margin-top: 0;
 }
 
-.bounty-ended__winners-title {
+.bounty-ended__section-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-muted);
@@ -4503,51 +4503,23 @@ html.dark-mode {
   letter-spacing: 0.5px;
 }
 
-.bounty-ended__winners-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* Faded leaderboard styling for ended bounties */
+.bounty-leaderboard__list--faded {
+  opacity: 0.85;
 }
 
-.bounty-ended__winner-entry {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 6px;
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: 13px;
+.bounty-leaderboard__list--faded .bounty-leaderboard__entry {
+  background: color-mix(in srgb, var(--surface-2) 80%, var(--surface));
+  border-left: none;
 }
 
-.bounty-ended__winner-rank {
-  font-weight: 600;
-  min-width: 35px;
-  color: var(--text-muted);
+.bounty-leaderboard__list--faded .bounty-leaderboard__entry:hover {
+  background: color-mix(in srgb, var(--surface-2) 85%, var(--surface));
 }
 
-.bounty-ended__winner-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bounty-ended__winner-prize {
-  font-weight: 600;
-  text-align: right;
-  min-width: 50px;
-  color: var(--text-muted);
-}
-
-.bounty-ended__no-winners {
-  font-size: 14px;
-  color: var(--text-muted);
-  margin: 0;
-  text-align: center;
-  padding: 16px;
+.bounty-leaderboard__list--faded .bounty-leaderboard__entry--prize {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 5%, var(--surface)) 0%, color-mix(in srgb, var(--warning) 5%, var(--surface)) 100%);
+  border-left: none;
 }
 
 /* Past bounties section */
