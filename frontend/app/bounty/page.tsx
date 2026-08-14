@@ -59,6 +59,10 @@ function UpcomingBountyCard({ bounty }: { bounty: typeof bounties[0] }) {
 
       <div className="bounty-card__info">
         <div className="bounty-card__info-item">
+          <span className="bounty-card__info-label">Status</span>
+          <span className="bounty-card__info-value">Coming up soon</span>
+        </div>
+        <div className="bounty-card__info-item">
           <span className="bounty-card__info-label">Prizes</span>
           <span className="bounty-card__info-value">{bounty.prizes}</span>
         </div>
