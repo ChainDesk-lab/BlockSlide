@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useReadContract } from "wagmi";
 import { GAME2048_ADDRESS } from "../lib/constants";
 import { GAME2048_ABI } from "../lib/abi";
+import { useGDollarStats } from "./useGDollarStats";
 
 interface PlayerProfile {
   id: string;
@@ -69,10 +70,10 @@ export function useProfileData(
     },
   });
 
-  // OPTIONAL QUERY: G$ fields (totalGEarned, totalGSpent)
-  // If this query fails or fields are absent, we show "coming soon" and nothing else breaks.
+  // OPTIONAL QUERY: G$ fields (totalGEarned, totalGSpent) from subgraph
+  // If this query fails or fields are absent, we fall back to contract events.
   // Its failure is completely swallowed and never propagates to the page-level error.
-  const { data: gdollarData, isLoading: gdollarLoading } = useQuery({
+  const { data: gdollarData, isLoading: gdollarSubgraphLoading } = useQuery({
     queryKey: ["profile-player-gdollar", address],
     enabled: !!address && !!subgraphUrl && !!player, // only probe once core query succeeds
     queryFn: async () => {
@@ -105,12 +106,19 @@ export function useProfileData(
     },
   });
 
-  // Merge core player data with optional G$ fields; only include G$ fields if the optional query succeeded
+  // FALLBACK QUERY: fetch G$ stats from contract events if subgraph doesn't have them
+  const { totalEarned, totalSpent, loading: gdollarEventLoading } = useGDollarStats(
+    address,
+    subgraphUrl,
+    gdollarData
+  );
+
+  // Merge core player data with optional G$ fields; prefer subgraph data, fallback to events
   const mergedPlayer: PlayerProfile | null = player
     ? {
         ...player,
-        totalGEarned: gdollarData?.totalGEarned,
-        totalGSpent: gdollarData?.totalGSpent,
+        totalGEarned: gdollarData?.totalGEarned ?? totalEarned ?? undefined,
+        totalGSpent: gdollarData?.totalGSpent ?? totalSpent ?? undefined,
         referralCount: gdollarData?.referralCount,
       }
     : null;
@@ -128,6 +136,7 @@ export function useProfileData(
   // Page-level error: only if CORE query fails (or identifier not found, handled by ProfileView)
   const error = coreError ? (coreError as Error).message : null;
   const loading = coreLoading; // Only core loading affects page skeletons
+  const gdollarLoading = gdollarSubgraphLoading || gdollarEventLoading; // Show loading while either source is fetching
 
   return {
     player: mergedPlayer,

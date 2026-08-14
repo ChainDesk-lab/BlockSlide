@@ -20,6 +20,7 @@ import { useContractAddress } from "./useContractData";
 import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
 import { useSigner } from "./useSigner";
 import { useIdentity } from "./useIdentity";
+import { useGasFaucet } from "./useGasFaucet";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
 
@@ -54,6 +55,8 @@ export function useGameSession() {
   const { signer, error: signerError } = useSigner();
   // Identity verification status — needed for submission gating
   const { isVerifiedForSubmission } = useIdentity();
+  // Gas faucet for topping up CELO when balance is low
+  const { topUpGasIfNeeded, error: faucetError } = useGasFaucet();
 
   // Manual tx state — replaces useSendTransaction so we can use signTransaction
   // + sendRawTransaction and keep the same interface for the rest of the hook.
@@ -374,10 +377,20 @@ export function useGameSession() {
         setError("Deploy the contract and update GAME2048_ADDRESS to submit scores on-chain.");
         return;
       }
+      // If gas is low, try to top up using the faucet
       if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
-        triggerNoGas();
-        setError("Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
-        return;
+        setError("Topping up gas...");
+        const gasOk = await topUpGasIfNeeded();
+        if (!gasOk) {
+          if (faucetError) {
+            setError(faucetError);
+          } else {
+            triggerNoGas();
+            setError("Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
+          }
+          return;
+        }
+        // Gas was topped up successfully, continue with submission
       }
       if (!isConnected) {
         setError("Wallet is still connecting — please wait a moment and try again.");
