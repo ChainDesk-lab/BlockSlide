@@ -87,28 +87,8 @@ export function useBountyLeaderboard(
         setError(null);
 
         if (status === "upcoming") {
-          // Show all verified players at 0 XP (preview mode)
-          const players = await fetchVerifiedPlayers(subgraphUrl);
-
-          if (cancelled) return;
-
-          const deltas: BountyPlayerEntry[] = [];
-          players.forEach((playerData, playerId) => {
-            deltas.push({
-              id: playerId,
-              username: playerData.username,
-              xpAtStart: 0n,
-              xpAtEnd: 0n,
-              bountyXp: 0n,
-              isVerified: true,
-            });
-          });
-
-          // Sort by username for consistent ordering in preview
-          deltas.sort((a, b) => (a.username || a.id).localeCompare(b.username || b.id));
-          const topPlayers = deltas.slice(0, 50);
-
-          setEntries(topPlayers);
+          // Don't show any leaderboard for upcoming bounties
+          setEntries([]);
           setIsFrozen(false);
         } else if (status === "live" || status === "ended") {
           // Live/ended: compute delta XP from start block baseline to current
@@ -120,7 +100,7 @@ export function useBountyLeaderboard(
           if (!startBlockRef.current) {
             const startTime = new Date(bounty.startTime);
             startBlockRef.current = await resolveBlockByTime(publicClient, startTime);
-            console.log(`[Bounty] Resolved start block: ${startBlockRef.current} (${startTime.toISOString()})`);
+            console.log(`[Bounty ${bounty.id}] Resolved start block: ${startBlockRef.current} for ${startTime.toISOString()}`);
           }
 
           const startBlock = startBlockRef.current;
@@ -130,12 +110,15 @@ export function useBountyLeaderboard(
           let baseline = baselineCache.get(cacheKey);
           if (!baseline) {
             // Fetch baseline XP at start block
+            console.log(`[Bounty ${bounty.id}] Fetching baseline at block ${startBlock}`);
             baseline = await fetchVerifiedPlayers(subgraphUrl, startBlock);
             baselineCache.set(cacheKey, baseline);
+            console.log(`[Bounty ${bounty.id}] Baseline fetched: ${baseline.size} players`);
           }
 
           // Fetch current XP
           const current = await fetchVerifiedPlayers(subgraphUrl);
+          console.log(`[Bounty ${bounty.id}] Current XP fetched: ${current.size} players`);
 
           if (cancelled) return;
 
@@ -159,6 +142,8 @@ export function useBountyLeaderboard(
 
           deltas.sort((a, b) => Number(b.bountyXp - a.bountyXp));
           const topPlayers = deltas.slice(0, 50);
+
+          console.log(`[Bounty ${bounty.id}] Top 5 players: ${topPlayers.slice(0, 5).map(p => `${p.username || p.id.slice(0, 6)}:${p.bountyXp}`).join(', ')}`);
 
           setEntries(topPlayers);
           setIsFrozen(status === "ended");
