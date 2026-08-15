@@ -153,19 +153,10 @@ function BountyLeaderboardRow({
 }
 
 export default function BountyPage() {
-  // Priority: show most recent bounty as featured
-  // 1. First look for live bounty (current active)
-  // 2. If no live bounty, show most recently ended bounty
-  // 3. If all ended, show the first upcoming bounty
-  let currentBounty = bounties.find((b) => getBountyStatus(b) === "live");
-  if (!currentBounty) {
-    // No live bounty: get most recently ended (last in array if sorted chronologically)
-    const endedBounties = bounties.filter((b) => getBountyStatus(b) === "ended");
-    currentBounty = endedBounties.length > 0 ? endedBounties[endedBounties.length - 1] : bounties[0];
-  }
-
+  // Find the first non-ended bounty (upcoming or live)
+  const currentBounty = bounties.find((b) => getBountyStatus(b) !== "ended") || bounties[bounties.length - 1];
   const [status, setStatus] = useState<"upcoming" | "live" | "ended">(getBountyStatus(currentBounty));
-  // Show all ended bounties EXCEPT the current one (to avoid duplication)
+  // Show all ended bounties EXCEPT the current one (to avoid duplication if it's the fallback)
   const endedBounties = bounties.filter((b) => getBountyStatus(b) === "ended" && b.id !== currentBounty.id);
   // Show upcoming bounties EXCEPT the current one (to avoid duplication)
   const upcomingBounties = bounties.filter((b) => getBountyStatus(b) === "upcoming" && b.id !== currentBounty.id);
@@ -248,8 +239,8 @@ export default function BountyPage() {
           <p className="bounty-card__criteria">{currentBounty.winnerCriteria}</p>
         </div>
 
-        {/* Leaderboard section — visible only for live bounties and ended bounties (except launch) */}
-        {status !== "upcoming" && currentBounty.id !== "bounty-1" && (
+        {/* Leaderboard section — visible only for live and ended bounties */}
+        {status !== "upcoming" && (
           <div className="bounty-card__section bounty-card__section--leaderboard">
             <h3 className="bounty-card__section-title">
               {status === "live" ? "Live Standings" : "Final Standings"}
@@ -302,8 +293,7 @@ export default function BountyPage() {
                 <h3 className="bounty-card__title">{bounty.title}</h3>
                 <span className="bounty-card__badge">Ended</span>
               </div>
-              {/* Only show winners for bounties other than the launch bounty */}
-              {bounty.id !== "bounty-1" && <EndedBountyWinners bounty={bounty} />}
+              <EndedBountyWinners bounty={bounty} />
             </div>
           ))}
         </div>
