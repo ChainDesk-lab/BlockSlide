@@ -353,6 +353,19 @@ export function useGameSession() {
           encodeFunctionData({ abi: GAME2048_ABI, functionName: "startSession", args: [keccak256(seed)] }),
           200_000n,
         );
+        // Non-blocking: store seed on server as fallback recovery mechanism.
+        // Fire-and-forget (don't await) so it never delays session start or blocks on network failure.
+        fetch("/api/game/seed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address,
+            seedHash: keccak256(seed),
+            seed,
+          }),
+        }).catch((err) => {
+          console.warn("[Game Session] Server seed backup failed (non-critical):", err);
+        });
       } catch (e) {
         if (isInsufficientGasError(e)) triggerNoGas();
         const errMsg = parseContractError(e as Error);
@@ -475,6 +488,26 @@ export function useGameSession() {
             }
           } catch (err) {
             console.warn("[Game Session Submit] IndexedDB recovery failed:", err);
+          }
+        }
+
+        // If both client-side fallbacks fail, try server-side seed backup (final resort)
+        if (!recovered) {
+          try {
+            const response = await fetch(`/api/game/seed/${address}/${session.seedHash}`);
+            if (response.ok) {
+              const data = (await response.json()) as { seed: string };
+              if (
+                data.seed &&
+                data.seed.startsWith("0x") &&
+                keccak256(data.seed as `0x${string}`) === session.seedHash
+              ) {
+                recovered = data.seed as `0x${string}`;
+                console.log("[Game Session Submit] Seed recovered from server backup (all client storage was lost)");
+              }
+            }
+          } catch (err) {
+            console.warn("[Game Session Submit] Server seed recovery failed:", err);
           }
         }
 
