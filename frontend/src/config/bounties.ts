@@ -13,7 +13,7 @@ export interface Bounty {
 // Bounty times: Aug 3 2026 23:59:59 WAT (UTC+1) = 2026-08-03T22:59:59Z
 // Bounty #2 times: Aug 7 2026 12:00 PM WAT (UTC+1) = 2026-08-07T11:00:00Z
 // Bounty #2 times: Aug 14 2026 12:00 PM WAT (UTC+1) = 2026-08-14T11:00:00Z
-// Bounty #3 times: Aug 18 2026 12:00 PM WAT (UTC+1) = 2026-08-18T11:00:00Z (Monday)
+// Bounty #3 times: Aug 17 2026 12:00 PM WAT (UTC+1) = 2026-08-17T11:00:00Z (Sunday) [STARTED TODAY]
 // Bounty #3 times: Aug 25 2026 12:00 PM WAT (UTC+1) = 2026-08-25T11:00:00Z
 export const bounties: Bounty[] = [
   {
@@ -54,7 +54,7 @@ export const bounties: Bounty[] = [
     id: "bounty-3",
     title: "BlockSlide Week 3 Bounty",
     description: "The competition continues! Join our third bounty week to prove your skills and compete for prizes with verified players worldwide.",
-    startTime: "2026-08-18T11:00:00Z",
+    startTime: "2026-08-17T11:00:00Z",
     endTime: "2026-08-25T11:00:00Z",
     prizes: "$25 prize pool",
     howToParticipate: [
