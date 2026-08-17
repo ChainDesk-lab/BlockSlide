@@ -18,6 +18,7 @@ import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../auth/AuthContext";
 import { useContractAddress } from "./useContractData";
 import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
+import { storeSeedInIndexedDB, recoverSeedFromIndexedDB, clearSeedFromIndexedDB } from "../lib/seedStorage";
 import { useSigner } from "./useSigner";
 import { useIdentity } from "./useIdentity";
 import { useGasFaucet } from "./useGasFaucet";
@@ -340,6 +341,10 @@ export function useGameSession() {
       try {
         setUserStorage(address, SESSION_SEED_KEY, seed);
       } catch { /* storage unavailable — submit falls back to the live game seed */ }
+      // Also store in IndexedDB as fallback (survives embedded browser clears better than localStorage)
+      storeSeedInIndexedDB(address, seed, keccak256(seed)).catch(() => {
+        /* IndexedDB failure is non-critical, localStorage is primary */
+      });
       onSeedReady(seed);
 
       try {
@@ -438,11 +443,12 @@ export function useGameSession() {
 
       // Prefer the seed the game handed us; if it doesn't match the committed
       // hash (board was reset / remounted / "played locally"), recover the seed
-      // durably stored at startSession. Only a genuinely lost seed — storage
-      // wiped, or a different browser/device — is unrecoverable.
+      // durably stored at startSession. Recovery order: localStorage → IndexedDB → error
       let submitSeed = seed;
       if (keccak256(submitSeed) !== session.seedHash) {
         let recovered: `0x${string}` | null = null;
+
+        // Try localStorage first
         try {
           const stored = getUserStorage(address, SESSION_SEED_KEY);
           if (
@@ -451,8 +457,26 @@ export function useGameSession() {
             keccak256(stored as `0x${string}`) === session.seedHash
           ) {
             recovered = stored as `0x${string}`;
+            console.log("[Game Session Submit] Seed recovered from localStorage");
           }
         } catch { /* storage unavailable */ }
+
+        // If localStorage failed, try IndexedDB (survives embedded-browser clears better)
+        if (!recovered) {
+          try {
+            const indexedDbSeed = await recoverSeedFromIndexedDB(address);
+            if (
+              indexedDbSeed &&
+              indexedDbSeed.startsWith("0x") &&
+              keccak256(indexedDbSeed as `0x${string}`) === session.seedHash
+            ) {
+              recovered = indexedDbSeed as `0x${string}`;
+              console.log("[Game Session Submit] Seed recovered from IndexedDB (localStorage was lost)");
+            }
+          } catch (err) {
+            console.warn("[Game Session Submit] IndexedDB recovery failed:", err);
+          }
+        }
 
         if (recovered) {
           submitSeed = recovered;
@@ -537,6 +561,12 @@ export function useGameSession() {
         try {
           if (address) removeUserStorage(address, SESSION_SEED_KEY);
         } catch { /* ignore */ }
+        // Also clear IndexedDB backup
+        if (address) {
+          clearSeedFromIndexedDB(address).catch(() => {
+            /* ignore cleanup errors */
+          });
+        }
 
         // Wait for the on-chain session read to reflect the cleared session
         // *before* flipping to "done" — startSession's active-session guard

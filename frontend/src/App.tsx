@@ -25,6 +25,7 @@ import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { useShop } from "./hooks/useShop";
 import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
+import { useFlowstateVotingContext } from "./contexts/FlowstateVotingContext";
 import { sounds } from "./lib/sounds";
 
 type View = "home" | "game" | "leaderboard" | "shop";
@@ -50,6 +51,20 @@ export default function App() {
       });
     }
   }, [isConnected, address]);
+
+  // Trigger Flowstate voting reminder after a successful score submission
+  const { triggerVotingReminder } = useFlowstateVotingContext();
+  useEffect(() => {
+    const handleScoreSubmitted = () => {
+      // Small delay to let the success toast show first
+      setTimeout(() => {
+        triggerVotingReminder();
+      }, 500);
+    };
+
+    window.addEventListener("scoreSubmitted", handleScoreSubmitted);
+    return () => window.removeEventListener("scoreSubmitted", handleScoreSubmitted);
+  }, [triggerVotingReminder]);
 
   // Which screen is showing. Game state/hooks live at this level so navigating
   // away and back never resets an in-progress game.
