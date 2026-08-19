@@ -113,12 +113,26 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
     try {
       // Initialize SDK with wallet and public clients
       if (!signer) {
-        throw new Error(signerError || "Wallet signer not available — please try again.");
+        const signerErrMsg = signerError || "Wallet signer not available — please try again.";
+        console.error("[Identity] No signer available", {
+          address: addressToVerify,
+          isWrongChain,
+          chainId,
+          signerError: signerErrMsg,
+          authType,
+        });
+        throw new Error(signerErrMsg);
       }
       const sdk = new IdentitySDK({
         publicClient: contractPublicClient as any,
         walletClient: signer as any,
         env: "production",
+      });
+
+      console.log("[Identity] SDK initialized, generating verification link...", {
+        address: addressToVerify,
+        chainId,
+        TARGET_CHAIN_ID: TARGET_CHAIN.id,
       });
 
       // popupMode=false generates a *redirect*-mode link (GoodDollar's SDK
@@ -144,7 +158,19 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       window.location.href = verificationLink;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[Identity] Face verification error:", { address: addressToVerify, error: message });
+      console.error("[Identity] Face verification error", {
+        address: addressToVerify,
+        errorMessage: message,
+        errorContainsNetwork: message.includes("network"),
+        errorContainsChain: message.includes("chain"),
+        errorContainsSigner: message.includes("signer"),
+        signerError,
+        isWrongChain,
+        chainId,
+        TARGET_CHAIN_ID: TARGET_CHAIN.id,
+        authType,
+        fullError: err,
+      });
 
       // Map specific SDK errors to user-friendly messages
       if (
@@ -156,7 +182,14 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
       } else if (message.includes("already linked") || message.includes("duplicate") || message.includes("twin")) {
         setError("This face is already verified on a different wallet. Please connect your verified wallet to claim.");
       } else if (message.includes("network") || message.includes("chain")) {
-        setError("Network error during verification. Check your internet connection or try switching networks again.");
+        // MORE SPECIFIC: Check if this is actually a signer/chain issue vs SDK network error
+        if (message.includes("wrong network") || message.includes("signer")) {
+          // This is a signer/chain problem, not a network error
+          setError("Wallet issue: " + message);
+        } else {
+          // This is likely a genuine SDK network error
+          setError("Network error during verification. Check your internet connection or try switching networks again.");
+        }
       } else if (message.includes("wallet isn't ready") || message.includes("signer")) {
         setError(message);
       } else {
