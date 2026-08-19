@@ -227,8 +227,9 @@ export default function Leaderboard() {
           {topThree.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            // Use verification endpoint result, fallback to false if not loaded
-            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? false;
+            // Use verification endpoint result, fallback to XP history as safety net
+            // This prevents regression to "everyone unverified" if endpoint fails
+            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? (Number(entry.xp) > 0);
 
             return (
               <div key={entry.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
@@ -252,8 +253,9 @@ export default function Leaderboard() {
           {topThree.map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            // Use verification endpoint result, fallback to false if not loaded
-            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? false;
+            // Use verification endpoint result, fallback to XP history as safety net
+            // This prevents regression to "everyone unverified" if endpoint fails
+            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? (Number(entry.xp) > 0);
 
             return (
               <div key={entry.id} className="leaderboard__podium-item">

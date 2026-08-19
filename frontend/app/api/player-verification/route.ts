@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
+import { GAME2048_ADDRESS } from "../../../src/lib/constants";
 
 /**
  * Player Verification Reconciliation Endpoint
@@ -10,10 +11,9 @@ import { celo } from "viem/chains";
  * 2. Score history (players who submitted scores are implicitly verified)
  *
  * This endpoint provides the single source of truth for leaderboard verification badges,
- * replacing the fallback logic that checked "XP > 0" which doesn't match GoodDollar verification.
+ * alongside a fallback to XP history to ensure we never show all users as unverified
+ * if the endpoint becomes unreliable.
  */
-
-const GAME2048_ADDRESS = "0xdee5ecac3fbe3b9deb5b26a8ab1c69f1fa1a872d" as const;
 const GAME2048_ABI = [
   {
     inputs: [{ internalType: "address", name: "_account", type: "address" }],

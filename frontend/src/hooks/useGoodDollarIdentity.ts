@@ -181,17 +181,12 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
         setError(null); // Don't show error for user cancellation
       } else if (message.includes("already linked") || message.includes("duplicate") || message.includes("twin")) {
         setError("This face is already verified on a different wallet. Please connect your verified wallet to claim.");
-      } else if (message.includes("network") || message.includes("chain")) {
-        // MORE SPECIFIC: Check if this is actually a signer/chain issue vs SDK network error
-        if (message.includes("wrong network") || message.includes("signer")) {
-          // This is a signer/chain problem, not a network error
-          setError("Wallet issue: " + message);
-        } else {
-          // This is likely a genuine SDK network error
-          setError("Network error during verification. Check your internet connection or try switching networks again.");
-        }
-      } else if (message.includes("wallet isn't ready") || message.includes("signer")) {
+      } else if (message.includes("wrong network") || message.includes("signer") || message.includes("wallet isn't ready")) {
+        // Signer/wallet/network-switch issues — user is likely on wrong chain or wallet not ready
         setError(message);
+      } else if (message.includes("network") || message.includes("chain")) {
+        // Genuine SDK network errors (not wallet/signer related)
+        setError("Network error during verification. Check your internet connection or try switching networks again.");
       } else {
         setError("Could not start face verification. Please try again.");
       }
