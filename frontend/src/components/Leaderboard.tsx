@@ -287,8 +287,9 @@ export default function Leaderboard() {
               const name = entry.username?.trim() || generatedName(entry.id);
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
               const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
-              // Use verification endpoint result, fallback to false if not loaded
-              const isVerified = verificationData?.[entry.id.toLowerCase()] ?? false;
+              // Use verification endpoint result, fallback to XP history as safety net
+              // This prevents regression to "everyone unverified" if endpoint fails
+              const isVerified = verificationData?.[entry.id.toLowerCase()] ?? (Number(entry.xp) > 0);
 
               return (
                 <li

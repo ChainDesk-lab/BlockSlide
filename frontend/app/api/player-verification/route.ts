@@ -104,6 +104,9 @@ export async function GET(
 
     let isVerified = false;
     try {
+      console.log(
+        `[Player Verification] Checking isWhitelisted for ${address} on contract ${GAME2048_ADDRESS}`
+      );
       const result = await publicClient.readContract({
         address: GAME2048_ADDRESS,
         abi: GAME2048_ABI,
@@ -111,10 +114,13 @@ export async function GET(
         args: [address as `0x${string}`],
       });
       isVerified = result === true;
+      console.log(
+        `[Player Verification] Contract returned isWhitelisted=${result} (typeof: ${typeof result}) for ${address.slice(0, 6)}...`
+      );
     } catch (err) {
       console.error(
-        `[Player Verification] Contract read failed for ${address}:`,
-        err
+        `[Player Verification] Contract read FAILED for ${address} on ${GAME2048_ADDRESS}:`,
+        err instanceof Error ? err.message : String(err)
       );
       // If contract read fails, return cached value or default to false
       // This is safe because users who haven't submitted scores can't have XP anyway
