@@ -1,17 +1,29 @@
 import { useCallback, useState, useEffect } from "react";
 import { usePublicClient } from "wagmi";
-import { triggerFaucet } from "@goodsdks/citizen-sdk";
+import { triggerFaucet, chainConfigs, type SupportedChains } from "@goodsdks/citizen-sdk";
 import { useSigner } from "./useSigner";
 import { useContractAddress } from "./useContractData";
 import { TARGET_CHAIN } from "../lib/constants";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
-// GoodDollar's sponsored gas faucet address on Celo (mainnet)
-const GOODDOLLAR_FAUCET_ADDRESS = "0x8f48dE4C6b855b389a4e378A4306640cbCE1b996" as const;
+const FAUCET_ENV = "production" as const;
+
+// Resolved from the SDK's own chain registry rather than hardcoded — GoodDollar
+// can (and has) migrated this contract, and the SDK is the source of truth for
+// which address is currently live per chain/env.
+const FAUCET_ADDRESS = chainConfigs[TARGET_CHAIN.id as SupportedChains]?.contracts[FAUCET_ENV]
+  ?.faucetContract;
+
+export interface GasTopUpResult {
+  ok: boolean;
+  /** Fresh, ready-to-display error — never read component state right after
+   *  calling topUpGasIfNeeded(), since that state hasn't re-rendered yet. */
+  error: string | null;
+}
 
 interface UseGasFaucetResult {
   isTopingUpGas: boolean;
-  topUpGasIfNeeded: () => Promise<boolean>; // Returns true if gas is now sufficient or was already sufficient
+  topUpGasIfNeeded: () => Promise<GasTopUpResult>;
   error: string | null;
 }
 
@@ -59,22 +71,33 @@ export function useGasFaucet(): UseGasFaucetResult {
     return () => clearInterval(interval);
   }, [address, publicClient]);
 
-  const topUpGasIfNeeded = useCallback(async (): Promise<boolean> => {
+  const topUpGasIfNeeded = useCallback(async (): Promise<GasTopUpResult> => {
     // If balance is sufficient, no faucet needed
     if (balance && balance >= LOW_GAS_THRESHOLD) {
       console.log(`[Gas Faucet] Sufficient balance: ${balance.toLocaleString()} wei`);
-      return true;
+      return { ok: true, error: null };
     }
 
     // If we don't have the required dependencies, can't use faucet
     if (!address || !publicClient || !signer) {
-      setError("Cannot top up gas: wallet not fully connected");
+      const msg = "Cannot top up gas: wallet not fully connected";
+      setError(msg);
       console.warn("[Gas Faucet] Missing dependencies for faucet trigger", {
         hasAddress: !!address,
         hasPublicClient: !!publicClient,
         hasSigner: !!signer,
       });
-      return false;
+      return { ok: false, error: msg };
+    }
+
+    if (!FAUCET_ADDRESS) {
+      const msg = "Gas faucet is not configured for this network.";
+      console.error("[Gas Faucet] No faucetContract resolved from chainConfigs", {
+        chainId: TARGET_CHAIN.id,
+        env: FAUCET_ENV,
+      });
+      setError(msg);
+      return { ok: false, error: msg };
     }
 
     setIsTopingUpGas(true);
@@ -87,10 +110,10 @@ export function useGasFaucet(): UseGasFaucetResult {
       const result = await triggerFaucet({
         chainId: TARGET_CHAIN.id,
         account: address,
-        faucetAddress: GOODDOLLAR_FAUCET_ADDRESS,
+        faucetAddress: FAUCET_ADDRESS,
         publicClient: publicClient as any,
         walletClient: signer as any,
-        env: "production",
+        env: FAUCET_ENV,
       });
 
       console.log(`[Gas Faucet] Faucet result: ${result}`, {
@@ -104,21 +127,21 @@ export function useGasFaucet(): UseGasFaucetResult {
           // Faucet was skipped - likely already topped up or hit rate limit
           console.log("[Gas Faucet] Faucet was skipped (already topped or rate limited)");
           setError(null);
-          return true;
+          return { ok: true, error: null };
 
         case "topped_via_contract":
           // Successfully topped up via contract
           console.log("[Gas Faucet] Gas topped via contract successfully");
           setError(null);
-          return true;
+          return { ok: true, error: null };
 
         case "topped_via_api":
           // Successfully topped up via API
           console.log("[Gas Faucet] Gas topped via API successfully");
           setError(null);
-          return true;
+          return { ok: true, error: null };
 
-        case "error":
+        case "error": {
           // Faucet encountered an error - log detailed diagnostic info
           const errorMsg =
             "Could not top up gas from faucet. Please ensure you have sufficient CELO for gas, or try again later.";
@@ -130,9 +153,10 @@ export function useGasFaucet(): UseGasFaucetResult {
             timestamp: new Date().toISOString(),
           });
           setError(errorMsg);
-          return false;
+          return { ok: false, error: errorMsg };
+        }
 
-        default:
+        default: {
           const unknownMsg = `Unexpected faucet response: ${result}`;
           console.error("[Gas Faucet] Unexpected faucet response", {
             result,
@@ -142,7 +166,8 @@ export function useGasFaucet(): UseGasFaucetResult {
             expectedResponses: ["skipped", "topped_via_contract", "topped_via_api", "error"],
           });
           setError(unknownMsg);
-          return false;
+          return { ok: false, error: unknownMsg };
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -177,7 +202,7 @@ export function useGasFaucet(): UseGasFaucetResult {
       }
 
       setError(userMsg);
-      return false;
+      return { ok: false, error: userMsg };
     } finally {
       setIsTopingUpGas(false);
     }

@@ -25,7 +25,7 @@ export function useUsername() {
   const publicClient = useContractPublicClient();
   const { signer, error: signerError } = useSigner();
   const { triggerNoGas } = useNoGas();
-  const { topUpGasIfNeeded, error: faucetError } = useGasFaucet();
+  const { topUpGasIfNeeded } = useGasFaucet();
 
   const [current, setCurrent] = useState<string | undefined>();
   const [isReading, setIsReading] = useState(false);
@@ -156,10 +156,12 @@ export function useUsername() {
 
         // Ensure user has enough gas before attempting transaction
         // For new email users, this is critical since they haven't funded their wallet yet
-        const hasEnoughGas = await topUpGasIfNeeded();
-        if (!hasEnoughGas) {
-          // faucetError contains user-friendly message about why top-up failed
-          setError(faucetError || "Unable to ensure sufficient gas for transaction. Please try again.");
+        const gasResult = await topUpGasIfNeeded();
+        if (!gasResult.ok) {
+          // Sponsored gas failed — fall back to the manual top-up modal (shows
+          // the wallet address) so the user is never stuck with just an error.
+          triggerNoGas();
+          setError(gasResult.error || "Unable to ensure sufficient gas for transaction. Please try again.");
           setIsSaving(false);
           return;
         }
@@ -295,7 +297,7 @@ export function useUsername() {
         setIsSaving(false);
       }
     },
-    [address, signer, publicClient, refetch, triggerNoGas, authType],
+    [address, signer, publicClient, refetch, triggerNoGas, authType, topUpGasIfNeeded],
   );
 
   return {

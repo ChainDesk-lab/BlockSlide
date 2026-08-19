@@ -57,7 +57,7 @@ export function useGameSession() {
   // Identity verification status — needed for submission gating
   const { isVerifiedForSubmission } = useIdentity();
   // Gas faucet for topping up CELO when balance is low
-  const { topUpGasIfNeeded, error: faucetError } = useGasFaucet();
+  const { topUpGasIfNeeded } = useGasFaucet();
 
   // Manual tx state — replaces useSendTransaction so we can use signTransaction
   // + sendRawTransaction and keep the same interface for the rest of the hook.
@@ -299,9 +299,16 @@ export function useGameSession() {
       }
 
       if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
-        triggerNoGas();
-        setError("Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
-        return;
+        setError("Topping up gas...");
+        const gasResult = await topUpGasIfNeeded();
+        if (!gasResult.ok) {
+          // Sponsored gas failed — fall back to the manual top-up modal so
+          // the user is never stuck with just an error.
+          triggerNoGas();
+          setError(gasResult.error || "Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
+          return;
+        }
+        setError(null);
       }
 
       const SESSION_TIMEOUT_SECS = 2n * 3600n;
@@ -384,7 +391,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, signer, signerError, signAndBroadcast, triggerNoGas, showToast],
+    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, signer, signerError, signAndBroadcast, triggerNoGas, showToast, topUpGasIfNeeded],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -398,16 +405,15 @@ export function useGameSession() {
       // If gas is low, try to top up using the faucet
       if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
         setError("Topping up gas...");
-        const gasOk = await topUpGasIfNeeded();
-        if (!gasOk) {
-          if (faucetError) {
-            setError(faucetError);
-          } else {
-            triggerNoGas();
-            setError("Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
-          }
+        const gasResult = await topUpGasIfNeeded();
+        if (!gasResult.ok) {
+          // Sponsored gas failed — fall back to the manual top-up modal so
+          // the user is never stuck with just an error.
+          triggerNoGas();
+          setError(gasResult.error || "Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
           return;
         }
+        setError(null);
         // Gas was topped up successfully, continue with submission
       }
       if (!isConnected) {
@@ -790,7 +796,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, isVerifiedForSubmission],
+    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, isVerifiedForSubmission, topUpGasIfNeeded],
   );
 
   const reset = useCallback(() => {
