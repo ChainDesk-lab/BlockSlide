@@ -456,64 +456,220 @@ export function useGameSession() {
 
       // Prefer the seed the game handed us; if it doesn't match the committed
       // hash (board was reset / remounted / "played locally"), recover the seed
-      // durably stored at startSession. Recovery order: localStorage → IndexedDB → error
+      // durably stored at startSession. Recovery order: localStorage → IndexedDB → server → error
       let submitSeed = seed;
       if (keccak256(submitSeed) !== session.seedHash) {
         let recovered: `0x${string}` | null = null;
+        const recoveryLog = {
+          address: address.slice(0, 6),
+          seedHash: session.seedHash.slice(0, 10),
+          timestamp: new Date().toISOString(),
+          steps: [] as Array<{ step: string; result: string; details?: string }>,
+        };
 
         // Try localStorage first
         try {
           const stored = getUserStorage(address, SESSION_SEED_KEY);
-          if (
-            stored &&
-            stored.startsWith("0x") &&
-            keccak256(stored as `0x${string}`) === session.seedHash
-          ) {
+          if (!stored) {
+            recoveryLog.steps.push({
+              step: "localStorage",
+              result: "not-found",
+              details: "No seed in localStorage for this address",
+            });
+            console.log("[Seed Recovery] localStorage: seed not found", {
+              address: address.slice(0, 6),
+              seedHash: session.seedHash.slice(0, 10),
+            });
+          } else if (!stored.startsWith("0x")) {
+            recoveryLog.steps.push({
+              step: "localStorage",
+              result: "invalid-format",
+              details: "Stored value is not a valid hex string",
+            });
+            console.warn("[Seed Recovery] localStorage: invalid format", {
+              address: address.slice(0, 6),
+              stored: stored.slice(0, 20),
+            });
+          } else if (keccak256(stored as `0x${string}`) !== session.seedHash) {
+            recoveryLog.steps.push({
+              step: "localStorage",
+              result: "hash-mismatch",
+              details: "Stored seed hash does not match session hash",
+            });
+            console.warn("[Seed Recovery] localStorage: hash mismatch", {
+              address: address.slice(0, 6),
+              storedHash: keccak256(stored as `0x${string}`).slice(0, 10),
+              sessionHash: session.seedHash.slice(0, 10),
+            });
+          } else {
             recovered = stored as `0x${string}`;
-            console.log("[Game Session Submit] Seed recovered from localStorage");
+            recoveryLog.steps.push({
+              step: "localStorage",
+              result: "success",
+            });
+            console.log("[Seed Recovery] ✓ Seed recovered from localStorage", {
+              address: address.slice(0, 6),
+              seedHash: session.seedHash.slice(0, 10),
+            });
           }
-        } catch { /* storage unavailable */ }
+        } catch (err) {
+          recoveryLog.steps.push({
+            step: "localStorage",
+            result: "error",
+            details: err instanceof Error ? err.message : String(err),
+          });
+          console.warn("[Seed Recovery] localStorage: exception", {
+            address: address.slice(0, 6),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
 
         // If localStorage failed, try IndexedDB (survives embedded-browser clears better)
         if (!recovered) {
           try {
             const indexedDbSeed = await recoverSeedFromIndexedDB(address);
-            if (
-              indexedDbSeed &&
-              indexedDbSeed.startsWith("0x") &&
-              keccak256(indexedDbSeed as `0x${string}`) === session.seedHash
+            if (!indexedDbSeed) {
+              recoveryLog.steps.push({
+                step: "IndexedDB",
+                result: "not-found",
+                details: "No seed in IndexedDB for this address",
+              });
+              console.log("[Seed Recovery] IndexedDB: seed not found", {
+                address: address.slice(0, 6),
+                seedHash: session.seedHash.slice(0, 10),
+              });
+            } else if (!indexedDbSeed.startsWith("0x")) {
+              recoveryLog.steps.push({
+                step: "IndexedDB",
+                result: "invalid-format",
+              });
+              console.warn("[Seed Recovery] IndexedDB: invalid format", {
+                address: address.slice(0, 6),
+              });
+            } else if (
+              keccak256(indexedDbSeed as `0x${string}`) !== session.seedHash
             ) {
+              recoveryLog.steps.push({
+                step: "IndexedDB",
+                result: "hash-mismatch",
+              });
+              console.warn("[Seed Recovery] IndexedDB: hash mismatch", {
+                address: address.slice(0, 6),
+                storedHash: keccak256(indexedDbSeed as `0x${string}`).slice(0, 10),
+                sessionHash: session.seedHash.slice(0, 10),
+              });
+            } else {
               recovered = indexedDbSeed as `0x${string}`;
-              console.log("[Game Session Submit] Seed recovered from IndexedDB (localStorage was lost)");
+              recoveryLog.steps.push({
+                step: "IndexedDB",
+                result: "success",
+              });
+              console.log(
+                "[Seed Recovery] ✓ Seed recovered from IndexedDB (localStorage was lost)",
+                {
+                  address: address.slice(0, 6),
+                  seedHash: session.seedHash.slice(0, 10),
+                }
+              );
             }
           } catch (err) {
-            console.warn("[Game Session Submit] IndexedDB recovery failed:", err);
+            recoveryLog.steps.push({
+              step: "IndexedDB",
+              result: "error",
+              details: err instanceof Error ? err.message : String(err),
+            });
+            console.error("[Seed Recovery] IndexedDB: exception", {
+              address: address.slice(0, 6),
+              error: err instanceof Error ? err.message : String(err),
+            });
           }
         }
 
         // If both client-side fallbacks fail, try server-side seed backup (final resort)
         if (!recovered) {
           try {
-            const response = await fetch(`/api/game/seed/${address}/${session.seedHash}`);
-            if (response.ok) {
-              const data = (await response.json()) as { seed: string };
-              if (
-                data.seed &&
-                data.seed.startsWith("0x") &&
-                keccak256(data.seed as `0x${string}`) === session.seedHash
-              ) {
+            console.log("[Seed Recovery] Attempting server-side recovery...", {
+              address: address.slice(0, 6),
+              seedHash: session.seedHash.slice(0, 10),
+            });
+            const response = await fetch(
+              `/api/game/seed/${address}/${session.seedHash}`
+            );
+            if (!response.ok) {
+              recoveryLog.steps.push({
+                step: "server",
+                result: `http-${response.status}`,
+                details: response.statusText,
+              });
+              console.log("[Seed Recovery] Server: HTTP error", {
+                address: address.slice(0, 6),
+                status: response.status,
+                statusText: response.statusText,
+              });
+            } else {
+              const data = (await response.json()) as { seed?: string };
+              if (!data.seed) {
+                recoveryLog.steps.push({
+                  step: "server",
+                  result: "empty-response",
+                  details: "Server returned empty seed",
+                });
+                console.log("[Seed Recovery] Server: empty response", {
+                  address: address.slice(0, 6),
+                });
+              } else if (!data.seed.startsWith("0x")) {
+                recoveryLog.steps.push({
+                  step: "server",
+                  result: "invalid-format",
+                });
+                console.warn("[Seed Recovery] Server: invalid format", {
+                  address: address.slice(0, 6),
+                });
+              } else if (keccak256(data.seed as `0x${string}`) !== session.seedHash) {
+                recoveryLog.steps.push({
+                  step: "server",
+                  result: "hash-mismatch",
+                });
+                console.warn("[Seed Recovery] Server: hash mismatch", {
+                  address: address.slice(0, 6),
+                  serverHash: keccak256(data.seed as `0x${string}`).slice(0, 10),
+                  sessionHash: session.seedHash.slice(0, 10),
+                });
+              } else {
                 recovered = data.seed as `0x${string}`;
-                console.log("[Game Session Submit] Seed recovered from server backup (all client storage was lost)");
+                recoveryLog.steps.push({
+                  step: "server",
+                  result: "success",
+                });
+                console.log(
+                  "[Seed Recovery] ✓ Seed recovered from server (all client storage was lost)",
+                  {
+                    address: address.slice(0, 6),
+                    seedHash: session.seedHash.slice(0, 10),
+                  }
+                );
               }
             }
           } catch (err) {
-            console.warn("[Game Session Submit] Server seed recovery failed:", err);
+            recoveryLog.steps.push({
+              step: "server",
+              result: "error",
+              details: err instanceof Error ? err.message : String(err),
+            });
+            console.error("[Seed Recovery] Server: exception", {
+              address: address.slice(0, 6),
+              error: err instanceof Error ? err.message : String(err),
+            });
           }
         }
 
         if (recovered) {
           submitSeed = recovered;
+          // Log summary of successful recovery
+          console.log("[Seed Recovery] SUMMARY: Recovery successful", recoveryLog);
         } else {
+          // Log summary of failed recovery for support debugging
+          console.error("[Seed Recovery] SUMMARY: All recovery methods failed", recoveryLog);
           setError(
             "This game session can't be submitted — its seed was lost on this device (browser storage was cleared, or you started on a different browser/device).",
           );

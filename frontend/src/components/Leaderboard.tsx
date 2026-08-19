@@ -4,6 +4,43 @@ import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
 import Avatar from "./Avatar";
 
+/**
+ * Fetch verification status from reconciliation endpoint
+ * Checks both on-chain verification status and score history
+ */
+async function fetchPlayerVerifications(
+  addresses: string[]
+): Promise<Record<string, boolean>> {
+  if (addresses.length === 0) return {};
+
+  try {
+    const response = await fetch("/api/player-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addresses }),
+    });
+
+    if (!response.ok) {
+      console.error("[Leaderboard] Verification endpoint error:", response.status);
+      return {};
+    }
+
+    const data = (await response.json()) as {
+      results?: Record<string, { isVerified: boolean }>;
+    };
+    const results: Record<string, boolean> = {};
+    if (data.results) {
+      for (const [addr, { isVerified }] of Object.entries(data.results)) {
+        results[addr.toLowerCase()] = isVerified;
+      }
+    }
+    return results;
+  } catch (err) {
+    console.error("[Leaderboard] Failed to fetch verifications:", err);
+    return {};
+  }
+}
+
 // Goldsky subgraph GraphQL endpoint. Set NEXT_PUBLIC_SUBGRAPH_URL after deploying
 // the subgraph in /subgraph (see its README/deploy step).
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
@@ -115,6 +152,18 @@ export default function Leaderboard() {
     staleTime: 15_000,
   });
 
+  // Fetch verification status for all players on current page + top 3
+  const allAddresses = [
+    ...(data?.entries ?? []).map((e) => e.id),
+    ...(topThreeData ?? []).map((e) => e.id),
+  ];
+  const { data: verificationData } = useQuery({
+    queryKey: ["player-verifications", allAddresses.sort().join(",")],
+    queryFn: () => fetchPlayerVerifications(allAddresses),
+    enabled: configured && allAddresses.length > 0,
+    staleTime: 5 * 60_000, // 5 minutes (matches server cache)
+  });
+
   if (queryError) {
     console.error("[Leaderboard] Query error:", queryError);
   }
@@ -178,7 +227,8 @@ export default function Leaderboard() {
           {topThree.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
+            // Use verification endpoint result, fallback to false if not loaded
+            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? false;
 
             return (
               <div key={entry.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
@@ -202,7 +252,8 @@ export default function Leaderboard() {
           {topThree.map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
+            // Use verification endpoint result, fallback to false if not loaded
+            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? false;
 
             return (
               <div key={entry.id} className="leaderboard__podium-item">
@@ -234,7 +285,8 @@ export default function Leaderboard() {
               const name = entry.username?.trim() || generatedName(entry.id);
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
               const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
-              const isVerified = entry.isVerified ?? (Number(entry.xp) > 0);
+              // Use verification endpoint result, fallback to false if not loaded
+              const isVerified = verificationData?.[entry.id.toLowerCase()] ?? false;
 
               return (
                 <li
