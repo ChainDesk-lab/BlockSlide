@@ -127,11 +127,15 @@ export async function GET(
       isVerified = false;
     }
 
-    // Cache the result
-    setCachedResult(address, isVerified);
+    // Cache only true values (verified accounts) to avoid serving stale false entries
+    // If verification status changes, we want to check the contract again rather than
+    // returning a cached false that might be outdated
+    if (isVerified) {
+      setCachedResult(address, isVerified);
+    }
 
     console.log(
-      `[Player Verification] Checked ${address.slice(0, 6)}... = ${isVerified}`
+      `[Player Verification] Checked ${address.slice(0, 6)}... = ${isVerified}${isVerified ? " (cached)" : " (not cached)"}`
     );
 
     return NextResponse.json(
@@ -204,7 +208,10 @@ export async function POST(request: NextRequest) {
         })) === true;
 
         results[addr.toLowerCase()] = { isVerified };
-        setCachedResult(addr, isVerified);
+        // Only cache true values to avoid serving stale false entries
+        if (isVerified) {
+          setCachedResult(addr, isVerified);
+        }
       } catch (err) {
         console.error(
           `[Player Verification] Bulk check failed for ${addr}:`,
