@@ -1,18 +1,7 @@
 import { useCallback, useState, useEffect } from "react";
-import { usePublicClient } from "wagmi";
-import { triggerFaucet, chainConfigs, type SupportedChains } from "@goodsdks/citizen-sdk";
-import { useSigner } from "./useSigner";
 import { useContractAddress } from "./useContractData";
-import { TARGET_CHAIN } from "../lib/constants";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
-const FAUCET_ENV = "production" as const;
-
-// Resolved from the SDK's own chain registry rather than hardcoded — GoodDollar
-// can (and has) migrated this contract, and the SDK is the source of truth for
-// which address is currently live per chain/env.
-const FAUCET_ADDRESS = chainConfigs[TARGET_CHAIN.id as SupportedChains]?.contracts[FAUCET_ENV]
-  ?.faucetContract;
 
 export interface GasTopUpResult {
   ok: boolean;
@@ -39,26 +28,30 @@ interface UseGasFaucetResult {
  */
 export function useGasFaucet(): UseGasFaucetResult {
   const address = useContractAddress();
-  const publicClient = usePublicClient({ chainId: TARGET_CHAIN.id });
-  const { signer } = useSigner();
 
   const [isTopingUpGas, setIsTopingUpGas] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [balance, setBalance] = useState<bigint | null>(null);
 
-  // Fetch balance directly via RPC (not wagmi) since Magic wallets aren't wagmi connectors
-  // and wagmi's useBalance may return stale/undefined data for embedded wallets
+  // Fetch balance via server-side proxy to avoid CORS restrictions
   useEffect(() => {
-    if (!address || !publicClient) {
+    if (!address) {
       setBalance(null);
       return;
     }
 
     const fetchBalance = async () => {
       try {
-        const rawBalance = await publicClient.getBalance({ address });
-        setBalance(rawBalance);
-        console.log(`[Gas Faucet] Balance fetched: ${rawBalance.toLocaleString()} wei`);
+        const response = await fetch(`/api/gas-faucet?address=${address}`);
+        if (!response.ok) {
+          console.error("[Gas Faucet] Balance check failed:", response.status);
+          setBalance(null);
+          return;
+        }
+        const data = (await response.json()) as { balance: string };
+        const balanceBigInt = BigInt(data.balance);
+        setBalance(balanceBigInt);
+        console.log(`[Gas Faucet] Balance fetched: ${balanceBigInt.toLocaleString()} wei`);
       } catch (err) {
         console.error("[Gas Faucet] Failed to fetch balance:", err);
         setBalance(null);
@@ -69,7 +62,7 @@ export function useGasFaucet(): UseGasFaucetResult {
     // Refetch balance every 5 seconds to detect when faucet has topped up
     const interval = setInterval(fetchBalance, 5000);
     return () => clearInterval(interval);
-  }, [address, publicClient]);
+  }, [address]);
 
   const topUpGasIfNeeded = useCallback(async (): Promise<GasTopUpResult> => {
     // If balance is sufficient, no faucet needed
@@ -78,24 +71,9 @@ export function useGasFaucet(): UseGasFaucetResult {
       return { ok: true, error: null };
     }
 
-    // If we don't have the required dependencies, can't use faucet
-    if (!address || !publicClient || !signer) {
-      const msg = "Cannot top up gas: wallet not fully connected";
-      setError(msg);
-      console.warn("[Gas Faucet] Missing dependencies for faucet trigger", {
-        hasAddress: !!address,
-        hasPublicClient: !!publicClient,
-        hasSigner: !!signer,
-      });
-      return { ok: false, error: msg };
-    }
-
-    if (!FAUCET_ADDRESS) {
-      const msg = "Gas faucet is not configured for this network.";
-      console.error("[Gas Faucet] No faucetContract resolved from chainConfigs", {
-        chainId: TARGET_CHAIN.id,
-        env: FAUCET_ENV,
-      });
+    // If we don't have the address, can't proceed
+    if (!address) {
+      const msg = "Cannot top up gas: wallet not connected";
       setError(msg);
       return { ok: false, error: msg };
     }
@@ -104,99 +82,69 @@ export function useGasFaucet(): UseGasFaucetResult {
     setError(null);
 
     try {
-      console.log(`[Gas Faucet] Starting faucet trigger for ${address}`);
+      console.log(`[Gas Faucet] Starting gas faucet via server proxy for ${address}`);
 
-      // Trigger the faucet with required parameters
-      const result = await triggerFaucet({
-        chainId: TARGET_CHAIN.id,
-        account: address,
-        faucetAddress: FAUCET_ADDRESS,
-        publicClient: publicClient as any,
-        walletClient: signer as any,
-        env: FAUCET_ENV,
+      // Call server-side gas faucet proxy (bypasses CORS, handles everything server-side)
+      const response = await fetch("/api/gas-faucet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
       });
 
-      console.log(`[Gas Faucet] Faucet result: ${result}`, {
-        chainId: TARGET_CHAIN.id,
-        account: address,
-        timestamp: new Date().toISOString(),
-      });
-
-      switch (result) {
-        case "skipped":
-          // Faucet was skipped - likely already topped up or hit rate limit
-          console.log("[Gas Faucet] Faucet was skipped (already topped or rate limited)");
-          setError(null);
-          return { ok: true, error: null };
-
-        case "topped_via_contract":
-          // Successfully topped up via contract
-          console.log("[Gas Faucet] Gas topped via contract successfully");
-          setError(null);
-          return { ok: true, error: null };
-
-        case "topped_via_api":
-          // Successfully topped up via API
-          console.log("[Gas Faucet] Gas topped via API successfully");
-          setError(null);
-          return { ok: true, error: null };
-
-        case "error": {
-          // Faucet encountered an error - log detailed diagnostic info
-          const errorMsg =
-            "Could not top up gas from faucet. Please ensure you have sufficient CELO for gas, or try again later.";
-          console.error("[Gas Faucet] Faucet trigger failed with error result", {
-            result,
-            account: address,
-            chainId: TARGET_CHAIN.id,
-            balanceWei: balance?.toLocaleString() ?? "unknown",
-            timestamp: new Date().toISOString(),
-          });
-          setError(errorMsg);
-          return { ok: false, error: errorMsg };
-        }
-
-        default: {
-          const unknownMsg = `Unexpected faucet response: ${result}`;
-          console.error("[Gas Faucet] Unexpected faucet response", {
-            result,
-            account: address,
-            chainId: TARGET_CHAIN.id,
-            balanceWei: balance?.toLocaleString() ?? "unknown",
-            expectedResponses: ["skipped", "topped_via_contract", "topped_via_api", "error"],
-          });
-          setError(unknownMsg);
-          return { ok: false, error: unknownMsg };
-        }
+      if (!response.ok) {
+        const msg = "Gas faucet service temporarily unavailable. Please try again later.";
+        console.error("[Gas Faucet] Server returned error:", response.status);
+        setError(msg);
+        return { ok: false, error: msg };
       }
+
+      const result = (await response.json()) as {
+        balance: string;
+        balanceSufficient: boolean;
+        faucetTriggered: boolean;
+        faucetResult?: string;
+        error?: string;
+      };
+
+      console.log(`[Gas Faucet] Server response:`, {
+        balance: result.balance,
+        balanceSufficient: result.balanceSufficient,
+        faucetTriggered: result.faucetTriggered,
+        faucetResult: result.faucetResult,
+        address: address.slice(0, 6),
+      });
+
+      // If server reported an error
+      if (result.error) {
+        setError(result.error);
+        return { ok: false, error: result.error };
+      }
+
+      // If faucet was triggered and succeeded, or balance was already sufficient
+      if (result.balanceSufficient || result.faucetTriggered) {
+        setError(null);
+        return { ok: true, error: null };
+      }
+
+      // Faucet was skipped or not triggered — balance still too low
+      const msg = "Could not top up gas. Please ensure your account is verified, or try again later.";
+      setError(msg);
+      return { ok: false, error: msg };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const code = (err as any)?.code;
-      const name = (err as any)?.name;
 
-      console.error("[Gas Faucet] Exception during faucet trigger", {
+      console.error("[Gas Faucet] Exception during faucet trigger:", {
         errorMessage: message,
-        errorCode: code,
-        errorName: name,
-        account: address,
-        chainId: TARGET_CHAIN.id,
-        balanceWei: balance?.toLocaleString() ?? "unknown",
+        address: address?.slice(0, 6),
         fullError: err,
-        timestamp: new Date().toISOString(),
       });
 
-      // Provide user-friendly error messages based on error details
+      // Provide user-friendly error message
       let userMsg = "Gas faucet error. ";
-      if (message.includes("network") || message.includes("rpc") || message.includes("fetch")) {
-        userMsg +=
-          "Network error — check your connection and try again.";
-      } else if (message.includes("rate") || message.includes("429")) {
-        userMsg += "Faucet rate limit reached. Please try again later.";
-      } else if (message.includes("whitelisted") || message.includes("verified") || message.includes("401") || message.includes("403")) {
-        userMsg +=
-          "Only verified GoodDollar accounts can use the gas faucet. Verify your identity first.";
-      } else if (message.includes("insufficient") || message.includes("balance")) {
-        userMsg += "Faucet temporarily out of funds. Please try again later.";
+      if (message.includes("network") || message.includes("fetch")) {
+        userMsg += "Network error — check your connection and try again.";
+      } else if (message.includes("timeout")) {
+        userMsg += "Request timed out. Please try again.";
       } else {
         userMsg += "Please try again or ensure you have sufficient CELO for gas.";
       }
@@ -206,7 +154,7 @@ export function useGasFaucet(): UseGasFaucetResult {
     } finally {
       setIsTopingUpGas(false);
     }
-  }, [address, publicClient, signer, balance]);
+  }, [address, balance]);
 
   return {
     isTopingUpGas,
