@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
-import { GAME2048_ADDRESS } from "../../../src/lib/constants";
+import { IDENTITY_ADDRESS } from "../../../src/lib/constants";
 
 /**
  * Player Verification Reconciliation Endpoint
  *
  * Returns authoritative isVerified status by checking:
- * 1. On-chain verification status via contract (GoodDollar identity gate)
+ * 1. On-chain verification status via GoodDollar identity registry
  * 2. Score history (players who submitted scores are implicitly verified)
  *
  * This endpoint provides the single source of truth for leaderboard verification badges,
  * alongside a fallback to XP history to ensure we never show all users as unverified
  * if the endpoint becomes unreliable.
  */
-const GAME2048_ABI = [
+const IDENTITY_ABI = [
   {
-    inputs: [{ internalType: "address", name: "_account", type: "address" }],
+    inputs: [{ internalType: "address", name: "user", type: "address" }],
     name: "isWhitelisted",
     outputs: [{ internalType: "bool", name: "", type: "bool" }],
     stateMutability: "view",
@@ -105,11 +105,11 @@ export async function GET(
     let isVerified = false;
     try {
       console.log(
-        `[Player Verification] Checking isWhitelisted for ${address} on contract ${GAME2048_ADDRESS}`
+        `[Player Verification] Checking isWhitelisted for ${address} on contract ${IDENTITY_ADDRESS}`
       );
       const result = await publicClient.readContract({
-        address: GAME2048_ADDRESS,
-        abi: GAME2048_ABI,
+        address: IDENTITY_ADDRESS,
+        abi: IDENTITY_ABI,
         functionName: "isWhitelisted",
         args: [address as `0x${string}`],
       });
@@ -119,7 +119,7 @@ export async function GET(
       );
     } catch (err) {
       console.error(
-        `[Player Verification] Contract read FAILED for ${address} on ${GAME2048_ADDRESS}:`,
+        `[Player Verification] Contract read FAILED for ${address} on ${IDENTITY_ADDRESS}:`,
         err instanceof Error ? err.message : String(err)
       );
       // If contract read fails, return cached value or default to false
@@ -197,8 +197,8 @@ export async function POST(request: NextRequest) {
     for (const addr of needsCheck) {
       try {
         const isVerified = (await publicClient.readContract({
-          address: GAME2048_ADDRESS,
-          abi: GAME2048_ABI,
+          address: IDENTITY_ADDRESS,
+          abi: IDENTITY_ABI,
           functionName: "isWhitelisted",
           args: [addr as `0x${string}`],
         })) === true;
