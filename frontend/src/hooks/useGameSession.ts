@@ -104,10 +104,17 @@ export function useGameSession() {
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const submissionInProgressRef = useRef(false);
 
   useEffect(() => {
     if (!address) {
       setPhase("idle");
+      return;
+    }
+    // Don't reset phase to idle during submission, even if cache shows session inactive.
+    // This prevents race conditions where background refetches return stale cache data
+    // that shows the session as inactive, resetting phase and hiding the Submit button.
+    if (submissionInProgressRef.current) {
       return;
     }
     if (onChainSession?.active) {
@@ -745,6 +752,7 @@ export function useGameSession() {
       setError(null);
       pendingActionRef.current = "submit";
       setPhase("submitting");
+      submissionInProgressRef.current = true;
 
       let txSucceeded = false;
       try {
@@ -802,6 +810,7 @@ export function useGameSession() {
         window.dispatchEvent(
           new CustomEvent("scoreSubmitted", { detail: { txHash: hash, timestamp: Date.now() } }),
         );
+        submissionInProgressRef.current = false;
       } catch (e) {
         const error = e as Error;
         console.error(`[Game Session Submit] Score submission failed for ${address}:`, {
@@ -827,6 +836,7 @@ export function useGameSession() {
           setPhase("active");
         }
         pendingActionRef.current = null;
+        submissionInProgressRef.current = false;
       }
     },
     [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, topUpGasIfNeeded],
