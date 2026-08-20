@@ -20,7 +20,6 @@ import { useContractAddress } from "./useContractData";
 import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
 import { storeSeedInIndexedDB, recoverSeedFromIndexedDB, clearSeedFromIndexedDB } from "../lib/seedStorage";
 import { useSigner } from "./useSigner";
-import { useIdentity } from "./useIdentity";
 import { useGasFaucet } from "./useGasFaucet";
 
 const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
@@ -54,8 +53,6 @@ export function useGameSession() {
   // Single source of truth for signer — all three features (game, username, identity)
   // call useSigner() so there's exactly one code path, one retry strategy, one error handler.
   const { signer, error: signerError } = useSigner();
-  // Identity verification status — needed for submission gating
-  const { isVerifiedForSubmission } = useIdentity();
   // Gas faucet for topping up CELO when balance is low
   const { topUpGasIfNeeded } = useGasFaucet();
 
@@ -421,16 +418,6 @@ export function useGameSession() {
         return;
       }
 
-      // Check verification status BEFORE attempting submission
-      // isVerifiedForSubmission uses the stricter isWhitelisted() check (not getWhitelistedRoot)
-      if (!isVerifiedForSubmission) {
-        const errMsg = "You need a verified GoodDollar account to submit scores on-chain. Verify your identity to proceed.";
-        setError(errMsg);
-        showToast(errMsg, "error");
-        console.warn(`[Game Session Submit] User ${address} not verified for submission (isVerifiedForSubmission=false)`);
-        return;
-      }
-
       if (!signer) {
         const msg = signerError || "Wallet signer not available — please try again.";
         const errorMsg = authType === "magic" && signerError?.includes("network")
@@ -441,7 +428,7 @@ export function useGameSession() {
         return;
       }
 
-      console.log(`[Game Session Submit] Submitting score with authType=${authType}, chainId=${chainId}, isWrongChain=${isWrongChain}, isVerifiedForSubmission=${isVerifiedForSubmission}`);
+      console.log(`[Game Session Submit] Submitting score with authType=${authType}, chainId=${chainId}, isWrongChain=${isWrongChain}`);
 
       let session = onChainSession;
       try {
@@ -783,7 +770,6 @@ export function useGameSession() {
           isGasError: isInsufficientGasError(error),
           authType,
           chainId,
-          isVerifiedForSubmission,
         });
 
         if (isInsufficientGasError(error)) triggerNoGas();
@@ -796,7 +782,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, isVerifiedForSubmission, topUpGasIfNeeded],
+    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, topUpGasIfNeeded],
   );
 
   const reset = useCallback(() => {
