@@ -241,10 +241,25 @@ export default function ClaimUBI() {
       const txHash = receipt.transactionHash;
       console.log("[CLAIM] Transaction hash:", txHash);
 
-      // Get updated claim status
+      // Get updated claim status with retry for stale cache
       console.log("[CLAIM] Fetching updated claim status...");
-      const status = await claimSDK.getWalletClaimStatus();
-      console.log("[CLAIM] Claim status updated:", status);
+      let status = await claimSDK.getWalletClaimStatus();
+      console.log("[CLAIM] Claim status fetched:", status.status);
+
+      // If status check shows the claim was successful, use it directly.
+      // If it shows "can_claim" (stale cache), retry after waiting.
+      if (status.status === "can_claim") {
+        console.log("[CLAIM] Status shows 'can_claim' (stale cache), retrying after 2s...");
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          status = await claimSDK.getWalletClaimStatus();
+          console.log("[CLAIM] Claim status after retry:", status.status);
+        } catch (retryErr) {
+          console.warn("[CLAIM] Status retry failed, using transaction receipt as source of truth");
+          // Transaction succeeded (we have receipt), so treat it as claimed
+          // even if the status check is temporarily stale
+        }
+      }
 
       // Successful claim - show success message inline
       console.log("[CLAIM] SUCCESS - setting success state");

@@ -314,8 +314,40 @@ export function useGameSession() {
         BigInt(Math.floor(Date.now() / 1000)) <=
           onChainSession.startTime + SESSION_TIMEOUT_SECS
       ) {
-        setError("You already have an active session. Wait for it to expire or submit your previous game.");
-        return;
+        // Cache shows active session within timeout window.
+        // Verify with direct contract read in case cache is stale.
+        if (publicClient) {
+          try {
+            const freshSession = await publicClient.readContract({
+              address: GAME2048_ADDRESS,
+              abi: GAME2048_ABI,
+              functionName: "getSession",
+              args: [address],
+            }) as { active: boolean; startTime: bigint } | null;
+
+            if (freshSession && !freshSession.active) {
+              // Cache was stale — session is actually inactive, proceed with new session
+              console.log("[Game Session] Direct read shows session inactive (cache was stale), proceeding");
+            } else if (freshSession) {
+              // Direct read confirms session is still active — block with error
+              const nowSecs = BigInt(Math.floor(Date.now() / 1000));
+              if (nowSecs <= freshSession.startTime + SESSION_TIMEOUT_SECS) {
+                setError("You already have an active session. Wait for it to expire or submit your previous game.");
+                return;
+              }
+              // Session expired according to direct read, proceed
+            }
+          } catch (err) {
+            // Direct read failed — use cached value (already showed error above)
+            console.warn("[Game Session] Direct session read failed, using cached value:", err);
+            setError("You already have an active session. Wait for it to expire or submit your previous game.");
+            return;
+          }
+        } else {
+          // No publicClient available — use cached value
+          setError("You already have an active session. Wait for it to expire or submit your previous game.");
+          return;
+        }
       }
 
       if (!isConnected) {
@@ -714,6 +746,7 @@ export function useGameSession() {
       pendingActionRef.current = "submit";
       setPhase("submitting");
 
+      let txSucceeded = false;
       try {
         const hash = await signAndBroadcast(
           signer,
@@ -737,6 +770,9 @@ export function useGameSession() {
           throw new Error("Score submission reverted on-chain. Your session is still open — try submitting again.");
         }
 
+        // Transaction succeeded on-chain — mark this so catch block knows not to revert phase
+        txSucceeded = true;
+
         pendingActionRef.current = null;
         setSessionStuck(false);
         // Session is spent — drop the durable committed-seed copy.
@@ -750,12 +786,17 @@ export function useGameSession() {
           });
         }
 
-        // Wait for the on-chain session read to reflect the cleared session
-        // *before* flipping to "done" — startSession's active-session guard
-        // trusts this same cached value, so re-enabling "New Game" any earlier
-        // lets a fast click hit a stale "active" cache and throw a false
-        // "already have an active session" error.
-        await refetchSession();
+        // Don't wait for cache to update — we KNOW the session is now inactive
+        // because we just ended it on-chain. Setting phase to "done" immediately
+        // lets startSession's active-session guard work correctly (it checks
+        // onChainSession?.active from cache, but won't block because we're not
+        // calling startSession until after phase="done").
+        // Refetch in background so other consumers see the fresh state eventually,
+        // but don't block on it.
+        refetchSession().catch(() => {
+          /* ignore refetch errors — async background refresh */
+        });
+
         setPhase("done");
         showToast("Score submitted! 🎉", "success");
         window.dispatchEvent(
@@ -778,7 +819,13 @@ export function useGameSession() {
         setError(errMsg);
         // ALWAYS show the error toast (removed the rejection filter so users see all errors)
         showToast(errMsg, "error");
-        setPhase("active");
+        // Only reset phase to "active" if the transaction actually failed.
+        // If txSucceeded=true, a downstream step (seed cleanup, refetch, dispatch)
+        // threw, but the transaction is mined and session is spent on-chain.
+        // Don't revert the phase back to "active" in that case.
+        if (!txSucceeded) {
+          setPhase("active");
+        }
         pendingActionRef.current = null;
       }
     },

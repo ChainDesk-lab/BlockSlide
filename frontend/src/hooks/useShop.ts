@@ -4,12 +4,13 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 
 import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
 import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
 import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED } from "../lib/constants";
-import { useContractAddress } from "./useContractData";
+import { useContractAddress, useContractPublicClient } from "./useContractData";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
 export function useShop() {
   const address = useContractAddress();
+  const publicClient = useContractPublicClient();
   const enabled = !!address && CONTRACT_DEPLOYED;
 
   const { writeContractAsync } = useWriteContract();
@@ -102,12 +103,27 @@ export function useShop() {
     try {
       const hash = await fn();
       setTxHash(hash);
-      // Refetch after a short wait for the node to index, then notify other
-      // components (e.g. WalletButton) that the G$ balance has changed.
-      setTimeout(() => {
-        refetchAll();
-        window.dispatchEvent(new Event("gdBalanceChanged"));
-      }, 3000);
+
+      // Wait for receipt to confirm transaction is mined and successful
+      if (!publicClient) {
+        setError("Network unavailable — could not verify transaction");
+        return;
+      }
+
+      try {
+        const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+        if (receipt.status === "reverted") {
+          setError("Transaction failed — please check your balance and try again.");
+          return;
+        }
+      } catch (receiptErr) {
+        setError(`Transaction confirmation failed: ${(receiptErr as Error).message}`);
+        return;
+      }
+
+      // Transaction succeeded — refetch all state and notify other components
+      refetchAll();
+      window.dispatchEvent(new Event("gdBalanceChanged"));
     } catch (e: any) {
       const msg: string = e?.shortMessage ?? e?.message ?? "Transaction failed";
       if (!msg.toLowerCase().includes("rejected") && !msg.toLowerCase().includes("denied")) {
