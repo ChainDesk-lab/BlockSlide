@@ -13,6 +13,15 @@ import { IDENTITY_ADDRESS } from "../../../src/lib/constants";
  * This endpoint provides the single source of truth for leaderboard verification badges,
  * alongside a fallback to XP history to ensure we never show all users as unverified
  * if the endpoint becomes unreliable.
+ *
+ * RPC Strategy:
+ * - Primary: https://forno.celo.org (Celo's official endpoint, most reliable)
+ * - Fallback: https://rpc.ankr.com/celo (Ankr backup, no aggressive rate limits)
+ * - Both are free tiers suitable for public usage without credentials
+ *
+ * Rate limits:
+ * - forno.celo.org: ~300 requests/min per IP (no official docs, observed limit)
+ * - ankr.com: Free tier ~1000 req/min (higher than 1rpc.io which was causing failures)
  */
 const IDENTITY_ABI = [
   {
@@ -23,6 +32,71 @@ const IDENTITY_ABI = [
     type: "function",
   },
 ] as const;
+
+// RPC endpoints: primary + fallback
+const RPC_PRIMARY = "https://forno.celo.org";
+const RPC_FALLBACK = "https://rpc.ankr.com/celo";
+
+/**
+ * Try to check isWhitelisted on a single RPC endpoint
+ * Returns { success: true, result: boolean } or { success: false, error: string }
+ */
+async function checkWhitelistOnRpc(
+  rpcUrl: string,
+  address: `0x${string}`
+): Promise<{ success: boolean; result?: boolean; error?: string }> {
+  try {
+    const client = createPublicClient({
+      chain: celo,
+      transport: http(rpcUrl),
+    });
+    const result = await client.readContract({
+      address: IDENTITY_ADDRESS,
+      abi: IDENTITY_ABI,
+      functionName: "isWhitelisted",
+      args: [address],
+    });
+    return { success: true, result: result === true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Check isWhitelisted with fallback RPC support
+ * Tries primary RPC first, falls back to secondary if primary fails
+ * Returns { isVerified: boolean } on success, or { isVerified: null } if both fail
+ */
+async function checkWhitelistWithFallback(
+  address: `0x${string}`
+): Promise<{ isVerified: boolean | null; rpcUsed?: string; error?: string }> {
+  // Try primary RPC
+  const primaryResult = await checkWhitelistOnRpc(RPC_PRIMARY, address);
+  if (primaryResult.success && primaryResult.result !== undefined) {
+    return { isVerified: primaryResult.result, rpcUsed: "primary" };
+  }
+
+  console.warn(
+    `[Player Verification] Primary RPC failed for ${address.slice(0, 6)}, trying fallback: ${primaryResult.error}`
+  );
+
+  // Try fallback RPC
+  const fallbackResult = await checkWhitelistOnRpc(RPC_FALLBACK, address);
+  if (fallbackResult.success && fallbackResult.result !== undefined) {
+    return { isVerified: fallbackResult.result, rpcUsed: "fallback" };
+  }
+
+  // Both RPCs failed
+  const errorMsg = `Both RPC endpoints failed. Primary: ${primaryResult.error}, Fallback: ${fallbackResult.error}`;
+  console.error(
+    `[Player Verification] CRITICAL: Both RPCs failed for ${address.slice(0, 6)}: ${errorMsg}`
+  );
+
+  return { isVerified: null, error: errorMsg };
+}
 
 // Simple in-memory cache with TTL (5 minutes)
 // In production, use Redis or database
@@ -95,37 +169,38 @@ export async function GET(
       );
     }
 
-    // Query contract to check on-chain verification status
-    // isWhitelisted returns true if user is verified via GoodDollar
-    const publicClient = createPublicClient({
-      chain: celo,
-      transport: http("https://1rpc.io/celo"), // Public Celo RPC
-    });
+    // Query contract with RPC fallback support
+    console.log(
+      `[Player Verification] Checking isWhitelisted for ${address.slice(0, 6)}...`
+    );
 
-    let isVerified = false;
-    try {
-      console.log(
-        `[Player Verification] Checking isWhitelisted for ${address} on contract ${IDENTITY_ADDRESS}`
-      );
-      const result = await publicClient.readContract({
-        address: IDENTITY_ADDRESS,
-        abi: IDENTITY_ABI,
-        functionName: "isWhitelisted",
-        args: [address as `0x${string}`],
-      });
-      isVerified = result === true;
-      console.log(
-        `[Player Verification] Contract returned isWhitelisted=${result} (typeof: ${typeof result}) for ${address.slice(0, 6)}...`
-      );
-    } catch (err) {
+    const checkResult = await checkWhitelistWithFallback(
+      address as `0x${string}`
+    );
+
+    // If both RPCs failed, return 503 error instead of silently defaulting to false
+    if (checkResult.isVerified === null) {
       console.error(
-        `[Player Verification] Contract read FAILED for ${address} on ${IDENTITY_ADDRESS}:`,
-        err instanceof Error ? err.message : String(err)
+        `[Player Verification] ALERT: Both RPC endpoints failed for ${address.slice(0, 6)}... - ${checkResult.error}`
       );
-      // If contract read fails, return cached value or default to false
-      // This is safe because users who haven't submitted scores can't have XP anyway
-      isVerified = false;
+      return NextResponse.json(
+        {
+          error: "Verification service temporarily unavailable",
+          unavailable: true,
+        },
+        {
+          status: 503,
+          headers: {
+            "Cache-Control": "no-cache", // Don't cache failures
+          },
+        }
+      );
     }
+
+    const isVerified = checkResult.isVerified;
+    console.log(
+      `[Player Verification] Result for ${address.slice(0, 6)}... = ${isVerified} (RPC: ${checkResult.rpcUsed})`
+    );
 
     // Cache only true values (verified accounts) to avoid serving stale false entries
     // If verification status changes, we want to check the contract again rather than
@@ -180,12 +255,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const results: Record<string, { isVerified: boolean }> = {};
-
-    const publicClient = createPublicClient({
-      chain: celo,
-      transport: http("https://1rpc.io/celo"),
-    });
+    const results: Record<string, { isVerified: boolean | null }> = {};
+    const unavailableAddresses: string[] = [];
 
     // Check cache first for all addresses
     const needsCheck = addresses.filter((addr) => {
@@ -197,28 +268,33 @@ export async function POST(request: NextRequest) {
       return true;
     });
 
-    // Batch check remaining addresses from contract
+    // Batch check remaining addresses from contract with RPC fallback
     for (const addr of needsCheck) {
-      try {
-        const isVerified = (await publicClient.readContract({
-          address: IDENTITY_ADDRESS,
-          abi: IDENTITY_ABI,
-          functionName: "isWhitelisted",
-          args: [addr as `0x${string}`],
-        })) === true;
+      const checkResult = await checkWhitelistWithFallback(
+        addr as `0x${string}`
+      );
 
-        results[addr.toLowerCase()] = { isVerified };
-        // Only cache true values to avoid serving stale false entries
-        if (isVerified) {
-          setCachedResult(addr, isVerified);
-        }
-      } catch (err) {
-        console.error(
-          `[Player Verification] Bulk check failed for ${addr}:`,
-          err
+      if (checkResult.isVerified === null) {
+        // Both RPCs failed for this address
+        console.warn(
+          `[Player Verification] Verification unavailable for ${addr.slice(0, 6)}... in bulk check`
         );
-        results[addr.toLowerCase()] = { isVerified: false };
+        unavailableAddresses.push(addr);
+        results[addr.toLowerCase()] = { isVerified: null }; // Explicitly null, not false
+      } else {
+        results[addr.toLowerCase()] = { isVerified: checkResult.isVerified };
+        // Only cache true values to avoid serving stale false entries
+        if (checkResult.isVerified) {
+          setCachedResult(addr, true);
+        }
       }
+    }
+
+    // If any addresses were unavailable, log it prominently
+    if (unavailableAddresses.length > 0) {
+      console.error(
+        `[Player Verification] ALERT: ${unavailableAddresses.length}/${needsCheck.length} addresses unavailable in bulk check: ${unavailableAddresses.slice(0, 3).map(a => a.slice(0, 6)).join(", ")}...`
+      );
     }
 
     console.log(

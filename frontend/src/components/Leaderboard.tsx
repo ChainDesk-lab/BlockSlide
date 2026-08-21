@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
@@ -13,6 +13,8 @@ async function fetchPlayerVerifications(
 ): Promise<Record<string, boolean>> {
   if (addresses.length === 0) return {};
 
+  console.log(`[Verification API] Requesting ${addresses.length} addresses:`, addresses.map(a => a.slice(0, 8)).join(", "));
+
   try {
     const response = await fetch("/api/player-verification", {
       method: "POST",
@@ -21,8 +23,8 @@ async function fetchPlayerVerifications(
     });
 
     if (!response.ok) {
-      console.error("[Leaderboard] Verification endpoint error:", response.status);
-      return {};
+      console.error("[Verification API] HTTP error:", response.status);
+      throw new Error(`Verification API returned ${response.status}`);
     }
 
     const data = (await response.json()) as {
@@ -34,10 +36,14 @@ async function fetchPlayerVerifications(
         results[addr.toLowerCase()] = isVerified;
       }
     }
+
+    console.log(`[Verification API] Got ${Object.keys(results).length} results:`,
+      Object.entries(results).map(([a, v]) => `${a.slice(0, 8)}=${v}`).join(", "));
+
     return results;
   } catch (err) {
-    console.error("[Leaderboard] Failed to fetch verifications:", err);
-    return {};
+    console.error("[Verification API] Error:", err instanceof Error ? err.message : String(err));
+    throw err;
   }
 }
 
@@ -152,20 +158,40 @@ export default function Leaderboard() {
     staleTime: 15_000,
   });
 
-  // Fetch verification status for all players on current page + top 3
-  const allAddresses = [
-    ...(data?.entries ?? []).map((e) => e.id),
-    ...(topThreeData ?? []).map((e) => e.id),
-  ];
-  const { data: verificationData } = useQuery({
-    queryKey: ["player-verifications", allAddresses.sort().join(",")],
+  // Memoize addresses to prevent query refetch on every render
+  // DEDUPLICATE to avoid requesting the same address multiple times
+  const allAddresses = useMemo(
+    () => {
+      const combined = [
+        ...(data?.entries ?? []).map((e) => e.id),
+        ...(topThreeData ?? []).map((e) => e.id),
+      ];
+      return Array.from(new Set(combined.map(a => a.toLowerCase())));
+    },
+    [data?.entries, topThreeData]
+  );
+
+  const verificationQueryKey = useMemo(
+    () => ["player-verifications", allAddresses.sort().join(",")],
+    [allAddresses]
+  );
+
+  const { data: verificationData, isLoading: isVerificationLoading, error: verificationError } = useQuery({
+    queryKey: verificationQueryKey,
     queryFn: () => fetchPlayerVerifications(allAddresses),
     enabled: configured && allAddresses.length > 0,
     staleTime: 5 * 60_000, // 5 minutes (matches server cache)
+    gcTime: 30 * 60_000, // Keep in cache for 30 min even after stale
+    retry: 2, // Retry failed requests twice before giving up
   });
 
+  console.log(`[Leaderboard] Verification query: loading=${isVerificationLoading} dataKeys=${Object.keys(verificationData || {}).length} error=${verificationError ? (verificationError as Error).message : "none"}`);
+
   if (queryError) {
-    console.error("[Leaderboard] Query error:", queryError);
+    console.error("[Leaderboard] Subgraph query error:", queryError);
+  }
+  if (verificationError) {
+    console.error("[Leaderboard] Verification query error:", verificationError);
   }
 
   const entries = data?.entries ?? [];
@@ -227,9 +253,25 @@ export default function Leaderboard() {
           {topThree.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            // Use verification endpoint result, fallback to XP history as safety net
-            // This prevents regression to "everyone unverified" if endpoint fails
-            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? (Number(entry.xp) > 0);
+            // Use verification endpoint result; show loading during fetch
+            // Distinguish: undefined/loading → "…", true → verified, false → unverified, null → unavailable
+            const normalizedAddr = entry.id.toLowerCase();
+            const verifiedStatus = verificationData?.[normalizedAddr];
+            let isVerified: boolean | undefined | null;
+
+            if (isVerificationLoading) {
+              isVerified = undefined; // Loading state
+            } else if (verifiedStatus === null) {
+              isVerified = null; // Verification service unavailable
+            } else if (verifiedStatus !== undefined) {
+              isVerified = verifiedStatus; // Got result (true or false)
+            } else {
+              isVerified = false; // Missing from response, assume unverified
+            }
+
+            if (idx === 0) {
+              console.log(`[Leaderboard] Top #${idx + 1}: ${normalizedAddr.slice(0, 8)} status=${isVerified === undefined ? "loading" : isVerified === null ? "unavailable" : isVerified ? "verified" : "unverified"}`);
+            }
 
             return (
               <div key={entry.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
@@ -239,7 +281,17 @@ export default function Leaderboard() {
                 </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
-                  {isVerified ? <span className="badge badge--verified">✓</span> : <span className="badge badge--unverified">⏳</span>}
+                  {isVerified === undefined ? (
+                    <span className="badge badge--loading">…</span>
+                  ) : isVerified === null ? (
+                    <span className="badge badge--unavailable" title="Verification service temporarily unavailable">
+                      ?
+                    </span>
+                  ) : isVerified ? (
+                    <span className="badge badge--verified">✓</span>
+                  ) : (
+                    <span className="badge badge--unverified">✓</span>
+                  )}
                 </div>
                 <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
               </div>
@@ -253,9 +305,25 @@ export default function Leaderboard() {
           {topThree.map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            // Use verification endpoint result, fallback to XP history as safety net
-            // This prevents regression to "everyone unverified" if endpoint fails
-            const isVerified = verificationData?.[entry.id.toLowerCase()] ?? (Number(entry.xp) > 0);
+            // Use verification endpoint result; show loading during fetch
+            // Distinguish: undefined/loading → "…", true → verified, false → unverified, null → unavailable
+            const normalizedAddr = entry.id.toLowerCase();
+            const verifiedStatus = verificationData?.[normalizedAddr];
+            let isVerified: boolean | undefined | null;
+
+            if (isVerificationLoading) {
+              isVerified = undefined; // Loading state
+            } else if (verifiedStatus === null) {
+              isVerified = null; // Verification service unavailable
+            } else if (verifiedStatus !== undefined) {
+              isVerified = verifiedStatus; // Got result (true or false)
+            } else {
+              isVerified = false; // Missing from response, assume unverified
+            }
+
+            if (idx === 0) {
+              console.log(`[Leaderboard] Top #${idx + 1}: ${normalizedAddr.slice(0, 8)} status=${isVerified === undefined ? "loading" : isVerified === null ? "unavailable" : isVerified ? "verified" : "unverified"}`);
+            }
 
             return (
               <div key={entry.id} className="leaderboard__podium-item">
@@ -265,7 +333,17 @@ export default function Leaderboard() {
                 </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
-                  {isVerified ? <span className="badge badge--verified">✓</span> : <span className="badge badge--unverified">⏳</span>}
+                  {isVerified === undefined ? (
+                    <span className="badge badge--loading">…</span>
+                  ) : isVerified === null ? (
+                    <span className="badge badge--unavailable" title="Verification service temporarily unavailable">
+                      ?
+                    </span>
+                  ) : isVerified ? (
+                    <span className="badge badge--verified">✓</span>
+                  ) : (
+                    <span className="badge badge--unverified">✓</span>
+                  )}
                 </div>
                 <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
               </div>

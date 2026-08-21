@@ -383,12 +383,21 @@ export function useGameSession() {
       // later board reset / remount / "play locally" can't orphan this session.
       try {
         setUserStorage(address, SESSION_SEED_KEY, seed);
-      } catch { /* storage unavailable — submit falls back to the live game seed */ }
+        console.log(`[Game Session] Seed stored to localStorage: ${seed.slice(0, 10)}...`);
+      } catch (err) {
+        console.error("[Game Session] Failed to store seed to localStorage:", err);
+      }
       // Also store in IndexedDB as fallback (survives embedded browser clears better than localStorage)
-      storeSeedInIndexedDB(address, seed, keccak256(seed)).catch(() => {
-        /* IndexedDB failure is non-critical, localStorage is primary */
-      });
+      storeSeedInIndexedDB(address, seed, keccak256(seed))
+        .then(() => {
+          console.log(`[Game Session] Seed backed up to IndexedDB: ${seed.slice(0, 10)}...`);
+        })
+        .catch((err) => {
+          console.error("[Game Session] Failed to backup seed to IndexedDB:", err);
+        });
+      console.log(`[Game Session] About to call callback onSeedReady with seed: ${seed.slice(0, 10)}...`);
       onSeedReady(seed);
+      console.log(`[Game Session] Callback onSeedReady completed`);
 
       try {
         await signAndBroadcast(
@@ -396,6 +405,9 @@ export function useGameSession() {
           encodeFunctionData({ abi: GAME2048_ABI, functionName: "startSession", args: [keccak256(seed)] }),
           200_000n,
         );
+        console.log(`[Game Session] Transaction successful, refetching session to clear cache`);
+        // Refetch to clear wagmi's cached session data so submitScore reads the fresh on-chain seed hash
+        refetchSession();
         // Non-blocking: store seed on server as fallback recovery mechanism.
         // Fire-and-forget (don't await) so it never delays session start or blocks on network failure.
         fetch("/api/game/seed", {
@@ -490,7 +502,9 @@ export function useGameSession() {
       // hash (board was reset / remounted / "played locally"), recover the seed
       // durably stored at startSession. Recovery order: localStorage → IndexedDB → server → error
       let submitSeed = seed;
+      console.log(`[Seed Recovery] Submitted seed: ${seed.slice(0, 10)}..., hash: ${keccak256(seed).slice(0, 10)}..., expected hash: ${session.seedHash.slice(0, 10)}...`);
       if (keccak256(submitSeed) !== session.seedHash) {
+        console.log(`[Seed Recovery] Seed hash mismatch! Starting recovery process...`);
         let recovered: `0x${string}` | null = null;
         const recoveryLog = {
           address: address.slice(0, 6),

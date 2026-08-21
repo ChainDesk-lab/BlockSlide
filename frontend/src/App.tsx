@@ -153,6 +153,7 @@ export default function App() {
   // New Game always works — no wallet required. Blockchain features (on-chain
   // score submission) activate only when wallet is connected + contract deployed.
   const handleNewGame = () => {
+    console.log(`[App] handleNewGame called, current seed=${seed ? seed.slice(0, 10) + "..." : "null"}`);
     sounds.newGame();
     reset();
     // clearGame is called inside the callback so it only runs after all
@@ -160,13 +161,19 @@ export default function App() {
     // returns early (e.g. active session on-chain), which would cause a seed
     // mismatch when the user later tries to submit their existing game.
     startSession((newSeed) => {
+      console.log(`[App] Callback received newSeed=${newSeed ? newSeed.slice(0, 10) + "..." : "null"}`);
       clearGame();
       startNewGame(newSeed);
+      console.log(`[App] startNewGame completed, seed hook should now have: ${newSeed ? newSeed.slice(0, 10) + "..." : "null"}`);
     });
   };
 
   const handleSubmit = () => {
-    if (!state || !seed) return;
+    if (!state || !seed) {
+      console.log(`[App] handleSubmit early return: state=${!!state}, seed=${!!seed}`);
+      return;
+    }
+    console.log(`[App] handleSubmit with seed=${seed.slice(0, 10)}...`);
     submitScore(state, seed as `0x${string}`);
   };
 

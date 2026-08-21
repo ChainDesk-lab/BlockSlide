@@ -77,10 +77,12 @@ export function useGame(
 
   const startNewGame = useCallback((existingSeed?: string) => {
     const s = existingSeed ?? generateSeed();
+    console.log(`[useGame] startNewGame called with seed: ${s ? s.slice(0, 10) + "..." : "generated"}`);
     const { state: initial, rng } = initGame(s);
     rngRef.current = rng;
     setSeed(s);
     setState(initial);
+    console.log(`[useGame] Game initialized with seed, phase should update to 'active' now`);
     return s;
   }, []);
 

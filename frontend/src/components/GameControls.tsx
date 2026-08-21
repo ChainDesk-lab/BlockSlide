@@ -49,13 +49,12 @@ export default function GameControls({
         </button>
       )}
 
-      {/* Submit Score — only when game has ended and user is verified */}
+      {/* Submit Score — anyone can submit; only claiming rewards requires verification */}
       {phase === "active" && gameEnded && (
         <button
           className="btn btn--secondary"
           onClick={onSubmit}
-          disabled={isPending || identityStatus !== "verified"}
-          title={identityStatus !== "verified" ? "Verify your identity to submit" : ""}
+          disabled={isPending}
         >
           {isPending ? <Spinner /> : "Submit Score"}
         </button>

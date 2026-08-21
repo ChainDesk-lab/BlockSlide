@@ -45,7 +45,6 @@ export function useProfileData(
           xp
           bestScore
           gamesPlayed
-          isVerified
         }
       }`;
 
@@ -113,10 +112,37 @@ export function useProfileData(
     gdollarData
   );
 
+  // VERIFICATION QUERY: fetch from the authoritative GoodDollar identity contract
+  // Do NOT rely on subgraph's isVerified; it may be stale/incorrect
+  const { data: verificationResult } = useQuery({
+    queryKey: ["player-verification", address],
+    enabled: !!address,
+    queryFn: async () => {
+      if (!address) return null;
+      try {
+        const res = await fetch("/api/player-verification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ addresses: [address] }),
+        });
+        if (!res.ok) return null;
+        const data = (await res.json()) as { results?: Record<string, { isVerified: boolean }> };
+        return data.results?.[address.toLowerCase()]?.isVerified ?? false;
+      } catch {
+        return false;
+      }
+    },
+    staleTime: 5 * 60_000, // 5 minutes (matches server cache)
+    gcTime: 30 * 60_000, // Keep in cache for 30 min even after stale
+    retry: 2, // Retry failed requests twice before giving up
+  });
+
   // Merge core player data with optional G$ fields; prefer subgraph data, fallback to events
+  // Use verification API result instead of subgraph's isVerified
   const mergedPlayer: PlayerProfile | null = player
     ? {
         ...player,
+        isVerified: verificationResult ?? false,
         totalGEarned: gdollarData?.totalGEarned ?? totalEarned ?? undefined,
         totalGSpent: gdollarData?.totalGSpent ?? totalSpent ?? undefined,
         referralCount: gdollarData?.referralCount,

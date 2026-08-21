@@ -2105,6 +2105,19 @@ html.dark-mode {
   border: 1px solid var(--warning);
 }
 
+.badge--loading {
+  background: color-mix(in srgb, var(--muted) 20%, var(--surface));
+  color: var(--muted);
+  border: 1px solid var(--muted);
+}
+
+.badge--unavailable {
+  background: color-mix(in srgb, var(--error) 15%, var(--surface));
+  color: var(--error);
+  border: 1px dashed var(--error);
+  opacity: 0.7;
+}
+
 /* Inline input for editing username in leaderboard */
 .leaderboard__name-input {
   font-weight: 700;
