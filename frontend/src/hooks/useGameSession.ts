@@ -768,6 +768,15 @@ export function useGameSession() {
       setPhase("submitting");
       submissionInProgressRef.current = true;
 
+      // Re-check chain right before submission, not just from initialization
+      // (chainId can change between hook init and when user clicks Submit)
+      if (authType !== "magic" && chainId !== TARGET_CHAIN.id) {
+        setPhase("active");
+        setError("Wrong network — please switch to Celo mainnet in your wallet.");
+        submissionInProgressRef.current = false;
+        return;
+      }
+
       let txSucceeded = false;
       try {
         const hash = await signAndBroadcast(
@@ -942,10 +951,14 @@ function parseContractError(error: Error): string {
     return "Celo RPC unavailable. Check your wallet's Celo RPC is set to https://rpc.ankr.com/celo";
   if (msg.includes("fee cap") || msg.includes("base fee"))
     return "Gas price too low for the current network. Please try again in a moment.";
-  if (msg.includes("chain"))
-    return "Wrong network — please switch to Celo mainnet in your wallet settings.";
-  if (msg.includes("network"))
-    return "Network connection error. Please check your internet and try again.";
+  // Distinguish provider/wallet errors ("invalid chain ID") from genuine network mismatches
+  // If the error is from the provider during signing, it's likely already checked client-side
+  if (msg.includes("wrong network") || msg.includes("switch network") || msg.includes("switch to"))
+    return msg; // Provider gave specific instruction — pass through as-is
+  if (msg.includes("chain") || msg.includes("network")) {
+    // Generic "chain"/"network" error from provider — likely network problem, not user mismatch
+    return "Network error during submission. Check your connection and try again.";
+  }
   if (msg.includes("timeout") || msg.includes("Timeout"))
     return "Transaction took too long to complete. Your score may still be submitted — check your game history.";
 
