@@ -65,9 +65,9 @@ interface LeaderboardData {
   totalPages: number;
 }
 
-function buildPlayersQuery(skip: number): string {
+function buildPlayersQuery(skip: number, first: number = PAGE_SIZE): string {
   return `{
-    players(first: ${PAGE_SIZE}, skip: ${skip}, orderBy: xp, orderDirection: desc) {
+    players(first: ${first}, skip: ${skip}, orderBy: xp, orderDirection: desc) {
       id
       xp
       username
@@ -84,8 +84,11 @@ function buildTotalQuery(): string {
 }
 
 async function fetchLeaderboard(skip: number): Promise<LeaderboardData> {
-  // Fetch page data
-  const playersQuery = buildPlayersQuery(skip);
+  // Fetch a LARGE BUFFER (3x page size) for proper three-tier sorting across pages
+  // This ensures verified/unverified users are properly grouped even across page boundaries
+  const FETCH_BUFFER = PAGE_SIZE * 3; // 150 entries instead of 50
+
+  const playersQuery = buildPlayersQuery(skip, FETCH_BUFFER);
   const res = await fetch(SUBGRAPH_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,6 +97,7 @@ async function fetchLeaderboard(skip: number): Promise<LeaderboardData> {
   if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
   const json = (await res.json()) as { data?: { players?: PlayerRow[] }; errors?: unknown };
   if (json.errors) throw new Error("Subgraph returned errors");
+  // Get full buffer for sorting, but we'll slice it in the component based on verification
   const entries = json.data?.players ?? [];
 
   // Fetch total count (once per query to keep it fresh)
@@ -140,12 +144,14 @@ export default function Leaderboard() {
 
   const skip = currentPage * PAGE_SIZE;
 
-  // Paginated list query for current page
+  // Paginated query that fetches a LARGE BUFFER for proper tier grouping
+  // The buffer is 3x page size, so we fetch enough to fill current + next 2 pages
+  // This allows us to sort into three tiers BEFORE paginating
   const { data, isLoading, isError, error: queryError } = useQuery({
-    queryKey: ["leaderboard", currentPage],
+    queryKey: ["leaderboard", skip],
     queryFn: () => fetchLeaderboard(skip),
     enabled: configured,
-    refetchInterval: 30_000, // pick up new scores
+    refetchInterval: 30_000,
     staleTime: 15_000,
   });
 
@@ -226,20 +232,22 @@ export default function Leaderboard() {
     clearFeedback();
   };
 
-  // Sort entries into three tiers:
-  // 1. Verified users (by XP descending)
-  // 2. Unverified users with XP > 0 (by XP descending)
-  // 3. Unverified users with XP = 0 (maintain original order)
-  const sortedEntries = useMemo(() => {
+  // Sort the ENTIRE buffer into three tiers BEFORE pagination
+  // This ensures verified users appear first across all pages, not scattered
+  const sortedAndPagedEntries = useMemo(() => {
+    const allEntries = entries; // This is now a 150-entry buffer from the query
+
     if (!verificationData || Object.keys(verificationData).length === 0) {
-      return entries; // If no verification data yet, return unsorted
+      // If no verification data yet, return unsorted current page
+      return allEntries.slice(0, PAGE_SIZE);
     }
 
-    const verified: typeof entries = [];
-    const unverifiedWithXp: typeof entries = [];
-    const unverifiedZeroXp: typeof entries = [];
+    // Sort ALL entries in buffer into three tiers
+    const verified: typeof allEntries = [];
+    const unverifiedWithXp: typeof allEntries = [];
+    const unverifiedZeroXp: typeof allEntries = [];
 
-    for (const entry of entries) {
+    for (const entry of allEntries) {
       const addr = entry.id.toLowerCase();
       const isVerified = verificationData[addr];
       const xp = Number(entry.xp) || 0;
@@ -253,12 +261,14 @@ export default function Leaderboard() {
       }
     }
 
-    // Sort each tier
+    // Sort each tier by XP descending
     verified.sort((a, b) => Number(b.xp) - Number(a.xp));
     unverifiedWithXp.sort((a, b) => Number(b.xp) - Number(a.xp));
-    // unverifiedZeroXp keeps original order (stable)
+    // unverifiedZeroXp keeps original order
 
-    return [...verified, ...unverifiedWithXp, ...unverifiedZeroXp];
+    // Combine all tiers and slice to current page
+    const fullySorted = [...verified, ...unverifiedWithXp, ...unverifiedZeroXp];
+    return fullySorted.slice(0, PAGE_SIZE);
   }, [entries, verificationData]);
 
   return (
@@ -387,7 +397,7 @@ export default function Leaderboard() {
         </div>
       )}
 
-      {sortedEntries.length > 0 && (
+      {sortedAndPagedEntries.length > 0 && (
         <>
           <div className="leaderboard__separator" />
           <div className="leaderboard__list-header">
@@ -395,7 +405,7 @@ export default function Leaderboard() {
           </div>
 
           <ol className="leaderboard__list">
-            {sortedEntries.map((entry, i) => {
+            {sortedAndPagedEntries.map((entry: PlayerRow, i: number) => {
               const rank = currentPage * PAGE_SIZE + i + 1;
               const name = entry.username?.trim() || generatedName(entry.id);
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
