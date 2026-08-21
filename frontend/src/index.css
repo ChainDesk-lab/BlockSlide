@@ -2231,6 +2231,19 @@ html.dark-mode {
   border: 1px solid #ff9800;
 }
 
+.leaderboard__badge--loading {
+  background: color-mix(in srgb, var(--muted) 20%, var(--surface));
+  color: var(--muted);
+  border: 1px solid var(--muted);
+}
+
+.leaderboard__badge--unavailable {
+  background: color-mix(in srgb, #f44336 15%, var(--surface));
+  color: #f44336;
+  border: 1px dashed #f44336;
+  opacity: 0.7;
+}
+
 .leaderboard__pagination {
   margin-top: 16px;
   display: flex;

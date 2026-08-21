@@ -226,6 +226,41 @@ export default function Leaderboard() {
     clearFeedback();
   };
 
+  // Sort entries into three tiers:
+  // 1. Verified users (by XP descending)
+  // 2. Unverified users with XP > 0 (by XP descending)
+  // 3. Unverified users with XP = 0 (maintain original order)
+  const sortedEntries = useMemo(() => {
+    if (!verificationData || Object.keys(verificationData).length === 0) {
+      return entries; // If no verification data yet, return unsorted
+    }
+
+    const verified: typeof entries = [];
+    const unverifiedWithXp: typeof entries = [];
+    const unverifiedZeroXp: typeof entries = [];
+
+    for (const entry of entries) {
+      const addr = entry.id.toLowerCase();
+      const isVerified = verificationData[addr];
+      const xp = Number(entry.xp) || 0;
+
+      if (isVerified === true) {
+        verified.push(entry);
+      } else if (xp > 0) {
+        unverifiedWithXp.push(entry);
+      } else {
+        unverifiedZeroXp.push(entry);
+      }
+    }
+
+    // Sort each tier
+    verified.sort((a, b) => Number(b.xp) - Number(a.xp));
+    unverifiedWithXp.sort((a, b) => Number(b.xp) - Number(a.xp));
+    // unverifiedZeroXp keeps original order (stable)
+
+    return [...verified, ...unverifiedWithXp, ...unverifiedZeroXp];
+  }, [entries, verificationData]);
+
   return (
     <div className="leaderboard">
       <h2 className="leaderboard__title">Leaderboard</h2>
@@ -352,7 +387,7 @@ export default function Leaderboard() {
         </div>
       )}
 
-      {entries.length > 0 && (
+      {sortedEntries.length > 0 && (
         <>
           <div className="leaderboard__separator" />
           <div className="leaderboard__list-header">
@@ -360,14 +395,25 @@ export default function Leaderboard() {
           </div>
 
           <ol className="leaderboard__list">
-            {entries.map((entry, i) => {
+            {sortedEntries.map((entry, i) => {
               const rank = currentPage * PAGE_SIZE + i + 1;
               const name = entry.username?.trim() || generatedName(entry.id);
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
               const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
-              // Use verification endpoint result, fallback to XP history as safety net
-              // This prevents regression to "everyone unverified" if endpoint fails
-              const isVerified = verificationData?.[entry.id.toLowerCase()] ?? (Number(entry.xp) > 0);
+              // Use verification endpoint result; show loading during fetch
+              const normalizedAddr = entry.id.toLowerCase();
+              const verifiedStatus = verificationData?.[normalizedAddr];
+              let isVerified: boolean | undefined | null;
+
+              if (isVerificationLoading) {
+                isVerified = undefined;
+              } else if (verifiedStatus === null) {
+                isVerified = null;
+              } else if (verifiedStatus !== undefined) {
+                isVerified = verifiedStatus;
+              } else {
+                isVerified = false;
+              }
 
               return (
                 <li
@@ -398,9 +444,23 @@ export default function Leaderboard() {
                       ) : (
                         <span className="leaderboard__name">{name}</span>
                       )}
-                      <span className={`leaderboard__badge ${isVerified ? "leaderboard__badge--verified" : "leaderboard__badge--unverified"}`} title={isVerified ? "Verified" : "Unverified"}>
-                        {isVerified ? "✓" : "⏳"}
-                      </span>
+                      {isVerified === undefined ? (
+                        <span className="leaderboard__badge leaderboard__badge--loading" title="Verifying...">
+                          …
+                        </span>
+                      ) : isVerified === null ? (
+                        <span className="leaderboard__badge leaderboard__badge--unavailable" title="Verification service temporarily unavailable">
+                          ?
+                        </span>
+                      ) : isVerified ? (
+                        <span className="leaderboard__badge leaderboard__badge--verified" title="Verified">
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="leaderboard__badge leaderboard__badge--unverified" title="Unverified">
+                          ✓
+                        </span>
+                      )}
                     </div>
                     <span className="leaderboard__addr" title={entry.id}>
                       {shortAddr(entry.id)}
