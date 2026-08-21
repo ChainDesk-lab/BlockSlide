@@ -1,8 +1,6 @@
 import { useCallback, useState } from "react";
 import { useContractAddress } from "./useContractData";
 
-const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
-
 export interface GasTopUpResult {
   ok: boolean;
   /** Error message if check failed */
