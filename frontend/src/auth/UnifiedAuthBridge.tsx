@@ -141,11 +141,14 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
 
   const magicLogin = async (email: string) => {
     if (!isMagicConfigured) {
-      setMagicError(
+      const message =
         "Email login is not available. Magic.link API key is missing. " +
-          "Please contact support or try again later."
-      );
-      return;
+        "Please contact support or try again later.";
+      setMagicError(message);
+      // Must throw, not just set state: the caller (SignInModal) only clears
+      // its "submitting" UI in a catch block, so a silent return leaves the
+      // button stuck on "Sending magic link..." forever with no error shown.
+      throw new Error(message);
     }
 
     setMagicLoading(true);
@@ -212,6 +215,9 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
         errorMsg: err instanceof Error ? err.message : String(err),
         isMagicConfigured,
       });
+      // Rethrow so SignInModal's catch block clears its "submitting" UI
+      // instead of spinning forever (see the throw above for why).
+      throw new Error(message);
     } finally {
       setMagicLoading(false);
     }
@@ -258,8 +264,9 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
           authType: "magic",
           login: async (email?: string) => {
             if (!email) {
-              setMagicError("Email is required for Magic login");
-              return;
+              const message = "Email is required for Magic login";
+              setMagicError(message);
+              throw new Error(message);
             }
             await magicLogin(email);
           },
