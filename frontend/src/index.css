@@ -472,6 +472,9 @@ html.dark-mode {
 .gas-modal__addr:disabled { opacity: 0.6; cursor: default; }
 .gas-modal__addr-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; word-break: break-all; line-height: 1.4; color: var(--text, #2a2722); }
 .gas-modal__addr-copy { flex-shrink: 0; font-size: 0.78rem; font-weight: 700; color: var(--accent, #7c5cff); }
+.gas-modal__steps { margin: 14px 0 4px; padding-left: 18px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; }
+.gas-modal__steps li + li { margin-top: 4px; }
+.gas-modal__steps strong { color: var(--text, #2a2722); font-weight: 700; }
 
 /* ─── Home / landing ─────────────────────────────────────────────────────── */
 .home {
