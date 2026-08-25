@@ -5,6 +5,10 @@ interface Props {
   onClose: () => void;
 }
 
+// BlockSlide's Telegram group hands out small CELO top-ups for gas when the
+// sponsored-gas flow doesn't cover a wallet automatically.
+const TELEGRAM_GAS_URL = "https://t.me/blockslide_xyz/394";
+
 // Shown when an on-chain action fails because the wallet has no CELO for gas.
 // New email/social-login wallets start empty, so we surface the address with a
 // one-tap copy and tell the user to top up — clearer than a failed transaction.
@@ -23,6 +27,11 @@ export default function GasNeededModal({ onClose }: Props) {
     }
   };
 
+  const openTelegram = () => {
+    void copy();
+    window.open(TELEGRAM_GAS_URL, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div
       className="htp-backdrop"
@@ -39,10 +48,8 @@ export default function GasNeededModal({ onClose }: Props) {
         <p className="htp-label">⛽ Gas needed</p>
         <h2 className="username-modal__title">Add a little CELO</h2>
         <p className="username-modal__desc">
-          On-chain actions — saving your name, starting a game, submitting a
-          score — cost a tiny network fee paid in <strong>CELO</strong>. Your
-          wallet is empty, so top it up with a small amount (a few cents is
-          plenty) from any exchange or wallet, then try again.
+          Copy your address, paste it in our Telegram group to get CELO, then
+          come back and tap "I've topped up."
         </p>
 
         <p className="gas-modal__addr-label">Your wallet address</p>
@@ -51,7 +58,10 @@ export default function GasNeededModal({ onClose }: Props) {
           <span className="gas-modal__addr-copy">{copied ? "Copied ✓" : "Copy"}</span>
         </button>
 
-        <div className="username-modal__actions">
+        <div className="username-modal__actions username-modal__actions--stack">
+          <button className="btn btn--secondary" onClick={openTelegram} disabled={!address}>
+            Get gas in Telegram ↗
+          </button>
           <button className="btn btn--primary" onClick={onClose}>
             I've topped up
           </button>

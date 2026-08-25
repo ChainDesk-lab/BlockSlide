@@ -185,12 +185,19 @@ function DiagnosticFooter() {
   const chainId = useChainId();
   const connections = useConnections();
 
+  // Wallet connection state (localStorage-backed) isn't known during SSR, so
+  // the server always renders "not connected". Gate on mount to keep the
+  // first client render identical to the server render and avoid a
+  // hydration mismatch, then swap in the real values right after.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Get the currently active connector name
   const activeConnector = connections.find(c => c.accounts.length > 0);
   const connectorName = activeConnector?.connector?.name || "unknown";
 
   // Format address (show first 6 and last 4 chars)
-  const displayAddress = address
+  const displayAddress = mounted && address
     ? `${address.slice(0, 6)}…${address.slice(-4)}`
     : "not connected";
 
@@ -209,7 +216,7 @@ function DiagnosticFooter() {
     }}
     title="Debug info: address | connector | chainId"
     >
-      {displayAddress} | {connectorName} | {chainId}
+      {mounted ? `${displayAddress} | ${connectorName} | ${chainId}` : "not connected"}
     </div>
   );
 }
