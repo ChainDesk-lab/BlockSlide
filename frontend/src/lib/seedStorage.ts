@@ -52,6 +52,9 @@ async function getDb(): Promise<IDBDatabase | null> {
 
 /**
  * Store seed in IndexedDB as backup
+ *
+ * CRITICAL FIX (2026-08-26): Don't use store.clear() as it wipes ALL seeds.
+ * Instead, delete only old seeds for this address to avoid race conditions.
  */
 export async function storeSeedInIndexedDB(
   address: string,
@@ -74,23 +77,39 @@ export async function storeSeedInIndexedDB(
         const transaction = db.transaction([STORE_NAME], "readwrite");
         const store = transaction.objectStore(STORE_NAME);
 
-        // Clear old entries for this address (keep only the latest)
-        const clearRequest = store.clear();
+        // Get all seeds and remove old ones for this address (safer than clear())
+        const getAllRequest = store.getAll();
 
-        clearRequest.onsuccess = () => {
-          const addRequest = store.add(stored);
-          addRequest.onsuccess = () => {
-            console.log(`[Seed Storage] Seed stored in IndexedDB for ${address.slice(0, 6)}...`);
-            resolve(true);
-          };
-          addRequest.onerror = () => {
-            console.warn("[Seed Storage] Failed to store seed in IndexedDB");
+        getAllRequest.onsuccess = () => {
+          try {
+            const seeds = getAllRequest.result as StoredSeed[];
+            const addressLower = address.toLowerCase();
+
+            // Delete only old entries for THIS address
+            for (const s of seeds) {
+              if (s.address === addressLower) {
+                store.delete(seeds.indexOf(s));
+              }
+            }
+
+            // Now add the new seed
+            const addRequest = store.add(stored);
+            addRequest.onsuccess = () => {
+              console.log(`[Seed Storage] ✓ Seed stored in IndexedDB for ${address.slice(0, 6)}...`);
+              resolve(true);
+            };
+            addRequest.onerror = () => {
+              console.warn("[Seed Storage] Failed to add seed in IndexedDB");
+              resolve(false);
+            };
+          } catch (err) {
+            console.warn("[Seed Storage] Error cleaning old seeds:", err);
             resolve(false);
-          };
+          }
         };
 
-        clearRequest.onerror = () => {
-          console.warn("[Seed Storage] Failed to clear old seeds");
+        getAllRequest.onerror = () => {
+          console.warn("[Seed Storage] Failed to read existing seeds");
           resolve(false);
         };
       } catch (err) {

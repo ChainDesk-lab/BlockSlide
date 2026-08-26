@@ -408,19 +408,51 @@ export function useGameSession() {
         console.log(`[Game Session] Transaction successful, refetching session to clear cache`);
         // Refetch to clear wagmi's cached session data so submitScore reads the fresh on-chain seed hash
         refetchSession();
-        // Non-blocking: store seed on server as fallback recovery mechanism.
-        // Fire-and-forget (don't await) so it never delays session start or blocks on network failure.
-        fetch("/api/game/seed", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            address,
-            seedHash: keccak256(seed),
-            seed,
-          }),
-        }).catch((err) => {
-          console.warn("[Game Session] Server seed backup failed (non-critical):", err);
-        });
+
+        // CRITICAL FIX (2026-08-26): Store seed on server with confirmation.
+        // This is now critical because localStorage/IndexedDB can both fail.
+        // We verify the POST succeeded before considering the session "ready".
+        const seedHash = keccak256(seed);
+        try {
+          const serverBackupResponse = await fetch("/api/game/seed", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              address,
+              seedHash,
+              seed,
+            }),
+          });
+
+          if (!serverBackupResponse.ok) {
+            console.error("[Game Session] Server seed backup failed with status", {
+              status: serverBackupResponse.status,
+              statusText: serverBackupResponse.statusText,
+            });
+            // CRITICAL: This is no longer "non-critical" — without server backup,
+            // user only has localStorage/IndexedDB which can both fail.
+            // Log prominently so we can track if this is happening.
+            showToast(
+              "⚠️ Seed backup to server failed. Your session is less protected against browser storage loss.",
+              "warning"
+            );
+          } else {
+            const data = await serverBackupResponse.json();
+            if (data.success) {
+              console.log("[Game Session] ✓ Seed backed up to server (persistent storage)");
+            } else {
+              console.warn("[Game Session] Server backup reported failure:", data);
+            }
+          }
+        } catch (err) {
+          console.error("[Game Session] Server seed backup exception:", err);
+          // Network error — still allow session to proceed (localStorage/IndexedDB exist)
+          // but log it prominently
+          showToast(
+            "Network error backing up seed. Your session relies on browser storage only.",
+            "warning"
+          );
+        }
       } catch (e) {
         if (isInsufficientGasError(e)) triggerNoGas();
         const errMsg = parseContractError(e as Error);
@@ -639,7 +671,7 @@ export function useGameSession() {
               seedHash: session.seedHash.slice(0, 10),
             });
             const response = await fetch(
-              `/api/game/seed/${address}/${session.seedHash}`
+              `/api/game/seed?address=${encodeURIComponent(address)}&seedHash=${encodeURIComponent(session.seedHash)}`
             );
             if (!response.ok) {
               recoveryLog.steps.push({
