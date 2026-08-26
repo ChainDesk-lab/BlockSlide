@@ -47,16 +47,24 @@ export default function GasNeededModal({ onClose }: Props) {
 
         <p className="htp-label">⛽ Gas needed</p>
         <h2 className="username-modal__title">Add a little CELO</h2>
-        <p className="username-modal__desc">
-          Copy your address, paste it in our Telegram group to get CELO, then
-          come back and tap "I've topped up."
-        </p>
 
         <p className="gas-modal__addr-label">Your wallet address</p>
         <button className="gas-modal__addr" onClick={copy} disabled={!address}>
           <span className="gas-modal__addr-text">{address ?? "Not connected"}</span>
           <span className="gas-modal__addr-copy">{copied ? "Copied ✓" : "Copy"}</span>
         </button>
+
+        <ol className="gas-modal__steps">
+          <li>Copy your wallet address above</li>
+          <li>
+            Tap <strong>"Get gas in Telegram"</strong> below to open the group
+          </li>
+          <li>Paste your address in the Telegram group below</li>
+          <li>Receive your gas fee</li>
+          <li>
+            Return here and tap <strong>"I've topped up"</strong>
+          </li>
+        </ol>
 
         <div className="username-modal__actions username-modal__actions--stack">
           <button className="btn btn--secondary" onClick={openTelegram} disabled={!address}>
