@@ -5,6 +5,8 @@ import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
 import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
 import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED } from "../lib/constants";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
+import { isInsufficientGasError } from "../lib/gasError";
+import { useNoGas } from "../contexts/NoGasContext";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
@@ -12,6 +14,7 @@ export function useShop() {
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
   const enabled = !!address && CONTRACT_DEPLOYED;
+  const { triggerNoGas } = useNoGas();
 
   const { writeContractAsync } = useWriteContract();
   const [pendingAction, setPendingAction] = useState<ShopAction>(null);
@@ -125,9 +128,14 @@ export function useShop() {
       refetchAll();
       window.dispatchEvent(new Event("gdBalanceChanged"));
     } catch (e: any) {
-      const msg: string = e?.shortMessage ?? e?.message ?? "Transaction failed";
-      if (!msg.toLowerCase().includes("rejected") && !msg.toLowerCase().includes("denied")) {
-        setError(msg.slice(0, 120));
+      if (isInsufficientGasError(e)) {
+        triggerNoGas();
+        setError("You need a little CELO for gas — see the pop-up.");
+      } else {
+        const msg: string = e?.shortMessage ?? e?.message ?? "Transaction failed";
+        if (!msg.toLowerCase().includes("rejected") && !msg.toLowerCase().includes("denied")) {
+          setError(msg.slice(0, 120));
+        }
       }
     } finally {
       setPendingAction(null);
