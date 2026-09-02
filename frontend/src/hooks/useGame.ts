@@ -24,6 +24,9 @@ export function useGame(
   const [seed, setSeed] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const rngRef = useRef<(() => number) | null>(null);
+  // Direction of the most recent move — the animation layer needs it to know
+  // which way tiles slid. Not part of GameState (that stays untouched).
+  const [lastDirection, setLastDirection] = useState<Direction | null>(null);
 
   // Keep keyboard/touch handlers from firing while the player is on another
   // screen (Leaderboard/Shop). A ref avoids re-subscribing the listeners.
@@ -82,6 +85,7 @@ export function useGame(
     rngRef.current = rng;
     setSeed(s);
     setState(initial);
+    setLastDirection(null);
     console.log(`[useGame] Game initialized with seed, phase should update to 'active' now`);
     return s;
   }, []);
@@ -90,12 +94,14 @@ export function useGame(
     setState(null);
     setSeed(null);
     rngRef.current = null;
+    setLastDirection(null);
     if (address) removeUserStorage(address, STORAGE_KEY);
   }, [address]);
 
   const handleMove = useCallback((dir: Direction) => {
     if (!rngRef.current) return;
     const rng = rngRef.current;
+    setLastDirection(dir);
     setState((prev) => {
       if (!prev || prev.over || prev.won) return prev;
       return applyMove(prev, dir, rng);
@@ -174,5 +180,5 @@ export function useGame(
     };
   }, [handleMove, boardRef]);
 
-  return { state, seed, startNewGame, clearGame, handleMove, isInitialized };
+  return { state, seed, startNewGame, clearGame, handleMove, isInitialized, lastDirection };
 }
