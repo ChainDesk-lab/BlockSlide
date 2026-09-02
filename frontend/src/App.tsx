@@ -81,7 +81,7 @@ export default function App() {
     setShowHowToPlay(false);
   };
   const boardWrapperRef = useRef<HTMLDivElement>(null);
-  const { state, seed, startNewGame, clearGame, isInitialized } = useGame(address, view === "game", boardWrapperRef);
+  const { state, seed, startNewGame, clearGame, isInitialized, lastDirection } = useGame(address, view === "game", boardWrapperRef);
   const {
     phase,
     isPending,
@@ -310,7 +310,7 @@ export default function App() {
             <div className="board-wrapper" ref={boardWrapperRef}>
               {state ? (
                 <>
-                  <Board state={state} />
+                  <Board state={state} lastDirection={lastDirection} />
                   {gameEnded && (
                     <div className="game-overlay">
                       <div className="game-overlay__content">

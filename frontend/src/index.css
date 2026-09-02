@@ -853,10 +853,14 @@ html.dark-mode {
 }
 
 .board {
+  /* --gap drives both the CSS grid of background wells and the transform math
+     for the absolutely-positioned animated tiles, so the two layers can never
+     drift. Mirrored (not changed) at every breakpoint that overrides gap. */
+  --gap: 10px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  padding: 10px;
+  gap: var(--gap);
+  padding: var(--gap);
   background: var(--board);
   border-radius: var(--radius);
   width: min(480px, calc(100vw - 32px));
@@ -944,6 +948,7 @@ html.dark-mode {
   pointer-events: none;
   animation: fadeIn 0.15s ease;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 2; /* above the animated tile layer (z-index: 1) */
 }
 
 .combo-badge--active {
@@ -1014,6 +1019,80 @@ html.dark-mode {
 .tile--high-score { animation: highScorePulse 0.6s ease-in-out; }
 .score--float { animation: floatUp 0.8s ease-out forwards; }
 .celebration--pop { animation: celebrationPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+/* ── Animated tile layer ─
+   Sits exactly over the static well grid (works because .board's padding and
+   gap are equal at every breakpoint). Every tile is two elements:
+   .tile-pos  — absolutely positioned, owns the slide (transform: translate)
+   .tile      — the visible block, owns the in-place pop (transform: scale)
+   Keeping position and scale on separate elements is load-bearing: a percentage
+   translate is relative to the element's own box, so scaling the *same* element
+   would drag it toward the origin as it grows. */
+.tile-layer {
+  position: absolute;
+  inset: var(--gap);
+  z-index: 1;
+}
+
+.tile-layer .tile-pos {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width:  calc((100% - 3 * var(--gap)) / 4);
+  height: calc((100% - 3 * var(--gap)) / 4);
+  /* translate % resolves against .tile-pos's own box, so each step is
+     one cell + one gap — the same spacing repeat(4, 1fr) + gap produces. */
+  transform: translate(
+    calc(var(--col, 0) * (100% + var(--gap))),
+    calc(var(--row, 0) * (100% + var(--gap)))
+  );
+  /* --slide-ms is set inline from SLIDE_MS in tileTracker.ts so the two can't drift.
+     ease-out: the tile leaves immediately in the swipe direction, then settles. */
+  transition: transform var(--slide-ms, 140ms) cubic-bezier(0.22, 0.68, 0.32, 1);
+  will-change: transform;
+}
+
+/* Losing side of a merge — slides under the result tile, then unmounts. */
+.tile-layer .tile-pos--ghost { z-index: 0; }
+
+.tile-layer .tile-pos > .tile {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  transform-origin: center;
+  /* If a rapid follow-up move strips the pop mid-animation, the scale eases
+     back instead of snapping. .tile-pos owns translate, so this only ever
+     touches the in-place scale. */
+  transition: transform 90ms ease-out;
+}
+
+/* In-place pops. `backwards` fill holds the start frame through the
+   Board-set animation-delay (SLIDE_MS for a merge result, SPAWN_STAGGER_MS
+   for a spawn). transform: scale only — .tile-pos owns translate. */
+@keyframes tileSpawnPop {
+  0%   { transform: scale(0.2); opacity: 0; }
+  60%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+@keyframes tileMergeReveal {
+  0%   { transform: scale(0);   opacity: 0; }
+  55%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.tile-layer .tile-pos > .tile--appear {
+  animation: tileSpawnPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.tile-layer .tile-pos > .tile--merged {
+  animation: tileMergeReveal 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-layer .tile-pos,
+  .tile-layer .tile-pos > .tile {
+    transition: none !important;
+    animation: none !important;
+  }
+}
 
 /* ─── Game-over overlay ──────────────────────────────────────────────────── */
 .game-overlay {
@@ -2995,7 +3074,7 @@ html.dark-mode {
   .wallet-button-container { margin-left: auto; }
   .icon-btn { width: 28px; height: 28px; font-size: 0.8rem; }
   .main { padding: 12px 10px 32px; gap: 12px; }
-  .board { gap: 6px; padding: 6px; border-radius: var(--radius-sm); }
+  .board { --gap: 6px; gap: var(--gap); padding: var(--gap); border-radius: var(--radius-sm); }
   .score-panel { gap: 6px; }
   .score-box { min-width: 60px; padding: 5px 7px; }
   .score-value { font-size: 1rem; }
@@ -3042,7 +3121,7 @@ html.dark-mode {
   .score-box { min-width: 65px; padding: 4px 8px; }
   .score-value { font-size: 0.95rem; }
   .score-label { font-size: 0.55rem; }
-  .board { width: min(340px, 55vh, calc(100vw - 32px)); gap: 5px; padding: 5px; }
+  .board { --gap: 5px; width: min(340px, 55vh, calc(100vw - 32px)); gap: var(--gap); padding: var(--gap); }
   .controls { gap: 6px; }
   .btn { padding: 6px 14px; min-width: 90px; font-size: 0.75rem; }
   .combo-badge { top: 3px; left: 3px; padding: 2px 6px; }
@@ -3072,7 +3151,7 @@ html.dark-mode {
 
 /* ─── Tablets (≥ 768px) ─────────────────────────────────────────── */
 @media (min-width: 768px) {
-  .board { width: min(520px, calc(100vw - 64px)); gap: 12px; padding: 12px; }
+  .board { --gap: 12px; width: min(520px, calc(100vw - 64px)); gap: var(--gap); padding: var(--gap); }
   .screen { max-width: 560px; }
   .score-panel { max-width: 520px; gap: 14px; }
   .score-box { padding: 14px 24px; }
@@ -3108,7 +3187,7 @@ html.dark-mode {
 
 /* ─── Desktop (≥ 1024px) ────────────────────────────────────────── */
 @media (min-width: 1024px) {
-  .board { width: min(560px, calc(100vw - 80px)); gap: 14px; padding: 14px; }
+  .board { --gap: 14px; width: min(560px, calc(100vw - 80px)); gap: var(--gap); padding: var(--gap); }
   .screen { max-width: 640px; }
   .score-panel { max-width: 560px; gap: 16px; }
   .score-box { min-width: 140px; padding: 16px 28px; }
@@ -3135,7 +3214,7 @@ html.dark-mode {
 
 /* ─── Large desktop (≥ 1440px) ───────────────────────────────────── */
 @media (min-width: 1440px) {
-  .board { width: 600px; gap: 16px; padding: 16px; }
+  .board { --gap: 16px; width: 600px; gap: var(--gap); padding: var(--gap); }
   .screen { max-width: 720px; }
   .score-panel { max-width: 600px; gap: 18px; }
   .score-box { min-width: 160px; padding: 18px 32px; }
