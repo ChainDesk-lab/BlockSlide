@@ -1,4 +1,4 @@
-import { useAccount } from "wagmi";
+import { useAuth } from "../auth/AuthContext";
 import { SessionPhase } from "../hooks/useGameSession";
 import { IdentityStatus } from "../hooks/useIdentity";
 import { GameState } from "../lib/gameLogic";
@@ -9,6 +9,11 @@ interface GameControlsProps {
   isPending: boolean;
   isWrongChain: boolean;
   identityStatus: IdentityStatus;
+  /** True only if THIS wallet passes the contract's isWhitelisted check — the
+   * actual on-chain gate for submitScore. identityStatus === "verified" is
+   * broader (it also covers wallets merely linked to a verified identity,
+   * which can claim but can't submit), so it can't be used for this hint. */
+  canSubmitScore: boolean;
   onNewGame: () => void;
   onSubmit: () => void;
   undoCredits?: bigint;
@@ -21,13 +26,14 @@ export default function GameControls({
   phase,
   isPending,
   identityStatus,
+  canSubmitScore,
   onNewGame,
   onSubmit,
   undoCredits,
   onUndo,
   undoPending,
 }: GameControlsProps) {
-  const { isConnected } = useAccount();
+  const { isConnected } = useAuth();
   const gameEnded = state && (state.over || state.won);
 
   return (
@@ -49,7 +55,9 @@ export default function GameControls({
         </button>
       )}
 
-      {/* Submit Score — anyone can submit; only claiming rewards requires verification */}
+      {/* Submit Score button is always shown once the game ends — the contract
+          itself rejects the tx if this wallet isn't whitelisted, and that
+          revert is caught and surfaced via the error banner / hint below. */}
       {phase === "active" && gameEnded && (
         <button
           className="btn btn--secondary"
@@ -101,8 +109,12 @@ export default function GameControls({
       {isConnected && !gameEnded && phase === "active" && (
         <p className="controls__hint">Arrow keys · WASD · swipe to move</p>
       )}
-      {isConnected && identityStatus !== "verified" && phase === "active" && gameEnded && (
-        <p className="controls__hint">Verify your identity to submit your score on-chain</p>
+      {isConnected && !canSubmitScore && phase === "active" && gameEnded && (
+        <p className="controls__hint">
+          {identityStatus === "verified"
+            ? "Your GoodDollar verification is on a different wallet — switch to it to submit your score on-chain."
+            : "Verify your identity to submit your score on-chain"}
+        </p>
       )}
     </div>
   );

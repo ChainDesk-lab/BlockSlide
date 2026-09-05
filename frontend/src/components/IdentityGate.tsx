@@ -6,11 +6,16 @@ import { IdCardIcon } from "./icons";
 
 interface Props {
   status: IdentityStatus;
+  /** True only if this exact wallet passes the contract's isWhitelisted check.
+   * status === "verified" also covers wallets merely linked to a verified
+   * GoodDollar identity, which can't submit scores — this gate must stay
+   * open for those until canSubmit is true, not just status === "verified". */
+  canSubmit: boolean;
   onRefresh: () => void;
   onStarted: () => void;
 }
 
-export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
+export default function IdentityGate({ status, canSubmit, onRefresh, onStarted }: Props) {
   const { address } = useAuth();
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -41,7 +46,7 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
   } = useGoodDollarIdentity();
   const { logout } = useAuth();
 
-  if (status === "no-wallet" || status === "verified") return null;
+  if (status === "no-wallet" || (status === "verified" && canSubmit)) return null;
 
   const handleVerify = async () => {
     onStarted(); // Mark as pending in useIdentity hook
@@ -162,6 +167,44 @@ export default function IdentityGate({ status, onRefresh, onStarted }: Props) {
 
             <p className="identity-gate__note">
               You can still play in demo mode while this confirms.
+            </p>
+          </>
+        ) : status === "verified" ? (
+          // canSubmit is false here (the early return above handles the true
+          // case) — this wallet is linked to a verified identity but isn't
+          // the whitelisted one, so scanning again would just hit "found
+          // your twin". The only real fix is switching wallets.
+          <>
+            <p className="identity-gate__title">Wrong wallet for scoring</p>
+            <p className="identity-gate__desc">
+              Your GoodDollar identity is verified, but on a different wallet
+              than the one you're using now. Scores can only be submitted
+              from your originally verified wallet.
+            </p>
+
+            {verificationError && (
+              <p className="identity-gate__error">{verificationError}</p>
+            )}
+
+            <div className="identity-gate__actions">
+              <button
+                className="btn btn--primary identity-gate__btn"
+                onClick={switchToVerifiedWallet}
+              >
+                Switch to my verified wallet
+              </button>
+              <button
+                className="btn identity-gate__btn identity-gate__btn--check"
+                onClick={() => {
+                  onRefresh();
+                }}
+              >
+                I'm on the right wallet, check again
+              </button>
+            </div>
+
+            <p className="identity-gate__note">
+              You can still play in demo mode from this wallet without submitting.
             </p>
           </>
         ) : (

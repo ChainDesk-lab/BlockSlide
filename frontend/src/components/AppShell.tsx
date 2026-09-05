@@ -181,9 +181,15 @@ export default function AppShell({ children }: AppShellProps) {
 }
 
 function DiagnosticFooter() {
-  const { address } = useAccount();
+  // wagmi's own useAccount()/useConnections() only reflect a connected
+  // browser-wallet connector — a Magic.link session has neither, so this
+  // must read the unified auth address (what the rest of the app treats as
+  // "connected"), not wagmi's, or Magic users always show as disconnected here.
+  const { address: wagmiAddress } = useAccount();
+  const { address: authAddress, authType } = useAuth();
   const chainId = useChainId();
   const connections = useConnections();
+  const address = authAddress ?? wagmiAddress;
 
   // Wallet connection state (localStorage-backed) isn't known during SSR, so
   // the server always renders "not connected". Gate on mount to keep the
@@ -194,7 +200,7 @@ function DiagnosticFooter() {
 
   // Get the currently active connector name
   const activeConnector = connections.find(c => c.accounts.length > 0);
-  const connectorName = activeConnector?.connector?.name || "unknown";
+  const connectorName = authType === "magic" ? "magic" : activeConnector?.connector?.name || "unknown";
 
   // Format address (show first 6 and last 4 chars)
   const displayAddress = mounted && address
