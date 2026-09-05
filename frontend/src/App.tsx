@@ -34,7 +34,12 @@ export default function App() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { address, isConnected, isFundingWallet } = useAuth();
-  const { status: identityStatus, refetch: refetchIdentity, markPending: markIdentityPending } = useIdentity();
+  const {
+    status: identityStatus,
+    isVerifiedForSubmission,
+    refetch: refetchIdentity,
+    markPending: markIdentityPending,
+  } = useIdentity();
 
   // Migrate old storage keys to new unified format (run once per address)
   useEffect(() => {
@@ -222,7 +227,7 @@ export default function App() {
   );
 
   // Don't show notifications if a modal is open (modals block gameplay)
-  const hasOpenModal = showHowToPlay || showUsernameModal || isFundingWallet || (view === "game" && gameEnded && identityStatus !== "verified");
+  const hasOpenModal = showHowToPlay || showUsernameModal || isFundingWallet || (view === "game" && gameEnded && !isVerifiedForSubmission);
   const visibleNotifications = hasOpenModal ? [] : activeNotifications;
 
   // Auth gate — 3-state, to avoid a login loop. The two signals are independent
@@ -275,9 +280,16 @@ export default function App() {
       )}
 
       <main className="main">
-        {/* Identity gate modal — shown only when trying to claim without verification */}
-        {view === "game" && gameEnded && identityStatus !== "verified" && (
-          <IdentityGate status={identityStatus} onRefresh={refetchIdentity} onStarted={markIdentityPending} />
+        {/* Shown after a game ends when this wallet can't submit a score on-chain:
+            either genuinely unverified, or verified under a different wallet
+            (identityStatus alone can't tell these apart — see isVerifiedForSubmission). */}
+        {view === "game" && gameEnded && !isVerifiedForSubmission && (
+          <IdentityGate
+            status={identityStatus}
+            canSubmit={isVerifiedForSubmission}
+            onRefresh={refetchIdentity}
+            onStarted={markIdentityPending}
+          />
         )}
 
         {/* Wrong-chain only — this actually blocks onchain play */}
@@ -379,6 +391,7 @@ export default function App() {
               isPending={isPending}
               isWrongChain={isWrongChain}
               identityStatus={identityStatus}
+              canSubmitScore={isVerifiedForSubmission}
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
               undoCredits={undoCredits}
