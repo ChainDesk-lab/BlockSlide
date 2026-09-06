@@ -1,215 +1,105 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
 import Avatar from "./Avatar";
 
-/**
- * Fetch verification status from reconciliation endpoint
- * Checks both on-chain verification status and score history
- */
-async function fetchPlayerVerifications(
-  addresses: string[]
-): Promise<Record<string, boolean>> {
-  if (addresses.length === 0) return {};
-
-  console.log(`[Verification API] Requesting ${addresses.length} addresses:`, addresses.map(a => a.slice(0, 8)).join(", "));
-
-  try {
-    const response = await fetch("/api/player-verification", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ addresses }),
-    });
-
-    if (!response.ok) {
-      console.error("[Verification API] HTTP error:", response.status);
-      throw new Error(`Verification API returned ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      results?: Record<string, { isVerified: boolean }>;
-    };
-    const results: Record<string, boolean> = {};
-    if (data.results) {
-      for (const [addr, { isVerified }] of Object.entries(data.results)) {
-        results[addr.toLowerCase()] = isVerified;
-      }
-    }
-
-    console.log(`[Verification API] Got ${Object.keys(results).length} results:`,
-      Object.entries(results).map(([a, v]) => `${a.slice(0, 8)}=${v}`).join(", "));
-
-    return results;
-  } catch (err) {
-    console.error("[Verification API] Error:", err instanceof Error ? err.message : String(err));
-    throw err;
-  }
-}
-
-// Goldsky subgraph GraphQL endpoint. Set NEXT_PUBLIC_SUBGRAPH_URL after deploying
-// the subgraph in /subgraph (see its README/deploy step).
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
 const PAGE_SIZE = 50;
 
 interface PlayerRow {
-  id: string; // wallet address
+  id: string; // wallet address (lowercase)
   xp: string; // BigInt as string
   username: string | null;
-  isVerified?: boolean; // true if player has earned XP; undefined for backward compat
+  // GoodDollar verification, resolved server-side alongside ranking so the
+  // badge and the sort order can never disagree. null = could not determine.
+  isVerified: boolean | null;
 }
 
-interface LeaderboardData {
+interface LeaderboardResponse {
   entries: PlayerRow[];
+  page: number;
+  pageSize: number;
   totalPlayers: number;
   totalPages: number;
+  stale?: boolean;
+  error?: string;
 }
 
-function buildPlayersQuery(skip: number, first: number = PAGE_SIZE): string {
-  return `{
-    players(first: ${first}, skip: ${skip}, orderBy: xp, orderDirection: desc) {
-      id
-      xp
-      username
-    }
-  }`;
-}
-
-function buildTotalQuery(): string {
-  return `{
-    players(first: 1000) {
-      id
-    }
-  }`;
-}
-
-async function fetchLeaderboard(skip: number): Promise<LeaderboardData> {
-  // Fetch a LARGE BUFFER (3x page size) for proper three-tier sorting across pages
-  // This ensures verified/unverified users are properly grouped even across page boundaries
-  const FETCH_BUFFER = PAGE_SIZE * 3; // 150 entries instead of 50
-
-  const playersQuery = buildPlayersQuery(skip, FETCH_BUFFER);
-  const res = await fetch(SUBGRAPH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: playersQuery }),
-  });
-  if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
-  const json = (await res.json()) as { data?: { players?: PlayerRow[] }; errors?: unknown };
-  if (json.errors) throw new Error("Subgraph returned errors");
-  // Get full buffer for sorting, but we'll slice it in the component based on verification
-  const entries = json.data?.players ?? [];
-
-  // Fetch total count (once per query to keep it fresh)
-  const totalRes = await fetch(SUBGRAPH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: buildTotalQuery() }),
-  });
-  const totalJson = (await totalRes.json()) as { data?: { players?: { id: string }[] }; errors?: unknown };
-  const totalPlayers = totalJson.data?.players?.length ?? 0;
-  const totalPages = Math.ceil(totalPlayers / PAGE_SIZE);
-
-  return { entries, totalPlayers, totalPages };
-}
-
-// Fetch the global top 3 players (independent of pagination)
-async function fetchTopThree(): Promise<PlayerRow[]> {
-  const query = `{
-    players(first: 3, orderBy: xp, orderDirection: desc) {
-      id
-      xp
-      username
-    }
-  }`;
-  const res = await fetch(SUBGRAPH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
-  if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
-  const json = (await res.json()) as { data?: { players?: PlayerRow[] }; errors?: unknown };
-  if (json.errors) throw new Error("Subgraph returned errors");
-  return json.data?.players ?? [];
+async function fetchLeaderboardPage(
+  page: number,
+  fresh: boolean
+): Promise<LeaderboardResponse> {
+  const qs = new URLSearchParams({ page: String(page) });
+  if (fresh) qs.set("fresh", "1");
+  const res = await fetch(`/api/leaderboard?${qs.toString()}`);
+  if (!res.ok) throw new Error(`Leaderboard API returned ${res.status}`);
+  return (await res.json()) as LeaderboardResponse;
 }
 
 export default function Leaderboard() {
-  const configured = SUBGRAPH_URL.length > 0;
   const { address } = useAuth();
   const { isSaving, error, save, clearFeedback } = useUsername();
+  const queryClient = useQueryClient();
 
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
 
-  const skip = currentPage * PAGE_SIZE;
+  // After a score submit, bypass the server-side cache once so the new XP shows
+  // immediately instead of after the 15s cache window.
+  const freshUntilRef = useRef(0);
+  useEffect(() => {
+    const onSubmitted = () => {
+      freshUntilRef.current = Date.now() + 30_000;
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+    };
+    window.addEventListener("scoreSubmitted", onSubmitted);
+    return () => window.removeEventListener("scoreSubmitted", onSubmitted);
+  }, [queryClient]);
 
-  // Paginated query that fetches a LARGE BUFFER for proper tier grouping
-  // The buffer is 3x page size, so we fetch enough to fill current + next 2 pages
-  // This allows us to sort into three tiers BEFORE paginating
-  const { data, isLoading, isError, error: queryError } = useQuery({
-    queryKey: ["leaderboard", skip],
-    queryFn: () => fetchLeaderboard(skip),
-    enabled: configured,
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+  const isFresh = () => Date.now() < freshUntilRef.current;
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["leaderboard", "page", currentPage],
+    queryFn: () => fetchLeaderboardPage(currentPage, isFresh()),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+    placeholderData: (prev) => prev,
   });
 
-  // Independent query for global top 3 (never changes with page navigation)
-  const { data: topThreeData } = useQuery({
-    queryKey: ["leaderboard-top-three"],
-    queryFn: () => fetchTopThree(),
-    enabled: configured,
-    refetchInterval: 30_000, // pick up new scores
-    staleTime: 15_000,
+  // Global top 3 — independent of pagination.
+  const { data: topData } = useQuery({
+    queryKey: ["leaderboard", "top"],
+    queryFn: () => fetchLeaderboardPage(0, isFresh()),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
   });
 
-  // Memoize addresses to prevent query refetch on every render
-  // DEDUPLICATE to avoid requesting the same address multiple times
-  const allAddresses = useMemo(
-    () => {
-      const combined = [
-        ...(data?.entries ?? []).map((e) => e.id),
-        ...(topThreeData ?? []).map((e) => e.id),
-      ];
-      return Array.from(new Set(combined.map(a => a.toLowerCase())));
-    },
-    [data?.entries, topThreeData]
+  const entries = useMemo(() => data?.entries ?? [], [data]);
+  const topThree = useMemo(
+    () => (topData?.entries ?? []).slice(0, 3),
+    [topData]
   );
-
-  const verificationQueryKey = useMemo(
-    () => ["player-verifications", allAddresses.sort().join(",")],
-    [allAddresses]
-  );
-
-  const { data: verificationData, isLoading: isVerificationLoading, error: verificationError } = useQuery({
-    queryKey: verificationQueryKey,
-    queryFn: () => fetchPlayerVerifications(allAddresses),
-    enabled: configured && allAddresses.length > 0,
-    staleTime: 5 * 60_000, // 5 minutes (matches server cache)
-    gcTime: 30 * 60_000, // Keep in cache for 30 min even after stale
-    retry: 2, // Retry failed requests twice before giving up
-  });
-
-  console.log(`[Leaderboard] Verification query: loading=${isVerificationLoading} dataKeys=${Object.keys(verificationData || {}).length} error=${verificationError ? (verificationError as Error).message : "none"}`);
-
-  if (queryError) {
-    console.error("[Leaderboard] Subgraph query error:", queryError);
-  }
-  if (verificationError) {
-    console.error("[Leaderboard] Verification query error:", verificationError);
-  }
-
-  const entries = data?.entries ?? [];
-  const topThree = topThreeData ?? [];
-  const totalPages = data?.totalPages ?? 0;
+  const totalPages = data?.totalPages ?? 1;
   const totalPlayers = data?.totalPlayers ?? 0;
-  const showEmpty = configured && !isLoading && (isError || totalPlayers === 0);
+  const isStale = data?.stale === true;
+
+  // Keep the current page in range if the total player count shrinks.
+  useEffect(() => {
+    if (currentPage > totalPages - 1) {
+      setCurrentPage(Math.max(0, totalPages - 1));
+    }
+  }, [totalPages, currentPage]);
+
+  useEffect(() => {
+    if (isError) console.error("[Leaderboard] failed to load leaderboard page");
+  }, [isError]);
+
+  // Only the genuine "nobody has played" case — a transient fetch error keeps
+  // the last good page visible via placeholderData rather than flashing empty.
+  const showEmpty = !isLoading && totalPlayers === 0 && entries.length === 0;
   const isLastPage = currentPage >= totalPages - 1;
   const showPagination = entries.length > 0 && totalPages > 1;
-
-  // Debug: log navigation state when page changes
-  console.log(`[Leaderboard] Page ${currentPage + 1}/${totalPages}, skip=${skip}, entries=${entries.length}, isLoading=${isLoading}`);
 
   const handleEditClick = (addr: string, currentName: string | null) => {
     setEditingAddress(addr);
@@ -232,55 +122,23 @@ export default function Leaderboard() {
     clearFeedback();
   };
 
-  // Sort the ENTIRE buffer into three tiers BEFORE pagination
-  // This ensures verified users appear first across all pages, not scattered
-  const sortedAndPagedEntries = useMemo(() => {
-    const allEntries = entries; // This is now a 150-entry buffer from the query
-
-    if (!verificationData || Object.keys(verificationData).length === 0) {
-      // If no verification data yet, return unsorted current page
-      return allEntries.slice(0, PAGE_SIZE);
-    }
-
-    // Sort ALL entries in buffer into three tiers
-    const verified: typeof allEntries = [];
-    const unverifiedWithXp: typeof allEntries = [];
-    const unverifiedZeroXp: typeof allEntries = [];
-
-    for (const entry of allEntries) {
-      const addr = entry.id.toLowerCase();
-      const isVerified = verificationData[addr];
-      const xp = Number(entry.xp) || 0;
-
-      if (isVerified === true) {
-        verified.push(entry);
-      } else if (xp > 0) {
-        unverifiedWithXp.push(entry);
-      } else {
-        unverifiedZeroXp.push(entry);
-      }
-    }
-
-    // Sort each tier by XP descending
-    verified.sort((a, b) => Number(b.xp) - Number(a.xp));
-    unverifiedWithXp.sort((a, b) => Number(b.xp) - Number(a.xp));
-    // unverifiedZeroXp keeps original order
-
-    // Combine all tiers and slice to current page
-    const fullySorted = [...verified, ...unverifiedWithXp, ...unverifiedZeroXp];
-    return fullySorted.slice(0, PAGE_SIZE);
-  }, [entries, verificationData]);
+  // Normalises the server-provided flag: true → verified, false → unverified,
+  // null/undefined → "could not determine" (badge shows "?").
+  const resolveVerified = (v: boolean | null | undefined): boolean | null =>
+    v === true ? true : v === false ? false : null;
 
   return (
     <div className="leaderboard">
       <h2 className="leaderboard__title">Leaderboard</h2>
 
-      {!configured && (
-        <p className="leaderboard__empty">Leaderboard is being set up.</p>
+      {isLoading && <p className="leaderboard__empty">Loading…</p>}
+
+      {isStale && !isLoading && !showEmpty && (
+        <p className="leaderboard__empty">
+          Live rankings are catching up — some recent XP may not show yet.
+        </p>
       )}
-      {configured && isLoading && (
-        <p className="leaderboard__empty">Loading…</p>
-      )}
+
       {showEmpty && (
         <div className="leaderboard__empty-state">
           <div className="leaderboard__empty-icon">🎮</div>
@@ -293,30 +151,12 @@ export default function Leaderboard() {
       )}
 
       {/* ── Top 3 Podium Section ────────────────────────────────────────── */}
-      {topThree.length > 0 && topThree.length >= 3 && (
+      {topThree.length >= 3 && (
         <div className="leaderboard__podium">
           {topThree.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            // Use verification endpoint result; show loading during fetch
-            // Distinguish: undefined/loading → "…", true → verified, false → unverified, null → unavailable
-            const normalizedAddr = entry.id.toLowerCase();
-            const verifiedStatus = verificationData?.[normalizedAddr];
-            let isVerified: boolean | undefined | null;
-
-            if (isVerificationLoading) {
-              isVerified = undefined; // Loading state
-            } else if (verifiedStatus === null) {
-              isVerified = null; // Verification service unavailable
-            } else if (verifiedStatus !== undefined) {
-              isVerified = verifiedStatus; // Got result (true or false)
-            } else {
-              isVerified = false; // Missing from response, assume unverified
-            }
-
-            if (idx === 0) {
-              console.log(`[Leaderboard] Top #${idx + 1}: ${normalizedAddr.slice(0, 8)} status=${isVerified === undefined ? "loading" : isVerified === null ? "unavailable" : isVerified ? "verified" : "unverified"}`);
-            }
+            const isVerified = resolveVerified(entry.isVerified);
 
             return (
               <div key={entry.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
@@ -326,16 +166,14 @@ export default function Leaderboard() {
                 </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
-                  {isVerified === undefined ? (
-                    <span className="badge badge--loading">…</span>
-                  ) : isVerified === null ? (
-                    <span className="badge badge--unavailable" title="Verification service temporarily unavailable">
+                  {isVerified === null ? (
+                    <span className="badge badge--unavailable" title="Verification status unavailable — refreshes automatically">
                       ?
                     </span>
                   ) : isVerified ? (
-                    <span className="badge badge--verified">✓</span>
+                    <span className="badge badge--verified" title="GoodDollar verified">✓</span>
                   ) : (
-                    <span className="badge badge--unverified">✓</span>
+                    <span className="badge badge--unverified" title="Not verified">✓</span>
                   )}
                 </div>
                 <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
@@ -350,25 +188,7 @@ export default function Leaderboard() {
           {topThree.map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            // Use verification endpoint result; show loading during fetch
-            // Distinguish: undefined/loading → "…", true → verified, false → unverified, null → unavailable
-            const normalizedAddr = entry.id.toLowerCase();
-            const verifiedStatus = verificationData?.[normalizedAddr];
-            let isVerified: boolean | undefined | null;
-
-            if (isVerificationLoading) {
-              isVerified = undefined; // Loading state
-            } else if (verifiedStatus === null) {
-              isVerified = null; // Verification service unavailable
-            } else if (verifiedStatus !== undefined) {
-              isVerified = verifiedStatus; // Got result (true or false)
-            } else {
-              isVerified = false; // Missing from response, assume unverified
-            }
-
-            if (idx === 0) {
-              console.log(`[Leaderboard] Top #${idx + 1}: ${normalizedAddr.slice(0, 8)} status=${isVerified === undefined ? "loading" : isVerified === null ? "unavailable" : isVerified ? "verified" : "unverified"}`);
-            }
+            const isVerified = resolveVerified(entry.isVerified);
 
             return (
               <div key={entry.id} className="leaderboard__podium-item">
@@ -378,16 +198,14 @@ export default function Leaderboard() {
                 </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
-                  {isVerified === undefined ? (
-                    <span className="badge badge--loading">…</span>
-                  ) : isVerified === null ? (
-                    <span className="badge badge--unavailable" title="Verification service temporarily unavailable">
+                  {isVerified === null ? (
+                    <span className="badge badge--unavailable" title="Verification status unavailable — refreshes automatically">
                       ?
                     </span>
                   ) : isVerified ? (
-                    <span className="badge badge--verified">✓</span>
+                    <span className="badge badge--verified" title="GoodDollar verified">✓</span>
                   ) : (
-                    <span className="badge badge--unverified">✓</span>
+                    <span className="badge badge--unverified" title="Not verified">✓</span>
                   )}
                 </div>
                 <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
@@ -397,33 +215,23 @@ export default function Leaderboard() {
         </div>
       )}
 
-      {sortedAndPagedEntries.length > 0 && (
+      {entries.length > 0 && (
         <>
           <div className="leaderboard__separator" />
           <div className="leaderboard__list-header">
             <h3 className="leaderboard__list-title">All Players</h3>
+            {totalPlayers > 0 && (
+              <span className="leaderboard__list-count">{totalPlayers.toLocaleString()}</span>
+            )}
           </div>
 
           <ol className="leaderboard__list">
-            {sortedAndPagedEntries.map((entry: PlayerRow, i: number) => {
+            {entries.map((entry: PlayerRow, i: number) => {
               const rank = currentPage * PAGE_SIZE + i + 1;
               const name = entry.username?.trim() || generatedName(entry.id);
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
               const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
-              // Use verification endpoint result; show loading during fetch
-              const normalizedAddr = entry.id.toLowerCase();
-              const verifiedStatus = verificationData?.[normalizedAddr];
-              let isVerified: boolean | undefined | null;
-
-              if (isVerificationLoading) {
-                isVerified = undefined;
-              } else if (verifiedStatus === null) {
-                isVerified = null;
-              } else if (verifiedStatus !== undefined) {
-                isVerified = verifiedStatus;
-              } else {
-                isVerified = false;
-              }
+              const isVerified = resolveVerified(entry.isVerified);
 
               return (
                 <li
@@ -454,16 +262,12 @@ export default function Leaderboard() {
                       ) : (
                         <span className="leaderboard__name">{name}</span>
                       )}
-                      {isVerified === undefined ? (
-                        <span className="leaderboard__badge leaderboard__badge--loading" title="Verifying...">
-                          …
-                        </span>
-                      ) : isVerified === null ? (
-                        <span className="leaderboard__badge leaderboard__badge--unavailable" title="Verification service temporarily unavailable">
+                      {isVerified === null ? (
+                        <span className="leaderboard__badge leaderboard__badge--unavailable" title="Verification status unavailable — refreshes automatically">
                           ?
                         </span>
                       ) : isVerified ? (
-                        <span className="leaderboard__badge leaderboard__badge--verified" title="Verified">
+                        <span className="leaderboard__badge leaderboard__badge--verified" title="GoodDollar verified">
                           ✓
                         </span>
                       ) : (
@@ -520,10 +324,7 @@ export default function Leaderboard() {
             <div className="leaderboard__pagination">
               <button
                 className="leaderboard__pagination-btn"
-                onClick={() => {
-                  console.log(`[Leaderboard] Previous clicked: currentPage ${currentPage} → ${Math.max(0, currentPage - 1)}`);
-                  setCurrentPage(p => Math.max(0, p - 1));
-                }}
+                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
                 disabled={currentPage === 0 || isLoading}
                 aria-label="Previous page"
               >
@@ -534,10 +335,7 @@ export default function Leaderboard() {
               </span>
               <button
                 className="leaderboard__pagination-btn"
-                onClick={() => {
-                  console.log(`[Leaderboard] Next clicked: currentPage ${currentPage} → ${currentPage + 1}, isLastPage=${isLastPage}`);
-                  setCurrentPage(p => p + 1);
-                }}
+                onClick={() => setCurrentPage((p) => p + 1)}
                 disabled={isLastPage || isLoading}
                 aria-label="Next page"
               >
