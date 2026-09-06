@@ -23,6 +23,7 @@ import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
+import { usePlayerRegistration } from "./hooks/usePlayerRegistration";
 import { useShop } from "./hooks/useShop";
 import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
 import { useFlowstateVotingContext } from "./contexts/FlowstateVotingContext";
@@ -112,6 +113,10 @@ export default function App() {
 
   // Register referrer after connect (Phase 3)
   useReferrerRegistration();
+
+  // Capture every authenticated wallet in the off-chain registry so it appears
+  // on the leaderboard even before any on-chain username or score.
+  usePlayerRegistration(username);
 
   // Shop state for undo button
   const { undoCredits, consumeUndo, pendingAction: shopPending } = useShop();
