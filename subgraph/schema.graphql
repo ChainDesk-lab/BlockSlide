@@ -7,6 +7,8 @@ type Player @entity(immutable: false) {
   username: String
   "Best single-game score (from ScoreSubmitted)"
   bestScore: BigInt!
+  "Number of sessions started on-chain (from SessionStarted). Always >= gamesPlayed; the difference is games begun but never submitted."
+  gamesStarted: Int!
   "Number of scores submitted on-chain"
   gamesPlayed: Int!
   "True if player has earned XP (verified with rewards)"

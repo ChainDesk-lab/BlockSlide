@@ -65,9 +65,16 @@ interface LeaderboardData {
   totalPages: number;
 }
 
+// The subgraph creates a Player on SessionStarted, so it also holds wallets that
+// began a game but never submitted a score. Those belong in the user count, not
+// on a ranked board, so every ranked query filters them out. This must stay
+// consistent across the row query and the count query, or pagination would
+// advertise more pages than there are rows to fill them.
+const RANKED_PLAYERS = "where: { xp_gt: 0 }";
+
 function buildPlayersQuery(skip: number, first: number = PAGE_SIZE): string {
   return `{
-    players(first: ${first}, skip: ${skip}, orderBy: xp, orderDirection: desc) {
+    players(first: ${first}, skip: ${skip}, ${RANKED_PLAYERS}, orderBy: xp, orderDirection: desc) {
       id
       xp
       username
@@ -77,7 +84,7 @@ function buildPlayersQuery(skip: number, first: number = PAGE_SIZE): string {
 
 function buildTotalQuery(): string {
   return `{
-    players(first: 1000) {
+    players(first: 1000, ${RANKED_PLAYERS}) {
       id
     }
   }`;
@@ -116,7 +123,7 @@ async function fetchLeaderboard(skip: number): Promise<LeaderboardData> {
 // Fetch the global top 3 players (independent of pagination)
 async function fetchTopThree(): Promise<PlayerRow[]> {
   const query = `{
-    players(first: 3, orderBy: xp, orderDirection: desc) {
+    players(first: 3, ${RANKED_PLAYERS}, orderBy: xp, orderDirection: desc) {
       id
       xp
       username
