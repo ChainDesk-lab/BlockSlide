@@ -35,6 +35,18 @@ describe("mergePlayers", () => {
     const b = rows.find((r) => r.id === B)!;
     expect(b.xp).toBe("0");
     expect(b.username).toBe("newbie");
+    // A player that also exists on-chain keeps the subgraph's cumulative XP —
+    // the registry never overrides a score.
+    expect(rows.find((r) => r.id === A)!.xp).toBe("500");
+  });
+
+  it("never lets the registry change the XP of an on-chain player", () => {
+    const rows = mergePlayers(
+      [{ id: A, xp: "123456789", username: "p", firstSeen: "1" }],
+      [{ address: A, username: "p", createdAt: 1000 }]
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].xp).toBe("123456789");
   });
 
   it("prefers the on-chain username, falls back to registry only when absent", () => {

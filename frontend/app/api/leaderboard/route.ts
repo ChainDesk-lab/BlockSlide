@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "redis";
 import { getVerifications } from "../_lib/verification";
+import { getRedis } from "../_lib/redis";
 import {
   buildOrderedLeaderboard,
   type MergedPlayer,
@@ -35,29 +35,22 @@ const CACHE_KEY = "leaderboard:merged:v1";
 const CACHE_TTL_SECONDS = 15;
 const PAGE_SIZE = 50;
 const SUBGRAPH_PAGE = 1000; // The Graph max page size
+const SUBGRAPH_BUDGET_MS = 25_000; // ceiling for paging the whole player set
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+
+interface LeaderboardDiagnostics {
+  subgraphPlayers: number; // rows the subgraph returned
+  registryPlayers: number; // rows in the off-chain registry
+  mergedTotal: number; // unique wallets after the union
+  subgraphBlock: number | null; // last block the subgraph indexed
+  hasIndexingErrors: boolean | null; // subgraph _meta.hasIndexingErrors
+  subgraphConfigured: boolean;
+}
 
 interface LeaderboardPayload {
   rows: MergedPlayer[];
   stale: boolean;
-}
-
-let redisClient: ReturnType<typeof createClient> | null = null;
-
-async function getRedis() {
-  if (redisClient?.isOpen) return redisClient;
-  try {
-    redisClient = createClient({ url: process.env.REDIS_URL });
-    redisClient.on("error", (e: Error) =>
-      console.error("[Leaderboard Redis] client error:", e)
-    );
-    await redisClient.connect();
-    return redisClient;
-  } catch (e) {
-    console.error("[Leaderboard Redis] connect failed:", e);
-    redisClient = null;
-    return null;
-  }
+  diagnostics: LeaderboardDiagnostics;
 }
 
 interface SubgraphPlayer {
@@ -69,19 +62,36 @@ interface SubgraphPlayer {
 
 /**
  * Fetch every indexed player. Uses id-cursor pagination (`id_gt`) rather than
- * `skip`, so it is not bounded by The Graph's skip <= 5000 limit.
+ * `skip`, so it is not bounded by The Graph's skip <= 5000 limit. Also returns
+ * the subgraph's `_meta` so callers can see how far it has indexed.
  */
 async function fetchAllSubgraphPlayers(): Promise<{
   players: SubgraphPlayer[];
   stale: boolean;
+  block: number | null;
+  hasIndexingErrors: boolean | null;
 }> {
-  if (!SUBGRAPH_URL) return { players: [], stale: true };
+  if (!SUBGRAPH_URL) {
+    return { players: [], stale: true, block: null, hasIndexingErrors: null };
+  }
 
   const players: SubgraphPlayer[] = [];
   let lastId = ZERO_ADDR;
+  let block: number | null = null;
+  let hasIndexingErrors: boolean | null = null;
+  const deadline = Date.now() + SUBGRAPH_BUDGET_MS;
 
   for (let i = 0; i < 100; i++) {
+    if (Date.now() >= deadline) {
+      console.warn("[Leaderboard] subgraph paging hit time budget; using partial set");
+      return { players, stale: true, block, hasIndexingErrors };
+    }
+
+    // Include _meta on the first page only.
+    const metaClause =
+      i === 0 ? "_meta { block { number } hasIndexingErrors }" : "";
     const query = `{
+      ${metaClause}
       players(
         first: ${SUBGRAPH_PAGE}
         orderBy: id
@@ -94,15 +104,23 @@ async function fetchAllSubgraphPlayers(): Promise<{
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`Subgraph query failed: ${res.status}`);
 
     const json = (await res.json()) as {
-      data?: { players?: SubgraphPlayer[] };
+      data?: {
+        players?: SubgraphPlayer[];
+        _meta?: { block?: { number?: number }; hasIndexingErrors?: boolean };
+      };
       errors?: unknown;
     };
     if (json.errors) throw new Error("Subgraph returned errors");
+
+    if (i === 0 && json.data?._meta) {
+      block = json.data._meta.block?.number ?? null;
+      hasIndexingErrors = json.data._meta.hasIndexingErrors ?? null;
+    }
 
     const batch = json.data?.players ?? [];
     players.push(...batch);
@@ -110,7 +128,7 @@ async function fetchAllSubgraphPlayers(): Promise<{
     lastId = batch[batch.length - 1].id;
   }
 
-  return { players, stale: false };
+  return { players, stale: false, block, hasIndexingErrors };
 }
 
 interface RegistryProfile {
@@ -136,7 +154,12 @@ async function buildLeaderboard(): Promise<LeaderboardPayload> {
   const [subRes, registry] = await Promise.all([
     fetchAllSubgraphPlayers().catch((e) => {
       console.error("[Leaderboard] subgraph fetch failed:", e);
-      return { players: [] as SubgraphPlayer[], stale: true };
+      return {
+        players: [] as SubgraphPlayer[],
+        stale: true,
+        block: null as number | null,
+        hasIndexingErrors: null as boolean | null,
+      };
     }),
     fetchRegistry(),
   ]);
@@ -157,7 +180,17 @@ async function buildLeaderboard(): Promise<LeaderboardPayload> {
   }
 
   const rows = buildOrderedLeaderboard(subRes.players, registry, verif);
-  return { rows, stale: subRes.stale };
+
+  const diagnostics: LeaderboardDiagnostics = {
+    subgraphPlayers: subRes.players.length,
+    registryPlayers: registry.length,
+    mergedTotal: rows.length,
+    subgraphBlock: subRes.block,
+    hasIndexingErrors: subRes.hasIndexingErrors,
+    subgraphConfigured: SUBGRAPH_URL.length > 0,
+  };
+
+  return { rows, stale: subRes.stale, diagnostics };
 }
 
 export async function GET(request: NextRequest) {
@@ -192,7 +225,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const { rows, stale } = payload;
+    const { rows, stale, diagnostics } = payload;
     const totalPlayers = rows.length;
     const totalPages = Math.max(1, Math.ceil(totalPlayers / PAGE_SIZE));
     const safePage = Math.min(page, totalPages - 1);
@@ -207,6 +240,10 @@ export async function GET(request: NextRequest) {
         totalPlayers,
         totalPages,
         stale,
+        // Measurement, not for display — tells us at a glance whether "stuck at
+        // 398" is the subgraph itself (subgraphPlayers ~398, indexing behind
+        // head) or just an empty registry (registryPlayers 0).
+        diagnostics: diagnostics ?? null,
       },
       { headers: { "Cache-Control": "no-store" } }
     );
