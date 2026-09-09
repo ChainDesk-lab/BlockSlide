@@ -3959,6 +3959,10 @@ html.dark-mode {
   font-family: "Inter", system-ui, sans-serif;
   width: 100%;
   text-align: left;
+  /* Some rows are <a> deep links (mobile wallet redirect). */
+  text-decoration: none;
+  color: var(--text);
+  box-sizing: border-box;
 }
 
 .wallet-list-row:hover:not(:disabled) {
@@ -4121,6 +4125,44 @@ html.dark-mode {
   font-weight: 700;
   color: var(--brand);
   cursor: pointer;
+}
+
+.wallet-list-note {
+  margin: 0;
+  padding: 4px 0;
+  text-align: center;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.wallet-list-cta-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wallet-list-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 20px;
+  border-radius: 14px;
+  background: var(--brand);
+  color: #fff;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+}
+
+.wallet-list-cta:active {
+  transform: scale(0.98);
 }
 
 @keyframes spin {
