@@ -45,13 +45,11 @@ const walletConnectConnector =
     ? walletConnect({
         projectId: walletConnectProjectId,
         relayUrl: "wss://relay.walletconnect.org",
-        // Official WalletConnect modal. On a mobile browser it deep-links
-        // straight into the wallet app's connection-approval sheet and manages
-        // the return trip back to this tab; on desktop without an extension it
-        // shows a QR. The supported path for browser-based (non-extension)
-        // wallets.
-        showQrModal: true,
-        qrModalOptions: { themeMode: "dark" },
+        // We handle the pairing URI ourselves (WalletSelector deep-links it into
+        // the wallet app on mobile). WalletConnect's own modal is unreliable at
+        // opening inside a mobile browser, and routing around it keeps the flow
+        // a single redirect: tap MetaMask -> approve in MetaMask -> back here.
+        showQrModal: false,
         metadata: {
           name: "BlockSlide",
           description: "Play 2048 onchain and earn G$ on Celo",
