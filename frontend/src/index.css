@@ -4069,6 +4069,60 @@ html.dark-mode {
   cursor: not-allowed;
 }
 
+.wallet-list-error {
+  padding: 12px 14px;
+  border: 1.5px solid rgba(220, 38, 38, 0.35);
+  background: rgba(220, 38, 38, 0.08);
+  border-radius: 12px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text, #b91c1c);
+}
+
+.wallet-list-wcuri {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+
+.wallet-list-wcuri__label {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wallet-list-wcuri__value {
+  display: block;
+  max-height: 84px;
+  overflow-y: auto;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.wallet-list-wcuri__copy {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border: 1.5px solid var(--brand);
+  border-radius: 8px;
+  background: none;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand);
+  cursor: pointer;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
