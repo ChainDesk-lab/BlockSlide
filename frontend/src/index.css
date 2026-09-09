@@ -4042,6 +4042,33 @@ html.dark-mode {
   flex-shrink: 0;
 }
 
+.wallet-list-fallback {
+  margin-top: 2px;
+  padding: 10px 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-muted, #8a8a8a);
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.wallet-list-fallback:hover:not(:disabled) {
+  color: var(--brand);
+}
+
+.wallet-list-fallback:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
