@@ -122,10 +122,9 @@ export default function Leaderboard() {
     clearFeedback();
   };
 
-  // Normalises the server-provided flag: true → verified, false → unverified,
-  // null/undefined → "could not determine" (badge shows "?").
-  const resolveVerified = (v: boolean | null | undefined): boolean | null =>
-    v === true ? true : v === false ? false : null;
+  // Only a confirmed GoodDollar verification earns the green ✓. Everything else
+  // (not verified, or status not yet known) shows no badge at all.
+  const isGoodDollarVerified = (v: boolean | null | undefined): boolean => v === true;
 
   return (
     <div className="leaderboard">
@@ -156,7 +155,7 @@ export default function Leaderboard() {
           {topThree.slice(0, 3).map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            const isVerified = resolveVerified(entry.isVerified);
+            const isVerified = isGoodDollarVerified(entry.isVerified);
 
             return (
               <div key={entry.id} className={`leaderboard__podium-item leaderboard__podium-item--rank${idx + 1}`}>
@@ -166,14 +165,8 @@ export default function Leaderboard() {
                 </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
-                  {isVerified === null ? (
-                    <span className="badge badge--unavailable" title="Verification status unavailable — refreshes automatically">
-                      ?
-                    </span>
-                  ) : isVerified ? (
-                    <span className="badge badge--verified" title="GoodDollar verified">✓</span>
-                  ) : (
-                    <span className="badge badge--unverified" title="Not verified">✓</span>
+                  {isVerified && (
+                    <span className="badge badge--verified" title="GoodDollar verified identity">✓</span>
                   )}
                 </div>
                 <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
@@ -188,7 +181,7 @@ export default function Leaderboard() {
           {topThree.map((entry, idx) => {
             const medals = ["🥇", "🥈", "🥉"];
             const name = entry.username?.trim() || generatedName(entry.id);
-            const isVerified = resolveVerified(entry.isVerified);
+            const isVerified = isGoodDollarVerified(entry.isVerified);
 
             return (
               <div key={entry.id} className="leaderboard__podium-item">
@@ -198,14 +191,8 @@ export default function Leaderboard() {
                 </div>
                 <div className="leaderboard__podium-name">{name}</div>
                 <div className="leaderboard__podium-badge">
-                  {isVerified === null ? (
-                    <span className="badge badge--unavailable" title="Verification status unavailable — refreshes automatically">
-                      ?
-                    </span>
-                  ) : isVerified ? (
-                    <span className="badge badge--verified" title="GoodDollar verified">✓</span>
-                  ) : (
-                    <span className="badge badge--unverified" title="Not verified">✓</span>
+                  {isVerified && (
+                    <span className="badge badge--verified" title="GoodDollar verified identity">✓</span>
                   )}
                 </div>
                 <div className="leaderboard__podium-xp">{Number(entry.xp).toLocaleString()} XP</div>
@@ -231,7 +218,7 @@ export default function Leaderboard() {
               const name = entry.username?.trim() || generatedName(entry.id);
               const isCurrentUser = address && entry.id.toLowerCase() === address.toLowerCase();
               const isEditingThis = editingAddress?.toLowerCase() === entry.id.toLowerCase();
-              const isVerified = resolveVerified(entry.isVerified);
+              const isVerified = isGoodDollarVerified(entry.isVerified);
 
               return (
                 <li
@@ -262,16 +249,8 @@ export default function Leaderboard() {
                       ) : (
                         <span className="leaderboard__name">{name}</span>
                       )}
-                      {isVerified === null ? (
-                        <span className="leaderboard__badge leaderboard__badge--unavailable" title="Verification status unavailable — refreshes automatically">
-                          ?
-                        </span>
-                      ) : isVerified ? (
-                        <span className="leaderboard__badge leaderboard__badge--verified" title="GoodDollar verified">
-                          ✓
-                        </span>
-                      ) : (
-                        <span className="leaderboard__badge leaderboard__badge--unverified" title="Unverified">
+                      {isVerified && (
+                        <span className="leaderboard__badge leaderboard__badge--verified" title="GoodDollar verified identity">
                           ✓
                         </span>
                       )}

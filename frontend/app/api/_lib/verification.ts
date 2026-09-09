@@ -1,7 +1,7 @@
 import { createPublicClient, http, type Address } from "viem";
 import { celo } from "viem/chains";
-import { createClient } from "redis";
 import { IDENTITY_ADDRESS } from "../../../src/lib/constants";
+import { getRedis } from "./redis";
 
 /**
  * Shared GoodDollar "verified human" lookup, used by both the leaderboard merge
@@ -35,24 +35,8 @@ const TTL_VERIFIED = 30 * 60; // 30 min — verified status is rarely revoked
 const TTL_UNVERIFIED = 5 * 60; // 5 min — re-check often so new verifications surface fast
 const MULTICALL_CHUNK = 150;
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
-
-let redisClient: ReturnType<typeof createClient> | null = null;
-
-async function getRedis() {
-  if (redisClient?.isOpen) return redisClient;
-  try {
-    redisClient = createClient({ url: process.env.REDIS_URL });
-    redisClient.on("error", (e: Error) =>
-      console.error("[Verification Redis] client error:", e)
-    );
-    await redisClient.connect();
-    return redisClient;
-  } catch (e) {
-    console.error("[Verification Redis] connect failed:", e);
-    redisClient = null;
-    return null;
-  }
-}
+const RPC_REQUEST_TIMEOUT = 8_000; // per HTTP call to an RPC
+const ONCHAIN_BUDGET_MS = 20_000; // hard ceiling for the whole on-chain phase
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -68,15 +52,23 @@ async function checkOnChain(
   for (const addr of addresses) result.set(addr.toLowerCase(), null);
   if (addresses.length === 0) return result;
 
+  const deadline = Date.now() + ONCHAIN_BUDGET_MS;
+
   for (const rpcUrl of RPC_ENDPOINTS) {
+    if (Date.now() >= deadline) break;
+
     const pending = [...result.entries()]
       .filter(([, v]) => v === null)
       .map(([a]) => a as Address);
     if (pending.length === 0) break;
 
-    const client = createPublicClient({ chain: celo, transport: http(rpcUrl) });
+    const client = createPublicClient({
+      chain: celo,
+      transport: http(rpcUrl, { timeout: RPC_REQUEST_TIMEOUT, retryCount: 1 }),
+    });
 
     for (const group of chunk(pending, MULTICALL_CHUNK)) {
+      if (Date.now() >= deadline) break;
       try {
         const res = await client.multicall({
           allowFailure: true,

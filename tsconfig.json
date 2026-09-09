@@ -8,5 +8,19 @@
     "outDir": "dist",
     "types": ["node"],
     "verbatimModuleSyntax": true
-  }
+  },
+  "include": [
+    "hardhat.config.ts",
+    "test/**/*.ts",
+    "scripts/**/*.ts",
+    "ignition/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "cache",
+    "artifacts",
+    "frontend",
+    "subgraph"
+  ]
 }

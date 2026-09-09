@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "redis";
+import { getRedis } from "../_lib/redis";
 
 /**
  * Player registry API.
@@ -26,24 +26,6 @@ interface PlayerProfile {
 
 const REGISTRY_KEY = "players:registry";
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
-
-let redisClient: ReturnType<typeof createClient> | null = null;
-
-async function getRedisClient() {
-  if (redisClient?.isOpen) return redisClient;
-  try {
-    redisClient = createClient({ url: process.env.REDIS_URL });
-    redisClient.on("error", (err: Error) =>
-      console.error("[Players API Redis] client error:", err)
-    );
-    await redisClient.connect();
-    return redisClient;
-  } catch (err) {
-    console.error("[Players API Redis] connect failed:", err);
-    redisClient = null;
-    return null;
-  }
-}
 
 function isValidAddress(a: unknown): a is string {
   return typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a);
@@ -77,7 +59,7 @@ export async function POST(request: NextRequest) {
     const address = body.address.toLowerCase();
     const username = normalizeUsername(body.username);
 
-    const client = await getRedisClient();
+    const client = await getRedis();
     if (!client) {
       // Non-fatal: the leaderboard still renders from the subgraph without this.
       return NextResponse.json(
@@ -123,7 +105,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   try {
-    const client = await getRedisClient();
+    const client = await getRedis();
     if (!client) {
       return NextResponse.json({ players: [], count: 0, unavailable: true });
     }
