@@ -20,34 +20,30 @@ const isMobileDevice = () =>
 const hasInjectedProvider = () =>
   typeof window !== "undefined" && !!(window as unknown as { ethereum?: unknown }).ethereum;
 
-// Opens BlockSlide inside the MetaMask app's own in-app browser (which injects
-// window.ethereum like a desktop extension). This moves the session into
-// MetaMask's browser rather than connecting and returning here, so it is only a
-// labelled fallback / the last resort when WalletConnect can't be reached.
+// Opens BlockSlide inside the MetaMask app's own in-app browser, where it
+// injects window.ethereum like a desktop extension so the normal injected
+// connector works with an in-page approval (no round-trip). This is the
+// reliable fallback whenever the WalletConnect deep link can't be used.
 const metamaskDappLink = () => {
   const path = `${window.location.host}${window.location.pathname}`;
   return `https://metamask.app.link/dapp/${path}`;
 };
 
-// WalletConnect pairing deep links. The wallet opens straight to its
-// "Connect to BlockSlide?" sheet and, after approval, returns the user to this
-// tab. The MetaMask universal link is the reliable path on iOS; the raw wc:
-// URI lets the OS hand any other installed wallet the same pairing request.
-const walletConnectDeepLink = (uri: string, target: "metamask" | "other") => {
-  const encoded = encodeURIComponent(uri);
-  return target === "metamask"
-    ? `https://metamask.app.link/wc?uri=${encoded}`
-    : uri;
-};
+// MetaMask universal link that carries a WalletConnect pairing request. Opening
+// it launches MetaMask straight to its "Connect to BlockSlide?" sheet; after
+// approval MetaMask returns the user to this tab. Must be opened from a real
+// user gesture (a tapped link) — iOS ignores it from async JS navigation.
+const metamaskWcLink = (uri: string) =>
+  `https://metamask.app.link/wc?uri=${encodeURIComponent(uri)}`;
 
-// Synthetic option id for the mobile "MetaMask" row, which has no injected
-// connector behind it and instead routes through WalletConnect.
-const MOBILE_WC_METAMASK_ID = "mm-walletconnect";
+// Synthetic option ids for the mobile rows, which have no injected connector
+// behind them and instead pair over WalletConnect.
+const MOBILE_MM_ID = "mm-walletconnect";
+const MOBILE_OTHER_ID = "wc-other";
 
-// How long to wait for WalletConnect to hand us a pairing URI before treating
-// the attempt as failed (bad project id, domain not allow-listed, relay
-// unreachable). Prevents an indefinite spinner.
-const WC_URI_TIMEOUT_MS = 20_000;
+// How long to wait for the WalletConnect relay to hand us a pairing URI before
+// treating the attempt as failed (bad project id, relay unreachable, offline).
+const WC_PAIRING_TIMEOUT_MS = 15_000;
 
 // Map connector rdns to fallback icon paths in public/wallet-icons/
 const WALLET_ICON_FALLBACKS: Record<string, string> = {
@@ -64,6 +60,8 @@ type WcEmitter = {
   off: (event: "message", listener: (payload: { type: string; data?: unknown }) => void) => void;
 };
 
+type WcPhase = "idle" | "pairing" | "ready" | "failed";
+
 export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const { connect } = useConnect();
   const connectors = useConnectors();
@@ -72,106 +70,167 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [failedIcons, setFailedIcons] = useState<Set<string>>(new Set());
   const [wcError, setWcError] = useState<string | null>(null);
-  // Desktop-with-no-extension fallback: show the pairing URI to paste/scan.
   const [wcUri, setWcUri] = useState<string | null>(null);
   const [wcUriCopied, setWcUriCopied] = useState(false);
+  const [wcPhase, setWcPhase] = useState<WcPhase>("idle");
+  // Set when the user left for the wallet app and came back without connecting.
+  const [returnedStuck, setReturnedStuck] = useState(false);
 
   // Resolved on the client only, so render logic can branch on device/provider
-  // without a hydration mismatch.
+  // without a flash of the wrong list or a hydration mismatch.
+  const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [injectedPresent, setInjectedPresent] = useState(false);
   useEffect(() => {
     setIsMobile(isMobileDevice());
     setInjectedPresent(hasInjectedProvider());
+    setMounted(true);
   }, []);
 
-  // Which wallet the in-flight WalletConnect attempt is for, so the
-  // display_uri handler knows where to deep-link. null when no WC attempt.
-  const pendingWcTargetRef = useRef<"metamask" | "other" | null>(null);
-  const wcRedirectedRef = useRef(false);
-  const wcUriTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wcUriRef = useRef<string | null>(null);
+  wcUriRef.current = wcUri;
   const isConnectedRef = useRef(isConnected);
   isConnectedRef.current = isConnected;
-
-  const clearWcAttempt = useCallback(() => {
-    pendingWcTargetRef.current = null;
-    wcRedirectedRef.current = false;
-    if (wcUriTimerRef.current) {
-      clearTimeout(wcUriTimerRef.current);
-      wcUriTimerRef.current = null;
-    }
-  }, []);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const autoStartedRef = useRef(false);
+  const pairFailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leftForWalletRef = useRef(false);
 
   const walletConnectConnector = connectors.find((c) => c.id === "walletConnect");
   const walletConnectAvailable = !!walletConnectConnector;
-  // A phone browser with no extension: every connect has to go through
-  // WalletConnect's deep link into the wallet app.
+  // A phone browser with no extension: connecting means pairing over
+  // WalletConnect and deep-linking into the wallet app.
   const mobileNoInjected = isMobile && !injectedPresent;
 
-  // Listen for the pairing URI wagmi's WalletConnect connector emits, and on a
-  // phone hand it straight to the wallet app. Without this the connect() call
-  // just waits on WalletConnect's own modal, which does not reliably open in a
-  // mobile browser.
+  const clearPairFailTimer = () => {
+    if (pairFailTimerRef.current) {
+      clearTimeout(pairFailTimerRef.current);
+      pairFailTimerRef.current = null;
+    }
+  };
+
+  // Begin a WalletConnect pairing now so the wc: URI is ready before the user
+  // taps a wallet — the deep link then fires from within their tap gesture,
+  // which is the only way iOS will actually open the wallet app.
+  const beginWalletConnectPairing = useCallback(() => {
+    if (!walletConnectConnector) return;
+    setWcPhase("pairing");
+    setWcError(null);
+    setWcUri(null);
+    setReturnedStuck(false);
+    clearPairFailTimer();
+
+    pairFailTimerRef.current = setTimeout(() => {
+      setWcPhase((p) => (p === "ready" ? p : "failed"));
+      setWcError(
+        "Couldn't reach WalletConnect. Use “Open in the MetaMask app browser” below, or try again."
+      );
+    }, WC_PAIRING_TIMEOUT_MS);
+
+    connect(
+      { connector: walletConnectConnector },
+      {
+        onSuccess: () => {
+          clearPairFailTimer();
+          setTimeout(() => onCloseRef.current(), 400);
+        },
+        onError: (error) => {
+          clearPairFailTimer();
+          const msg = error instanceof Error ? error.message : String(error);
+          console.warn("[WalletSelector] WalletConnect pairing error:", msg);
+          if (/reject|denied|cancell?ed|reset|closed modal|user closed/i.test(msg)) {
+            // Benign — user backed out. Keep the URI usable if we got one.
+            setWcPhase(wcUriRef.current ? "ready" : "idle");
+          } else if (/already connected/i.test(msg)) {
+            disconnect();
+            setWcPhase("idle");
+          } else {
+            setWcPhase("failed");
+            setWcError("Couldn't reach WalletConnect. Please try again.");
+          }
+        },
+      }
+    );
+  }, [walletConnectConnector, connect, disconnect]);
+
+  // Capture the pairing URI the wagmi WalletConnect connector emits.
   useEffect(() => {
     if (!walletConnectConnector) return;
-    const emitter = (walletConnectConnector as unknown as { emitter: WcEmitter }).emitter;
+    const emitter = (walletConnectConnector as unknown as { emitter?: WcEmitter }).emitter;
     if (!emitter?.on) return;
 
     const onMessage = (payload: { type: string; data?: unknown }) => {
       if (payload?.type !== "display_uri" || typeof payload.data !== "string") return;
-      const target = pendingWcTargetRef.current;
-      if (!target || wcRedirectedRef.current) return;
-      wcRedirectedRef.current = true;
-      if (wcUriTimerRef.current) {
-        clearTimeout(wcUriTimerRef.current);
-        wcUriTimerRef.current = null;
-      }
-      if (isMobileDevice()) {
-        window.location.href = walletConnectDeepLink(payload.data, target);
-      } else {
-        // Desktop with no extension: no wallet app to jump to. Surface the URI
-        // so the user can paste it into a wallet's WalletConnect prompt.
-        setWcUri(payload.data);
-        setWcUriCopied(false);
-      }
+      clearPairFailTimer();
+      setWcUri(payload.data);
+      setWcUriCopied(false);
+      setWcPhase("ready");
     };
 
     emitter.on("message", onMessage);
     return () => emitter.off("message", onMessage);
   }, [walletConnectConnector]);
 
-  // If the user comes back from the wallet app without finishing, don't leave a
-  // spinner running forever.
+  // On a phone with no extension, start pairing as soon as the wallet list is
+  // shown (the user has already chosen "Connect a wallet" to get here).
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    if (!mobileNoInjected || !walletConnectAvailable || isConnected) return;
+    autoStartedRef.current = true;
+    beginWalletConnectPairing();
+  }, [mobileNoInjected, walletConnectAvailable, isConnected, beginWalletConnectPairing]);
+
+  // If the user leaves for the wallet app and comes back without a connection,
+  // stop the row spinner and offer the fallback rather than spinning forever.
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
-      if (!pendingWcTargetRef.current || isConnectedRef.current) return;
+      if (!leftForWalletRef.current || isConnectedRef.current) return;
       window.setTimeout(() => {
-        if (pendingWcTargetRef.current && !isConnectedRef.current) {
-          clearWcAttempt();
+        if (!isConnectedRef.current && leftForWalletRef.current) {
+          leftForWalletRef.current = false;
           setConnectingTo(null);
+          setReturnedStuck(true);
         }
       }, 2500);
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [clearWcAttempt]);
+  }, []);
 
-  useEffect(() => () => clearWcAttempt(), [clearWcAttempt]);
+  // Only clear the timer on unmount — do NOT disconnect here. Tapping the deep
+  // link can unmount this component while the pairing must stay alive for the
+  // user to approve in their wallet and come back.
+  useEffect(() => () => clearPairFailTimer(), []);
 
   const openInMetaMaskBrowser = () => {
     window.location.href = metamaskDappLink();
   };
 
+  const onWalletDeepLinkClick = (id: string) => {
+    // Runs inside the tap gesture; the <a href> does the actual navigation.
+    leftForWalletRef.current = true;
+    setConnectingTo(id);
+    setReturnedStuck(false);
+  };
+
+  const retryPairing = () => {
+    try {
+      disconnect();
+    } catch {
+      /* noop */
+    }
+    setConnectingTo(null);
+    leftForWalletRef.current = false;
+    setTimeout(() => beginWalletConnectPairing(), 300);
+  };
+
+  // ---- Desktop / injected / in-app-browser path (unchanged) -----------------
   const handleConnectWallet = async (connectorId: string, connectorName: string) => {
     setWcError(null);
-    setWcUri(null);
 
-    // The mobile "MetaMask"/generic rows and any explicit WalletConnect choice
-    // all resolve to the WalletConnect connector. So does a bare injected tap on
-    // a phone with no extension — there is nothing else it could connect to.
     const wantsWalletConnect =
-      connectorId === MOBILE_WC_METAMASK_ID ||
       connectorId === "walletConnect" ||
       ((connectorId === "injected" || connectorName.toLowerCase().includes("metamask")) &&
         !hasInjectedProvider() &&
@@ -184,24 +243,17 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     if (wantsWalletConnect) {
       connector = walletConnectConnector;
       if (!connector) {
-        // WalletConnect isn't configured. On mobile the only remaining way in is
-        // MetaMask's in-app browser; on desktop there's nothing to do.
-        if (isMobileDevice()) {
-          openInMetaMaskBrowser();
-        } else {
-          console.error("[WalletSelector] WalletConnect connector unavailable and no injected provider");
-        }
+        if (isMobileDevice()) openInMetaMaskBrowser();
+        else console.error("[WalletSelector] WalletConnect connector unavailable and no injected provider");
         return;
       }
       targetId = "walletConnect";
-      targetName = connectorName.toLowerCase().includes("metamask") ? "MetaMask" : "WalletConnect";
-      pendingWcTargetRef.current = connectorName.toLowerCase().includes("metamask") ? "metamask" : "other";
-      wcRedirectedRef.current = false;
+      targetName = "WalletConnect";
     } else {
-      // For injected wallets sharing the same id, also match by name.
-      connector = connectors.find((c) =>
-        c.id === connectorId &&
-        (c.id !== "injected" || c.name.toLowerCase() === connectorName.toLowerCase())
+      connector = connectors.find(
+        (c) =>
+          c.id === connectorId &&
+          (c.id !== "injected" || c.name.toLowerCase() === connectorName.toLowerCase())
       );
     }
 
@@ -212,103 +264,46 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
       return;
     }
 
-    // Key the row spinner off the tapped option id (a synthetic id like
-    // "mm-walletconnect" still maps to the WalletConnect connector below).
     setConnectingTo(connectorId);
 
-    const hasLiveConnection =
-      connectedConnector?.id === connector.id && isConnected && address;
-
+    const hasLiveConnection = connectedConnector?.id === connector.id && isConnected && address;
     if (hasLiveConnection) {
-      console.log(
-        `[WalletSelector] User is already connected to ${targetName} with address ${address}`
-      );
-      clearWcAttempt();
-      setTimeout(() => {
-        onClose();
-      }, 300);
+      setTimeout(() => onClose(), 300);
       return;
     }
 
     if (connectedConnector?.id === connector.id && !address) {
-      console.warn(
-        `[WalletSelector] Stale connection detected: connector=${targetName} but no address. Force disconnecting...`
-      );
       disconnect();
       await new Promise((resolve) => setTimeout(resolve, 300));
-      console.log(`[WalletSelector] Stale state cleared, proceeding with connect for ${targetName}`);
     }
 
-    if (
-      connectedConnector &&
-      connectedConnector.id !== connector.id &&
-      isConnected &&
-      address
-    ) {
-      console.log(
-        `[WalletSelector] Switching from ${connectedConnector.id} to ${connector.id}`
-      );
+    if (connectedConnector && connectedConnector.id !== connector.id && isConnected && address) {
       disconnect();
       await new Promise((resolve) => setTimeout(resolve, 500));
-      console.log(
-        `[WalletSelector] Disconnection complete, now connecting ${targetName}`
-      );
     }
 
-    if (targetId === "walletConnect") {
-      // If no pairing URI has arrived, WalletConnect can't be reached — surface
-      // it instead of spinning forever.
-      if (wcUriTimerRef.current) clearTimeout(wcUriTimerRef.current);
-      wcUriTimerRef.current = setTimeout(() => {
-        if (wcRedirectedRef.current || isConnectedRef.current) return;
-        console.warn("[WalletSelector] No WalletConnect pairing URI within timeout");
-        clearWcAttempt();
-        setConnectingTo(null);
-        setWcError(
-          "Couldn't reach WalletConnect. Check your connection, then try again — or use the MetaMask app browser link below."
-        );
-      }, WC_URI_TIMEOUT_MS);
-    }
-
-    // Hard cap: injected connections resolve in-page fast; WalletConnect needs
-    // room for the user to leave for their wallet app, approve, and come back.
-    const connectTimeoutMs = targetId === "walletConnect" ? 180_000 : 30_000;
     const timeoutId = setTimeout(() => {
       console.warn(`[WalletSelector] Connection to ${targetName} timed out`);
-      clearWcAttempt();
       setConnectingTo(null);
-    }, connectTimeoutMs);
+    }, targetId === "walletConnect" ? 180_000 : 30_000);
 
     connect(
       { connector },
       {
         onSuccess: () => {
           clearTimeout(timeoutId);
-          clearWcAttempt();
-          console.log(`[WalletSelector] Successfully connected to ${targetName}`);
-          setTimeout(() => {
-            onClose();
-          }, 500);
+          setTimeout(() => onClose(), 500);
         },
         onError: (error) => {
           clearTimeout(timeoutId);
-          clearWcAttempt();
           console.error(`[WalletSelector] Connection error:`, error);
           setConnectingTo(null);
-
           const errorStr = error instanceof Error ? error.message : String(error);
-
           if (errorStr.includes("Connector already connected")) {
-            console.warn(`[WalletSelector] Connector already connected, attempting force-disconnect...`);
             disconnect();
-            setTimeout(() => {
-              console.log(`[WalletSelector] Retrying connection after force-disconnect`);
-              handleConnectWallet(targetId, targetName);
-            }, 500);
+            setTimeout(() => handleConnectWallet(targetId, targetName), 500);
             return;
           }
-
-          // A user rejecting in their wallet is expected — don't shout about it.
           if (!/reject|denied|cancell?ed|user closed/i.test(errorStr)) {
             setWcError("Wallet connection failed. Please try again.");
           }
@@ -317,7 +312,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     );
   };
 
-  // Build wallet options with real icons
+  // ---- Build the desktop / injected option list (unchanged) ----------------
   const walletOptionsMap = new Map<string, WalletOption>();
   let walletConnectOption: WalletOption | null = null;
 
@@ -332,25 +327,20 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
       continue;
     }
 
-    // Process all injected/EIP-6963 connectors (id like "io.metamask", "com.rabby", or generic "injected")
     if (connector.id === "injected" || connector.id.includes(".")) {
-      // A bare "injected" connector on a phone with no extension can't connect
-      // to anything — skip it so it doesn't render as a dead "Injected" row.
       if (connector.id === "injected" && mobileNoInjected) continue;
 
       const normalizedName = connector.name.toLowerCase().trim();
+      if (walletOptionsMap.has(normalizedName)) continue;
 
-      if (walletOptionsMap.has(normalizedName)) {
-        console.log(`[WalletSelector] Skipping duplicate: ${connector.name}`);
-        continue;
-      }
-
-      // Get icon from connector.icon (EIP-6963) or fallback map
       let iconUrl: string | null = connector.icon || null;
-
       if (!iconUrl) {
         for (const [rdns, fallback] of Object.entries(WALLET_ICON_FALLBACKS)) {
-          if (normalizedName.includes(rdns.split(".")[0]) || connector.id.includes(rdns.split(".")[0]) || connector.name.toLowerCase().includes(rdns)) {
+          if (
+            normalizedName.includes(rdns.split(".")[0]) ||
+            connector.id.includes(rdns.split(".")[0]) ||
+            connector.name.toLowerCase().includes(rdns)
+          ) {
             iconUrl = fallback;
             break;
           }
@@ -366,37 +356,8 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     }
   }
 
-  // Build the ordered list shown to the user.
   const walletOptions: WalletOption[] = [];
-
-  if (mobileNoInjected) {
-    // No browser-extension wallet on this device. Offer familiar names that all
-    // route through WalletConnect: it deep-links into the wallet app to approve
-    // and returns the user straight back to this tab.
-    if (walletConnectAvailable) {
-      walletOptions.push({
-        id: MOBILE_WC_METAMASK_ID,
-        name: "MetaMask",
-        iconUrl: "/wallet-icons/metamask.svg",
-        isWalletConnect: true,
-      });
-      walletOptions.push({
-        id: "walletConnect",
-        name: "Other wallet",
-        iconUrl: "/wallet-icons/walletconnect.svg",
-        isWalletConnect: true,
-      });
-    } else {
-      // WalletConnect not configured — the in-app browser is the only way in.
-      walletOptions.push({
-        id: "metamask-browser",
-        name: "Open in MetaMask",
-        iconUrl: "/wallet-icons/metamask.svg",
-        isWalletConnect: false,
-      });
-    }
-  } else {
-    // Desktop, or a mobile in-app browser that injects a provider.
+  if (!mobileNoInjected) {
     for (const [key, option] of walletOptionsMap) {
       if (key.includes("metamask")) {
         walletOptions.push(option);
@@ -406,39 +367,136 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     }
     walletOptions.push(...walletOptionsMap.values());
     if (walletConnectOption) walletOptions.push(walletConnectOption);
-
-    // Only show the "Other Wallet" injected fallback if nothing was discovered.
     if (walletOptions.length === 0) {
-      walletOptions.push({
-        id: "injected",
-        name: "Other Wallet",
-        iconUrl: null,
-        isWalletConnect: false,
-      });
+      walletOptions.push({ id: "injected", name: "Other Wallet", iconUrl: null, isWalletConnect: false });
     }
   }
 
-  const handleRowClick = (option: WalletOption) => {
-    if (option.id === "metamask-browser") {
-      openInMetaMaskBrowser();
-      return;
+  const handleIconError = (id: string) => setFailedIcons((prev) => new Set(prev).add(id));
+  const shouldShowIcon = (option: WalletOption) =>
+    option.iconUrl !== null && !failedIcons.has(option.id);
+
+  // Avoid a one-frame flash of the desktop list before device detection runs.
+  if (!mounted) return <div className="wallet-list-container" />;
+
+  // ---- Mobile (no extension) view -----------------------------------------
+  if (mobileNoInjected) {
+    if (!walletConnectAvailable) {
+      // WalletConnect not configured — the in-app browser is the only way in.
+      return (
+        <div className="wallet-list-container">
+          <a className="wallet-list-row" href={metamaskDappLink()}>
+            <div className="wallet-list-icon-box">
+              <img src="/wallet-icons/metamask.svg" alt="MetaMask" className="wallet-list-icon" />
+            </div>
+            <span className="wallet-list-name">Open in MetaMask</span>
+            <span className="wallet-list-chevron" />
+          </a>
+        </div>
+      );
     }
-    handleConnectWallet(option.id, option.name);
-  };
 
-  const handleIconError = (id: string) => {
-    setFailedIcons((prev) => new Set(prev).add(id));
-  };
+    const uriReady = wcPhase === "ready" && !!wcUri;
+    const showFallback = wcPhase === "failed" || returnedStuck;
 
-  const shouldShowIcon = (option: WalletOption): boolean => {
-    return option.iconUrl !== null && !failedIcons.has(option.id);
-  };
+    const renderWalletRow = (id: string, name: string, icon: string, href: string | null) => {
+      const busy = connectingTo === id;
+      const content = (
+        <>
+          <div className="wallet-list-icon-box">
+            <img src={icon} alt={name} className="wallet-list-icon" />
+          </div>
+          <span className="wallet-list-name">{name}</span>
+          {busy ? <span className="wallet-list-spinner" /> : <span className="wallet-list-chevron" />}
+        </>
+      );
+      if (href) {
+        return (
+          <a
+            key={id}
+            className={`wallet-list-row ${busy ? "wallet-list-row--connecting" : ""}`}
+            href={href}
+            onClick={() => onWalletDeepLinkClick(id)}
+            rel="noopener noreferrer"
+          >
+            {content}
+          </a>
+        );
+      }
+      return (
+        <button key={id} className="wallet-list-row" disabled>
+          {content}
+        </button>
+      );
+    };
 
-  // Escape hatch shown only when there's a real WalletConnect path above it and
-  // the device would otherwise be stuck if that path fails. When WalletConnect
-  // is unavailable the "Open in MetaMask" row above already is this fallback.
-  const showBrowserFallbackLink = mobileNoInjected && walletConnectAvailable;
+    return (
+      <div className="wallet-list-container">
+        {wcError && (
+          <div className="wallet-list-error" role="alert">
+            {wcError}
+          </div>
+        )}
 
+        {renderWalletRow(
+          MOBILE_MM_ID,
+          "MetaMask",
+          "/wallet-icons/metamask.svg",
+          uriReady ? metamaskWcLink(wcUri as string) : null
+        )}
+        {renderWalletRow(
+          MOBILE_OTHER_ID,
+          "Other wallet",
+          "/wallet-icons/walletconnect.svg",
+          uriReady ? (wcUri as string) : null
+        )}
+
+        {!uriReady && !showFallback && (
+          <p className="wallet-list-note">Preparing a secure connection…</p>
+        )}
+
+        {showFallback && (
+          <div className="wallet-list-cta-group">
+            <a className="wallet-list-cta" href={metamaskDappLink()}>
+              Open BlockSlide in the MetaMask app browser
+            </a>
+            <button type="button" className="wallet-list-fallback" onClick={retryPairing}>
+              Try WalletConnect again
+            </button>
+          </div>
+        )}
+
+        {uriReady && !showFallback && (
+          <button type="button" className="wallet-list-fallback" onClick={openInMetaMaskBrowser}>
+            Trouble connecting? Open BlockSlide in the MetaMask app browser →
+          </button>
+        )}
+
+        {wcUri && (wcPhase === "failed" || returnedStuck) && (
+          <div className="wallet-list-wcuri">
+            <p className="wallet-list-wcuri__label">Or paste this into your wallet’s WalletConnect:</p>
+            <code className="wallet-list-wcuri__value">{wcUri}</code>
+            <button
+              type="button"
+              className="wallet-list-wcuri__copy"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(wcUri);
+                  setWcUriCopied(true);
+                } catch {
+                  setWcUriCopied(false);
+                }
+              }}
+            >
+              {wcUriCopied ? "Copied ✓" : "Copy"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---- Desktop / injected / in-app-browser view (unchanged behaviour) -----
   return (
     <div className="wallet-list-container">
       {wcError && (
@@ -447,7 +505,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
         </div>
       )}
 
-      {wcUri && (
+      {wcUri && !isMobile && (
         <div className="wallet-list-wcuri">
           <p className="wallet-list-wcuri__label">
             Open your wallet, choose WalletConnect, and paste this:
@@ -474,7 +532,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
         <button
           key={option.id}
           className={`wallet-list-row ${connectingTo === option.id ? "wallet-list-row--connecting" : ""}`}
-          onClick={() => handleRowClick(option)}
+          onClick={() => handleConnectWallet(option.id, option.name)}
           disabled={isConnecting || connectingTo !== null}
         >
           <div className="wallet-list-icon-box">
@@ -497,17 +555,6 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
           )}
         </button>
       ))}
-
-      {showBrowserFallbackLink && (
-        <button
-          type="button"
-          className="wallet-list-fallback"
-          onClick={openInMetaMaskBrowser}
-          disabled={connectingTo !== null}
-        >
-          Trouble connecting? Open BlockSlide in the MetaMask app browser →
-        </button>
-      )}
     </div>
   );
 }
