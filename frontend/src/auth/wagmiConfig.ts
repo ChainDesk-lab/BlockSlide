@@ -8,30 +8,70 @@ const transport = fallback([
   http("https://rpc.ankr.com/celo"),
 ]);
 
+// Canonical origin advertised in the WalletConnect session metadata. The wallet
+// app shows this on its approval screen and uses it to send the user back here
+// after they approve, so it must match the deployed origin. Override per
+// environment with NEXT_PUBLIC_APP_URL (e.g. a preview deployment).
+export const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") || "https://blockslide.app";
+
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 
+// True when WalletConnect is usable. When false, mobile browsers have no
+// deep-link connect path and the UI falls back to opening BlockSlide inside the
+// MetaMask app's own browser.
+export const hasWalletConnect = Boolean(walletConnectProjectId);
+
 if (!walletConnectProjectId) {
-  console.warn("⚠️ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set — WalletConnect will not work");
+  console.warn(
+    "⚠️ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set — mobile wallet connect " +
+      "(WalletConnect) is disabled. Set it in the deployment env from a project " +
+      "at https://cloud.reown.com to enable the deep-link connect flow.",
+  );
 }
 
-const walletConnectConnector = walletConnectProjectId
-  ? walletConnect({
-      projectId: walletConnectProjectId,
-      relayUrl: "wss://relay.walletconnect.org",
-    })
-  : null;
+// wagmi's walletConnect connector runs an eager `setup()` that constructs the
+// underlying @walletconnect / @reown/appkit provider, which touches `indexedDB`.
+// That call fires the first time `config.connectors` is read — during Next's
+// static generation of `/` (the wagmi tree is server-rendered) — where
+// `indexedDB` doesn't exist, throwing `ReferenceError` into the build logs.
+// Wallet connections only ever happen in the browser, and this module is
+// evaluated once per bundle (server vs client), so instantiating the connector
+// only when `window` exists keeps it entirely out of the server/SSG path.
+const isBrowser = typeof window !== "undefined";
+
+const walletConnectConnector =
+  walletConnectProjectId && isBrowser
+    ? walletConnect({
+        projectId: walletConnectProjectId,
+        relayUrl: "wss://relay.walletconnect.org",
+        // Official WalletConnect modal. On a mobile browser it deep-links
+        // straight into the wallet app's connection-approval sheet and manages
+        // the return trip back to this tab; on desktop without an extension it
+        // shows a QR. The supported path for browser-based (non-extension)
+        // wallets.
+        showQrModal: true,
+        qrModalOptions: { themeMode: "dark" },
+        metadata: {
+          name: "BlockSlide",
+          description: "Play 2048 onchain and earn G$ on Celo",
+          url: APP_URL,
+          icons: [`${APP_URL}/android-chrome-512x512.png`],
+        },
+      })
+    : null;
 
 export const wagmiConfig = createConfig({
   chains: [celo],
   connectors: [
-    // Use only generic injected connector with multiInjectedProviderDiscovery (wagmi v2 default).
-    // With 7+ wallet extensions installed, the targeted metaMask connector fails with
-    // "Provider not found" after logout+reload because its discovery mechanism doesn't
-    // reinitialize properly when multiple wallets are present and fighting over window.ethereum.
-    // Generic injected() uses EIP-6963 which is more robust: each wallet announces itself,
-    // and we let wagmi handle the discovery without assuming a specific target.
+    // Generic injected connector with multiInjectedProviderDiscovery (wagmi v2
+    // default / EIP-6963). Each browser-extension wallet announces itself, so we
+    // don't have to assume a specific target — more robust with several wallet
+    // extensions installed than a targeted metaMask() connector.
     injected(),
-    ...(walletConnectConnector ? [walletConnectConnector] : []), // WalletConnect v2
+    // WalletConnect v2 — the connect path for mobile browsers and desktop
+    // browsers with no extension. Omitted entirely when no project id is set.
+    ...(walletConnectConnector ? [walletConnectConnector] : []),
   ],
   transports: { [celo.id]: transport },
 });
