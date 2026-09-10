@@ -70,6 +70,10 @@ export function useGameSession() {
 
   const [phase, setPhase] = useState<SessionPhase>("idle");
   const pendingActionRef = useRef<"start" | "submit" | null>(null);
+  // The seed hash of the most recent startSession broadcast — lets the
+  // reverted-receipt handler re-simulate and decode the *real* revert reason
+  // instead of guessing.
+  const lastStartSeedRef = useRef<`0x${string}` | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   // True when an active session can't be submitted because its seed is
   // unrecoverable on this device — the only escape is waiting for it to expire.
@@ -144,13 +148,40 @@ export function useGameSession() {
     setIsPending(false);
 
     if (reverted) {
-      setError("Session start reverted on-chain. Make sure you are GoodDollar verified and have enough CELO for gas.");
       setPhase("idle");
+      // Decode the actual revert instead of guessing. startSession on the
+      // deployed contract can only revert with SessionAlreadyActive (there is
+      // no verification or gas gate on it), so re-simulate to get the precise
+      // reason. This branch is now a rare safety net — startSession simulates
+      // before broadcasting — but when it fires the message must still be true.
+      const seedForDecode = lastStartSeedRef.current;
+      if (publicClient && address && seedForDecode) {
+        publicClient
+          .simulateContract({
+            account: address,
+            address: GAME2048_ADDRESS,
+            abi: GAME2048_ABI,
+            functionName: "startSession",
+            args: [keccak256(seedForDecode)],
+          })
+          .then(() => {
+            // Simulation passes now — the on-chain revert was transient (e.g. a
+            // prior session cleared between broadcast and mining).
+            setError("Starting the game didn't go through. Tap New Game to try again.");
+          })
+          .catch((e) => {
+            setError(parseContractError(e as Error));
+          });
+      } else {
+        setError(
+          "Starting the game didn't go through on-chain. If you have a game in progress, submit it to finish it; otherwise tap New Game to try again.",
+        );
+      }
     } else {
       setPhase("active");
     }
     refetchSession();
-  }, [txConfirmed, txWaitError, txReceipt, refetchSession]);
+  }, [txConfirmed, txWaitError, txReceipt, refetchSession, publicClient, address]);
 
   // ── Core transaction helper ───────────────────────────────────────────────
   // Takes the wallet client as a parameter (rather than closing over the
@@ -282,6 +313,64 @@ export function useGameSession() {
     }
   }, [publicClient, address, authType]);
 
+  // ── resume an already-active on-chain session ────────────────────────────
+  // The contract allows only one live session per player. If one already
+  // exists (e.g. a game abandoned on a refresh, or started on another tab),
+  // starting a "new" game would revert. Instead, if we can still recover the
+  // committed seed for that session, hand it back to the game so the player
+  // keeps playing on the session they already own and can submit at the end.
+  // Returns true if the session was resumed; false if its seed is unrecoverable.
+  const tryResumeActiveSession = useCallback(
+    async (
+      seedHash: `0x${string}`,
+      onSeedReady: (seed: `0x${string}`) => void,
+    ): Promise<boolean> => {
+      if (!address) return false;
+
+      let candidate: `0x${string}` | null = null;
+
+      try {
+        const stored = getUserStorage(address, SESSION_SEED_KEY);
+        if (
+          stored &&
+          stored.startsWith("0x") &&
+          keccak256(stored as `0x${string}`) === seedHash
+        ) {
+          candidate = stored as `0x${string}`;
+        }
+      } catch { /* ignore — try the next source */ }
+
+      if (!candidate) {
+        try {
+          const idb = await recoverSeedFromIndexedDB(address);
+          if (
+            idb &&
+            idb.startsWith("0x") &&
+            keccak256(idb as `0x${string}`) === seedHash
+          ) {
+            candidate = idb as `0x${string}`;
+          }
+        } catch { /* ignore — unrecoverable */ }
+      }
+
+      if (!candidate) return false;
+
+      // Re-persist so the durable copy is definitely present for submitScore.
+      try { setUserStorage(address, SESSION_SEED_KEY, candidate); } catch { /* ignore */ }
+      // Sync the cache to "active" *before* flipping phase, so the phase-sync
+      // effect agrees and never bounces us back to "idle".
+      try { await refetchSession(); } catch { /* ignore */ }
+
+      setError(null);
+      setSessionStuck(false);
+      pendingActionRef.current = null;
+      setPhase("active");
+      onSeedReady(candidate);
+      console.log("[Game Session] Resumed an already-active on-chain session");
+      return true;
+    },
+    [address, refetchSession],
+  );
 
   // ── startSession ─────────────────────────────────────────────────────────
   // onSeedReady is called with the committed seed only after all pre-flight
@@ -316,44 +405,45 @@ export function useGameSession() {
       }
 
       const SESSION_TIMEOUT_SECS = 2n * 3600n;
-      if (
-        onChainSession?.active &&
-        BigInt(Math.floor(Date.now() / 1000)) <=
-          onChainSession.startTime + SESSION_TIMEOUT_SECS
-      ) {
-        // Cache shows active session within timeout window.
-        // Verify with direct contract read in case cache is stale.
-        if (publicClient) {
-          try {
-            const freshSession = await publicClient.readContract({
-              address: GAME2048_ADDRESS,
-              abi: GAME2048_ABI,
-              functionName: "getSession",
-              args: [address],
-            }) as { active: boolean; startTime: bigint } | null;
+      // Pre-flight: read the session straight from chain (never trust only the
+      // wagmi cache — it can be empty, stale, or briefly disabled during a
+      // chain switch). If a live session already exists, resume it rather than
+      // broadcasting a startSession that the contract would revert. A failed
+      // read does NOT block here — the pre-broadcast simulation below is the
+      // authoritative gate, so RPC flakiness can't stop a valid player.
+      if (publicClient) {
+        try {
+          const freshSession = await publicClient.readContract({
+            address: GAME2048_ADDRESS,
+            abi: GAME2048_ABI,
+            functionName: "getSession",
+            args: [address],
+          }) as { active: boolean; startTime: bigint; seedHash: `0x${string}` } | null;
 
-            if (freshSession && !freshSession.active) {
-              // Cache was stale — session is actually inactive, proceed with new session
-              console.log("[Game Session] Direct read shows session inactive (cache was stale), proceeding");
-            } else if (freshSession) {
-              // Direct read confirms session is still active — block with error
-              const nowSecs = BigInt(Math.floor(Date.now() / 1000));
-              if (nowSecs <= freshSession.startTime + SESSION_TIMEOUT_SECS) {
-                setError("You already have an active session. Wait for it to expire or submit your previous game.");
-                return;
-              }
-              // Session expired according to direct read, proceed
+          if (
+            freshSession?.active &&
+            BigInt(Math.floor(Date.now() / 1000)) <=
+              freshSession.startTime + SESSION_TIMEOUT_SECS
+          ) {
+            const resumed = await tryResumeActiveSession(
+              freshSession.seedHash as `0x${string}`,
+              onSeedReady,
+            );
+            if (!resumed) {
+              // Couldn't recover the seed on this device. Sync the wagmi cache
+              // so the "Session active on-chain" recovery panel (countdown +
+              // play-locally) takes over instead of leaving a bare error.
+              refetchSession();
+              setError(
+                "You already have a game in progress on-chain. Submit that game to finish it, or wait for it to expire (up to 2 hours), then start a new game.",
+              );
             }
-          } catch (err) {
-            // Direct read failed — use cached value (already showed error above)
-            console.warn("[Game Session] Direct session read failed, using cached value:", err);
-            setError("You already have an active session. Wait for it to expire or submit your previous game.");
             return;
           }
-        } else {
-          // No publicClient available — use cached value
-          setError("You already have an active session. Wait for it to expire or submit your previous game.");
-          return;
+          // Not active, or already past its 2h timeout — the contract clears an
+          // expired session on the next startSession, so fall through and start.
+        } catch (err) {
+          console.warn("[Game Session] Pre-flight session read failed, deferring to simulation:", err);
         }
       }
 
@@ -379,6 +469,65 @@ export function useGameSession() {
       pendingActionRef.current = "start";
       setPhase("starting");
       console.log(`[Game Session] Starting session with authType=${authType}, chainId=${chainId}`);
+
+      // ── Pre-broadcast simulation — the authoritative gate ──────────────────
+      // Mirrors submitScore's simulate-first flow. startSession on the deployed
+      // contract can only revert with SessionAlreadyActive (no verification and
+      // no gas gate live on it), so decode that here and either resume the
+      // existing session or show its real reason — BEFORE we sign, wipe the
+      // board, or spend gas. Only a genuine contract revert blocks; an
+      // RPC/network error falls through so flaky infra can't stop a valid start.
+      if (publicClient) {
+        try {
+          await publicClient.simulateContract({
+            account: address,
+            address: GAME2048_ADDRESS,
+            abi: GAME2048_ABI,
+            functionName: "startSession",
+            args: [keccak256(seed)],
+          });
+        } catch (simErr) {
+          const isContractRevert =
+            simErr instanceof BaseError &&
+            !!simErr.walk((e) => e instanceof ContractFunctionRevertedError);
+          if (isContractRevert) {
+            const revert = (simErr as BaseError).walk(
+              (e) => e instanceof ContractFunctionRevertedError,
+            ) as ContractFunctionRevertedError | null;
+            const errorName = (revert as { data?: { errorName?: string } } | null)?.data?.errorName;
+
+            // Cache was stale — a live session actually exists. Try to resume it
+            // so the player keeps playing instead of hitting a dead end.
+            if (errorName === "SessionAlreadyActive") {
+              try {
+                const fresh = await publicClient.readContract({
+                  address: GAME2048_ADDRESS,
+                  abi: GAME2048_ABI,
+                  functionName: "getSession",
+                  args: [address],
+                }) as { active: boolean; startTime: bigint; seedHash: `0x${string}` } | null;
+                if (
+                  fresh?.active &&
+                  BigInt(Math.floor(Date.now() / 1000)) <= fresh.startTime + 2n * 3600n &&
+                  (await tryResumeActiveSession(fresh.seedHash as `0x${string}`, onSeedReady))
+                ) {
+                  return;
+                }
+              } catch { /* fall through to the decoded error */ }
+            }
+
+            setError(parseContractError(simErr as Error));
+            setPhase("idle");
+            pendingActionRef.current = null;
+            refetchSession();
+            return; // never broadcast a doomed startSession
+          }
+          // Network/RPC error during simulation — proceed and let the tx decide.
+          console.warn("[Game Session] startSession simulation inconclusive, proceeding:", simErr);
+        }
+      }
+
+      lastStartSeedRef.current = seed;
       // Durably persist the committed seed *before* handing it to the game, so a
       // later board reset / remount / "play locally" can't orphan this session.
       try {
@@ -471,7 +620,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, signer, signerError, signAndBroadcast, triggerNoGas, showToast, topUpGasIfNeeded],
+    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, signer, signerError, publicClient, refetchSession, tryResumeActiveSession, signAndBroadcast, triggerNoGas, showToast, topUpGasIfNeeded],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -951,7 +1100,7 @@ function parseContractError(error: Error): string {
       switch (errorName) {
         case "NotVerifiedHuman":
           return "Your GoodDollar account is not verified, or you're using a linked wallet that can't submit scores. Scores can only be submitted from the primary verified account. Visit gooddollar.org to verify, or switch to your verified wallet if you have one.";
-        case "SessionAlreadyActive":  return "You already have an active session on-chain. It auto-expires after 2 hours.";
+        case "SessionAlreadyActive":  return "You already have a game in progress on-chain. Submit that game to finish it, or wait for it to expire (up to 2 hours), then start a new game.";
         case "NoActiveSession":       return "No active session found. Start a new game first.";
         case "SessionExpired":        return "Your session expired — start a new game.";
         case "InvalidSeed":           return "Seed mismatch. Don't clear your browser storage mid-game.";
