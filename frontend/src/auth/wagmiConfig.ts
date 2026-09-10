@@ -1,5 +1,5 @@
 import { http, createConfig, fallback } from "wagmi";
-import { injected, walletConnect } from "wagmi/connectors";
+import { injected, metaMask, walletConnect } from "wagmi/connectors";
 import { celo } from "wagmi/chains";
 
 // Celo mainnet read RPCs (no API keys)
@@ -40,16 +40,24 @@ if (!walletConnectProjectId) {
 // only when `window` exists keeps it entirely out of the server/SSG path.
 const isBrowser = typeof window !== "undefined";
 
+// The MetaMask SDK connector is ONLY for the mobile deep-link flow. On desktop
+// its eager init interferes with `window.ethereum` / EIP-6963 discovery when
+// several wallet extensions are installed, so it must never be in the config
+// there — desktop connects exactly as before, through injected()/EIP-6963.
+const isMobileUA =
+  isBrowser &&
+  typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 const walletConnectConnector =
   walletConnectProjectId && isBrowser
     ? walletConnect({
         projectId: walletConnectProjectId,
         relayUrl: "wss://relay.walletconnect.org",
-        // We handle the pairing URI ourselves (WalletSelector deep-links it into
-        // the wallet app on mobile). WalletConnect's own modal is unreliable at
-        // opening inside a mobile browser, and routing around it keeps the flow
-        // a single redirect: tap MetaMask -> approve in MetaMask -> back here.
-        showQrModal: false,
+        // Desktop keeps WalletConnect's built-in QR modal (unchanged behaviour).
+        // On mobile we disable it and hand-drive the pairing URI as a deep link,
+        // because that modal is unreliable at opening inside a mobile browser.
+        showQrModal: !isMobileUA,
         metadata: {
           name: "BlockSlide",
           description: "Play 2048 onchain and earn G$ on Celo",
@@ -59,16 +67,35 @@ const walletConnectConnector =
       })
     : null;
 
+// MetaMask's own SDK connector. This is the officially supported way to connect
+// MetaMask from a mobile web page: on a phone `connect()` opens the MetaMask
+// app via deep link, the user approves, and the SDK brings them back here with
+// an active session — no WalletConnect relay, no QR modal. On desktop it is
+// deliberately NOT surfaced by WalletSelector (extension users go through the
+// EIP-6963 injected connector), so its known desktop quirks never apply.
+const metaMaskConnector = isMobileUA
+  ? metaMask({
+      dappMetadata: {
+        name: "BlockSlide",
+        url: APP_URL,
+        iconUrl: `${APP_URL}/android-chrome-512x512.png`,
+      },
+      useDeeplink: true,
+      checkInstallationImmediately: false,
+    })
+  : null;
+
 export const wagmiConfig = createConfig({
   chains: [celo],
   connectors: [
     // Generic injected connector with multiInjectedProviderDiscovery (wagmi v2
     // default / EIP-6963). Each browser-extension wallet announces itself, so we
-    // don't have to assume a specific target — more robust with several wallet
-    // extensions installed than a targeted metaMask() connector.
+    // don't assume a specific target — robust with several extensions installed.
     injected(),
-    // WalletConnect v2 — the connect path for mobile browsers and desktop
-    // browsers with no extension. Omitted entirely when no project id is set.
+    // MetaMask SDK — the mobile "MetaMask" deep-link path.
+    ...(metaMaskConnector ? [metaMaskConnector] : []),
+    // WalletConnect v2 — "Other wallet" on mobile, and desktop-without-extension.
+    // Omitted entirely when no project id is set.
     ...(walletConnectConnector ? [walletConnectConnector] : []),
   ],
   transports: { [celo.id]: transport },
