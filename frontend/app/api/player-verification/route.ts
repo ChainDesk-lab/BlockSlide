@@ -98,24 +98,27 @@ async function checkWhitelistWithFallback(
   return { isVerified: null, error: errorMsg };
 }
 
-// Simple in-memory cache with TTL (5 minutes)
-// In production, use Redis or database
+// Simple in-memory cache with TTL.
+// In production, use Redis or database.
 interface CacheEntry {
   isVerified: boolean;
   timestamp: number;
 }
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// `false` is cached too, just briefly. Caching only `true` meant every
+// leaderboard load re-queried every unverified wallet — the large majority of
+// the board — which is what made whole-board verification too slow to attempt.
+// A short TTL keeps a newly-verified user from waiting long to see their badge.
+const CACHE_TTL_TRUE_MS = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL_FALSE_MS = 2 * 60 * 1000; // 2 minutes
 
 function getCachedResult(address: string): boolean | null {
   const cached = cache.get(address.toLowerCase());
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.isVerified;
-  }
-  // Clean up expired cache
-  if (cached) {
-    cache.delete(address.toLowerCase());
-  }
+  if (!cached) return null;
+  const ttl = cached.isVerified ? CACHE_TTL_TRUE_MS : CACHE_TTL_FALSE_MS;
+  if (Date.now() - cached.timestamp < ttl) return cached.isVerified;
+  cache.delete(address.toLowerCase());
   return null;
 }
 
@@ -124,6 +127,24 @@ function setCachedResult(address: string, isVerified: boolean): void {
     isVerified,
     timestamp: Date.now(),
   });
+}
+
+/** Resolve tasks with bounded concurrency, preserving input order. */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      out[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
 }
 
 /**
@@ -202,12 +223,9 @@ export async function GET(
       `[Player Verification] Result for ${address.slice(0, 6)}... = ${isVerified} (RPC: ${checkResult.rpcUsed})`
     );
 
-    // Cache only true values (verified accounts) to avoid serving stale false entries
-    // If verification status changes, we want to check the contract again rather than
-    // returning a cached false that might be outdated
-    if (isVerified) {
-      setCachedResult(address, isVerified);
-    }
+    // Both outcomes are cached; `false` carries a shorter TTL so a freshly
+    // verified user still sees their badge promptly.
+    setCachedResult(address, isVerified);
 
     console.log(
       `[Player Verification] Checked ${address.slice(0, 6)}... = ${isVerified}${isVerified ? " (cached)" : " (not cached)"}`
@@ -268,12 +286,15 @@ export async function POST(request: NextRequest) {
       return true;
     });
 
-    // Batch check remaining addresses from contract with RPC fallback
-    for (const addr of needsCheck) {
-      const checkResult = await checkWhitelistWithFallback(
-        addr as `0x${string}`
-      );
+    // Check remaining addresses concurrently. These were sequential, so a full
+    // page of cache misses took one round-trip per address and routinely ran
+    // past the function timeout; the board could never verify itself in one go.
+    const checked = await mapWithConcurrency(needsCheck, 15, (addr) =>
+      checkWhitelistWithFallback(addr as `0x${string}`)
+    );
 
+    needsCheck.forEach((addr, i) => {
+      const checkResult = checked[i];
       if (checkResult.isVerified === null) {
         // Both RPCs failed for this address
         console.warn(
@@ -283,12 +304,9 @@ export async function POST(request: NextRequest) {
         results[addr.toLowerCase()] = { isVerified: null }; // Explicitly null, not false
       } else {
         results[addr.toLowerCase()] = { isVerified: checkResult.isVerified };
-        // Only cache true values to avoid serving stale false entries
-        if (checkResult.isVerified) {
-          setCachedResult(addr, true);
-        }
+        setCachedResult(addr, checkResult.isVerified);
       }
-    }
+    });
 
     // If any addresses were unavailable, log it prominently
     if (unavailableAddresses.length > 0) {

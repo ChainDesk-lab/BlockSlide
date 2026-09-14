@@ -1867,6 +1867,20 @@ html.dark-mode {
   padding: 12px 0;
 }
 
+/* Shown when the subgraph has stopped indexing, so stale scores are visibly
+   stale rather than silently served as current. */
+.leaderboard__stale {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  text-align: center;
+}
+
 .leaderboard__empty-state {
   text-align: center;
   padding: 40px 20px;
