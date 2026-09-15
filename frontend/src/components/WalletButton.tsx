@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { useAuthSelection } from "../contexts/AuthSelectionContext";
 import { useContractPublicClient } from "../hooks/useContractData";
@@ -14,6 +14,7 @@ export default function WalletButton() {
   const { balance: gDollarBalance, refetch: refetchGDollar } = useGDollarBalance();
   const [celoBalance, setCeloBalance] = useState<string>("0");
   const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Fetch CELO balance
   useEffect(() => {
@@ -51,22 +52,56 @@ export default function WalletButton() {
     };
   }, [refetchGDollar]);
 
+  // Close the dropdown on outside click or Escape
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
   if (!address) return null;
 
   const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
   const balanceShort = parseFloat(celoBalance).toFixed(3);
 
   return (
-    <div className="wallet-button-container">
+    <div className="wallet-button-container" ref={containerRef}>
       <button
-        className="btn btn--xs wallet-button"
+        className={`btn btn--xs wallet-button${isOpen ? " wallet-button--open" : ""}`}
         onClick={() => setIsOpen(!isOpen)}
-        title="Click to view wallet details"
+        title="View balances, address & sign out"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
       >
         <span className="wallet-button__balance" title={`${celoBalance} CELO`}>
           {balanceShort} Ⓒ
         </span>
+        <span className="wallet-button__divider" aria-hidden="true" />
         <span className="wallet-button__address">{short}</span>
+        <svg
+          className="wallet-button__chevron"
+          width="10"
+          height="10"
+          viewBox="0 0 10 6"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
 
       {isOpen && (
