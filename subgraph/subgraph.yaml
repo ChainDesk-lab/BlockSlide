@@ -20,6 +20,11 @@ dataSources:
         - name: Game2048
           file: ./abis/Game2048.json
       eventHandlers:
+        # SessionStarted is what creates a Player for someone who has begun a
+        # game but not yet finished one or set a username. Without it the
+        # Player count silently undercounts every new/incomplete player.
+        - event: SessionStarted(indexed address)
+          handler: handleSessionStarted
         - event: XpEarned(indexed address,uint256,uint256)
           handler: handleXpEarned
         - event: UsernameSet(indexed address,string)

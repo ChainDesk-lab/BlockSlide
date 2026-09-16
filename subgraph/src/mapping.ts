@@ -1,5 +1,6 @@
 import { Address, BigInt } from "@graphprotocol/graph-ts";
 import {
+  SessionStarted,
   XpEarned,
   UsernameSet,
   ScoreSubmitted,
@@ -19,6 +20,7 @@ function loadPlayer(addr: Address, ts: BigInt): Player {
     p = new Player(addr);
     p.xp = BigInt.zero();
     p.bestScore = BigInt.zero();
+    p.gamesStarted = 0;
     p.gamesPlayed = 0;
     p.isVerified = false;
     p.firstSeen = ts;
@@ -31,6 +33,17 @@ function loadPlayer(addr: Address, ts: BigInt): Player {
     p.cosmeticsOwned = [];
   }
   return p as Player;
+}
+
+// Starting a game is the earliest on-chain signal that a wallet exists as a
+// player. Indexing it means someone who begins a game but never submits a score
+// (or never sets a username) still shows up in the Player count, instead of
+// being invisible until they complete something.
+export function handleSessionStarted(event: SessionStarted): void {
+  let p = loadPlayer(event.params.player, event.block.timestamp);
+  p.gamesStarted = p.gamesStarted + 1;
+  p.lastUpdated = event.block.timestamp;
+  p.save();
 }
 
 // XpEarned carries the running cumulative total, so we set it directly.
