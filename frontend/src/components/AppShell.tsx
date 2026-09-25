@@ -21,6 +21,7 @@ import {
   VerifiedIcon,
   UserIcon,
   BountyIcon,
+  StatsIcon,
 } from "./icons";
 
 interface AppShellProps {
@@ -72,6 +73,7 @@ export default function AppShell({ children }: AppShellProps) {
   const isBounty = pathname === "/bounty";
   const isProfile = pathname.startsWith("/profile");
   const isHowToPlay = pathname === "/how-to-play";
+  const isStats = pathname === "/stats";
 
   return (
     <div className="app">
@@ -135,6 +137,13 @@ export default function AppShell({ children }: AppShellProps) {
             <Link href="/?tab=shop">
               <button className={`icon-btn ${isShop ? "icon-btn--active" : ""}`} aria-label="Shop">
                 <CartIcon />
+              </button>
+            </Link>
+          </span>
+          <span className="tooltip" data-tip="Stats">
+            <Link href="/stats" aria-label="Stats">
+              <button className={`icon-btn ${isStats ? "icon-btn--active" : ""}`} aria-label="Stats">
+                <StatsIcon />
               </button>
             </Link>
           </span>

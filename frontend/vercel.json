@@ -11,5 +11,11 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/stats/refresh",
+      "schedule": "0 */6 * * *"
+    }
   ]
 }
