@@ -1,0 +1,149 @@
+/* Stats page.
+ *
+ * Chart colours are a two-slot categorical palette validated with the dataviz
+ * validator against both surfaces (light #FFFFFF, dark #1A1F2E): lightness
+ * band, chroma floor, CVD separation and normal-vision floor all pass in both
+ * modes. Slot 1 is the app brand so the page reads as part of the game.
+ * Slot 2 in light mode sits below 3:1 against white, which is why every bar
+ * carries a direct value label and every chart ships a data table.
+ *
+ * Dark values are a selected step from the same hues, not an automatic flip.
+ */
+.stats {
+  --viz-1: #6b4eff;
+  --viz-2: #1baf7a;
+  --viz-grid: rgba(31, 41, 55, 0.09);
+  --viz-axis: #6b7280;
+  --viz-surface: #ffffff;
+  /* width:100% is load-bearing. AppShell renders routes as flex items in a
+   * column flex container, and an auto cross-axis margin cancels the default
+   * stretch — without a definite width the page collapses to shrink-to-fit. */
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding: 24px 16px 64px;
+  color: var(--text, #1f2937);
+}
+
+@media (prefers-color-scheme: dark) {
+  .stats {
+    --viz-2: #199e70;
+    --viz-grid: rgba(243, 244, 246, 0.12);
+    --viz-axis: #9ca3af;
+    --viz-surface: #1a1f2e;
+  }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.stats__header { margin-bottom: 28px; }
+.stats__title { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 800; margin: 0 0 8px; letter-spacing: -0.02em; }
+.stats__subtitle { margin: 0 0 6px; max-width: 62ch; color: var(--text-muted, #6b7280); line-height: 1.5; }
+.stats__meta { margin: 0; font-size: 0.8rem; color: var(--text-muted, #6b7280); font-variant-numeric: tabular-nums; }
+.stats__loading, .stats__error { padding: 32px 0; color: var(--text-muted, #6b7280); }
+.stats__error { color: var(--error, #ef4444); }
+
+.stats__section { margin-bottom: 36px; }
+.stats__h2 { font-size: 1.05rem; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.01em; }
+.stats__aside { margin: 14px 0 0; font-size: 0.88rem; line-height: 1.6; color: var(--text-muted, #6b7280); max-width: 72ch; }
+
+/* ── Stat tiles ──────────────────────────────────────────────────────────── */
+.stats__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stats-tile {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius, 12px);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stats-tile__label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted, #6b7280); font-weight: 600; }
+.stats-tile__value { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.stats-tile__sub { font-size: 0.75rem; color: var(--text-muted, #6b7280); }
+
+/* ── Chart shell ─────────────────────────────────────────────────────────── */
+.stats__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.stats-chart {
+  margin: 0;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius, 12px);
+  padding: 14px 16px 10px;
+  min-width: 0;
+}
+.stats-chart__head { margin-bottom: 10px; }
+.stats-chart__title { font-size: 0.92rem; font-weight: 700; margin: 0; }
+.stats-chart__note { margin: 4px 0 0; font-size: 0.76rem; line-height: 1.45; color: var(--text-muted, #6b7280); }
+.stats-chart__plot { position: relative; }
+.stats-chart__plot svg { width: 100%; height: 200px; display: block; overflow: visible; }
+
+/* Recessive grid and axes; data ink carries the colour. */
+.stats-chart__grid { stroke: var(--viz-grid); stroke-width: 1; }
+.stats-chart__baseline { stroke: var(--viz-grid); stroke-width: 1; }
+.stats-chart__axis { fill: var(--viz-axis); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+.stats-chart__bar { fill: var(--viz-1); }
+.stats-chart__bar--s2 { fill: var(--viz-2); }
+/* The in-progress week is the same hue at reduced weight, never a new colour. */
+.stats-chart__bar--alt { fill: var(--viz-1); opacity: 0.45; }
+.stats-chart__bar--s2.stats-chart__bar--alt { fill: var(--viz-2); opacity: 0.45; }
+
+.stats-chart__line { fill: none; stroke: var(--viz-1); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.stats-chart__area { fill: var(--viz-1); opacity: 0.1; }
+.stats-chart__crosshair { stroke: var(--viz-axis); stroke-width: 1; stroke-dasharray: 3 3; }
+.stats-chart__marker { fill: var(--viz-1); stroke: var(--viz-surface); stroke-width: 2; }
+
+.stats-chart__xaxis {
+  display: flex; justify-content: space-between;
+  font-size: 0.7rem; color: var(--text-muted, #6b7280);
+  padding: 2px 12px 0 44px; font-variant-numeric: tabular-nums;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+.stats-chart__tip {
+  position: absolute; transform: translate(-50%, -125%);
+  background: var(--text, #1f2937); color: var(--surface, #fff);
+  border-radius: 8px; padding: 5px 9px; font-size: 0.74rem;
+  display: flex; flex-direction: column; gap: 1px;
+  pointer-events: none; white-space: nowrap; z-index: 2;
+  box-shadow: var(--shadow, 0 2px 8px rgba(0, 0, 0, 0.08));
+}
+.stats-chart__tip-label { opacity: 0.7; }
+.stats-chart__tip-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Horizontal bars ────────────────────────────────────────────────────── */
+.stats-hbar { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.stats-hbar__row { display: grid; grid-template-columns: minmax(96px, 34%) 1fr auto; align-items: center; gap: 10px; }
+.stats-hbar__label { font-size: 0.8rem; line-height: 1.25; }
+.stats-hbar__track { height: 14px; background: var(--viz-grid); border-radius: 7px; overflow: hidden; }
+.stats-hbar__fill { display: block; height: 100%; background: var(--viz-1); border-radius: 7px; }
+.stats-hbar__value { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 6px; align-items: baseline; }
+.stats-hbar__value em { font-style: normal; font-weight: 500; font-size: 0.72rem; color: var(--text-muted, #6b7280); }
+
+/* ── Data table (accessibility relief for the low-contrast slot) ─────────── */
+.stats-chart__table { margin-top: 8px; }
+.stats-chart__toggle {
+  background: none; border: none; padding: 2px 0;
+  font-size: 0.74rem; color: var(--text-muted, #6b7280);
+  text-decoration: underline; cursor: pointer;
+}
+.stats-chart__toggle:hover { color: var(--viz-1); }
+.stats-chart__table-scroll { overflow-x: auto; margin-top: 6px; }
+.stats-chart__table-scroll table { border-collapse: collapse; font-size: 0.76rem; width: 100%; }
+.stats-chart__table-scroll th, .stats-chart__table-scroll td {
+  text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--viz-grid);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.stats-chart__table-scroll thead th { color: var(--text-muted, #6b7280); font-weight: 600; }
+.stats-chart__table-scroll tbody th { text-align: left; font-weight: 500; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.stats__footer { border-top: 1px solid var(--border, rgba(0, 0, 0, 0.08)); padding-top: 16px; }
+.stats__footer p { margin: 0 0 12px; font-size: 0.78rem; line-height: 1.6; color: var(--text-muted, #6b7280); max-width: 72ch; }
+.stats__footer code { font-size: 0.74rem; background: var(--surface-2, #f5f1e8); padding: 1px 5px; border-radius: 4px; }
+.stats__back { font-size: 0.85rem; font-weight: 600; color: var(--viz-1); text-decoration: none; }
+.stats__back:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .stats { padding: 16px 12px 48px; }
+  .stats__grid { grid-template-columns: 1fr; }
+  .stats-hbar__row { grid-template-columns: minmax(76px, 40%) 1fr auto; }
+}
