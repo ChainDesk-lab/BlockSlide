@@ -140,7 +140,7 @@ async function verifyUpgrade(): Promise<void> {
   console.log("\n═══════════════════════════════════════════════════════");
   console.log("✅ V6 UPGRADE COMPLETE!\n");
   console.log("Next step: Set cosmetic and undo prices\n");
-  console.log("  npx ts-node scripts/set-shop-prices-v6.ts --execute\n");
+  console.log("  npx ts-node scripts/admin/set-shop-prices-v6.ts --execute\n");
 }
 
 async function main() {
@@ -168,7 +168,7 @@ async function main() {
     console.log(`  Is owner?           ${(await signer.getAddress()).toLowerCase() === "0xd551317265b9c4d1d453d399d8b8fa0b98d8ceb6" ? "CHECKING..." : "CHECKING..."}`);
 
     console.log("\n🔍 TO PROCEED WITH UPGRADE, RUN:\n");
-    console.log("  npx ts-node scripts/upgrade-to-v6.ts --execute\n");
+    console.log("  npx ts-node scripts/admin/upgrade-to-v6.ts --execute\n");
     console.log("⚠️  This will:\n");
     console.log("  1. Deploy Game2048V6 implementation");
     console.log("  2. Call upgradeToAndCall() on the proxy");

@@ -1,5 +1,5 @@
 import { viem } from "hardhat";
-import { GAME2048_ABI } from "../frontend/src/lib/abi";
+import { GAME2048_ABI } from "../../frontend/src/lib/abi";
 
 const PROXY_ADDRESS = "0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6" as `0x${string}`;
 

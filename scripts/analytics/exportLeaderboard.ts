@@ -2,13 +2,13 @@
 // Deduplicates by address (keeping highest score per player) and saves to JSON.
 //
 // Usage:
-//   npx hardhat run scripts/exportLeaderboard.ts --network celo
+//   npx hardhat run scripts/analytics/exportLeaderboard.ts --network celo
 
 import { writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
-import { GAME2048_ABI } from "../frontend/src/lib/abi";
+import { GAME2048_ABI } from "../../frontend/src/lib/abi";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -81,7 +81,7 @@ async function main() {
   }
 
   // Save to file
-  const outputPath = join(__dirname, "../leaderboard-export.json");
+  const outputPath = join(__dirname, "../../leaderboard-export.json");
   const output = {
     exportedAt: new Date().toISOString(),
     network: "celo-mainnet",

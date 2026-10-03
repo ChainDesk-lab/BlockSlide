@@ -1,5 +1,5 @@
 // Deploy Game2048 with mocks to Celo Sepolia for testing
-// Run: npx hardhat run scripts/deployDevSepolia.ts --network celoSepolia
+// Run: npx hardhat run scripts/admin/deployDevSepolia.ts --network celoSepolia
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -79,7 +79,7 @@ async function main() {
     },
   };
 
-  const outputPath = join(__dirname, "../deployment-dev-sepolia.json");
+  const outputPath = join(__dirname, "../../deployment-dev-sepolia.json");
   writeFileSync(outputPath, JSON.stringify(deploymentInfo, null, 2));
 
   console.log("\n📄 Deployment info saved to:", outputPath);

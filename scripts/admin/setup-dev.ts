@@ -1,5 +1,5 @@
 // Run after deploying Game2048DevModule on Alfajores:
-//   npx hardhat run scripts/setup-dev.ts --network alfajores
+//   npx hardhat run scripts/admin/setup-dev.ts --network alfajores
 //
 // What this does:
 //   1. Reads the deployed addresses from Ignition artifacts automatically
@@ -71,7 +71,7 @@ async function main() {
   console.log("  ✓ Treasury funded");
 
   // ── 3. Auto-patch frontend/src/lib/constants.ts ───────────────────────────
-  const constantsPath = join(__dirname, "../frontend/src/lib/constants.ts");
+  const constantsPath = join(__dirname, "../../frontend/src/lib/constants.ts");
   try {
     const before = readFileSync(constantsPath, "utf8");
     const after  = before.replace(

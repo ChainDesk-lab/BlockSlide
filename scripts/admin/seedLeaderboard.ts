@@ -2,8 +2,8 @@
 // Reads from leaderboard-export.json and calls seedLeaderboard()
 //
 // Usage:
-//   npx hardhat run scripts/seedLeaderboard.ts --network celoSepolia
-//   npx hardhat run scripts/seedLeaderboard.ts --network celo (mainnet)
+//   npx hardhat run scripts/admin/seedLeaderboard.ts --network celoSepolia
+//   npx hardhat run scripts/admin/seedLeaderboard.ts --network celo (mainnet)
 
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -33,7 +33,7 @@ async function main() {
   console.log("   Operator:", deployerAddr);
 
   // Read exported leaderboard
-  const exportPath = join(__dirname, "../leaderboard-export.json");
+  const exportPath = join(__dirname, "../../leaderboard-export.json");
   let exported: ExportedLeaderboard;
   try {
     const raw = readFileSync(exportPath, "utf8");
@@ -57,7 +57,7 @@ async function main() {
   let gameAddress = process.env.GAME2048_ADDRESS;
 
   if (!gameAddress) {
-    const deploymentPath = join(__dirname, "../deployment-dev-sepolia.json");
+    const deploymentPath = join(__dirname, "../../deployment-dev-sepolia.json");
     try {
       const deploymentInfo = JSON.parse(readFileSync(deploymentPath, "utf8"));
       gameAddress = deploymentInfo.contracts.game2048Proxy;

@@ -15,5 +15,8 @@
   "dependencies": {
     "@openzeppelin/contracts-upgradeable": "^5.6.1",
     "dotenv": "^17.4.2"
+  },
+  "scripts": {
+    "test:e2e": "playwright test"
   }
 }

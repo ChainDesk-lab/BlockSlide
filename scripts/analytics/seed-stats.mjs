@@ -11,8 +11,8 @@
  * incrementally, and this only needs re-running to rebuild from scratch.
  *
  * Usage:
- *   REDIS_URL=... node scripts/seed-stats.mjs
- *   REDIS_URL=... node scripts/seed-stats.mjs --dry-run
+ *   REDIS_URL=... node scripts/analytics/seed-stats.mjs
+ *   REDIS_URL=... node scripts/analytics/seed-stats.mjs --dry-run
  */
 import { getAddress, toEventSelector } from "viem";
 
@@ -153,7 +153,7 @@ let createClient;
 try {
   ({ createClient } = await import("redis"));
 } catch {
-  ({ createClient } = await import(new URL("../frontend/node_modules/redis/dist/index.js", import.meta.url).href));
+  ({ createClient } = await import(new URL("../../frontend/node_modules/redis/dist/index.js", import.meta.url).href));
 }
 const client = createClient({ url: process.env.REDIS_URL });
 client.on("error", (e) => console.error("redis:", e.message));

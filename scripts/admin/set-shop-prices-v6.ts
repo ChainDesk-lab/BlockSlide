@@ -188,7 +188,7 @@ async function main() {
 
     console.log("🔍 READY TO SET PRICES\n");
     console.log("To proceed, run:\n");
-    console.log("  npx ts-node scripts/set-shop-prices-v6.ts --execute\n");
+    console.log("  npx ts-node scripts/admin/set-shop-prices-v6.ts --execute\n");
     console.log("⚠️  Requires OWNER_PRIVATE_KEY in .env\n");
   } else {
     await simulateAndExecute();

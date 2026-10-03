@@ -1,5 +1,5 @@
 // Test seedLeaderboard() on a local hardhat network
-// Run: npx hardhat run scripts/testSeedLocal.ts
+// Run: npx hardhat run scripts/admin/testSeedLocal.ts
 // This deploys a fresh contract locally and tests the seeding function
 
 import { network } from "hardhat";

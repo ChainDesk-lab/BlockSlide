@@ -116,7 +116,7 @@ async function main() {
     }
   } else {
     console.log("💡 To check a transaction status, run:");
-    console.log("   npx ts-node scripts/verify-contract-state.ts --check-tx <txHash>\n");
+    console.log("   npx ts-node scripts/checks/verify-contract-state.ts --check-tx <txHash>\n");
   }
 }
 

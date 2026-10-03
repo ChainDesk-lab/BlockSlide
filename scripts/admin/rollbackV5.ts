@@ -7,7 +7,7 @@
 // upgradeToAndCall(prevImpl, "0x") and then prints key state to confirm the
 // data is intact.
 //
-//   npx hardhat run scripts/rollbackV5.ts --network celo
+//   npx hardhat run scripts/admin/rollbackV5.ts --network celo
 
 import { network } from "hardhat";
 

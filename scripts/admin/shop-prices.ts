@@ -101,7 +101,7 @@ async function simulateSetShopPrices() {
     console.log("  ⏸️  AWAITING EXPLICIT CONFIRMATION");
     console.log("═══════════════════════════════════════════════════════");
     console.log("\nTo proceed with sending the transaction, run:");
-    console.log('  npx ts-node scripts/shop-prices.ts --execute\n');
+    console.log('  npx ts-node scripts/admin/shop-prices.ts --execute\n');
 
     return { signer, contractWithSigner, canExecute: true };
   } catch (error) {
