@@ -43,3 +43,6 @@ frontend/test-results/
 scripts/out/
 *.tsbuildinfo
 leaderboard-export.json
+
+# macOS Finder metadata
+.DS_Store
