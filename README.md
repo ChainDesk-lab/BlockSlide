@@ -604,8 +604,6 @@ blockslide/
 ├── contracts/
 │   ├── Game2048.sol                 # Main game contract (UUPS proxy-compatible)
 │   ├── Game2048.t.sol               # Solidity unit tests (forge-std)
-│   ├── Counter.sol                  # Example contract (reference)
-│   ├── Counter.t.sol                # Counter Solidity tests
 │   ├── Proxy.sol                    # ERC1967Proxy wrapper for Hardhat
 │   ├── vendor/
 │   │   └── ERC1967Proxy.sol         # Game2048Proxy — deployable artifact
@@ -614,7 +612,6 @@ blockslide/
 │       └── MockIdentity.sol         # Mock GoodDollar identity for dev testing
 ├── test/
 │   ├── Game2048.ts                  # TypeScript integration tests
-│   └── Counter.ts                   # Counter integration tests
 ├── ignition/
 │   ├── modules/
 │   │   ├── Game2048.ts              # Production deployment (Celo mainnet)
