@@ -28,9 +28,9 @@ async function readBytecode(artifactName: string): Promise<string> {
 }
 
 async function deployImplementation(signer: ethers.Wallet): Promise<string> {
-  console.log("\n🔨 Deploying Game2048V6 implementation...\n");
+  console.log("\n🔨 Deploying Game2048 (V6) implementation...\n");
 
-  const bytecode = await readBytecode("Game2048V6");
+  const bytecode = await readBytecode("Game2048");
 
   if (!bytecode || bytecode === "0x") {
     throw new Error("Invalid bytecode - contract may not be compiled");
@@ -140,7 +140,7 @@ async function verifyUpgrade(): Promise<void> {
   console.log("\n═══════════════════════════════════════════════════════");
   console.log("✅ V6 UPGRADE COMPLETE!\n");
   console.log("Next step: Set cosmetic and undo prices\n");
-  console.log("  npx ts-node scripts/admin/set-shop-prices-v6.ts --execute\n");
+  console.log("  npx ts-node scripts/admin/set-shop-prices.ts --execute\n");
 }
 
 async function main() {
@@ -170,7 +170,7 @@ async function main() {
     console.log("\n🔍 TO PROCEED WITH UPGRADE, RUN:\n");
     console.log("  npx ts-node scripts/admin/upgrade-to-v6.ts --execute\n");
     console.log("⚠️  This will:\n");
-    console.log("  1. Deploy Game2048V6 implementation");
+    console.log("  1. Deploy Game2048 (V6) implementation");
     console.log("  2. Call upgradeToAndCall() on the proxy");
     console.log("  3. Verify V6 functions work\n");
   } else {
