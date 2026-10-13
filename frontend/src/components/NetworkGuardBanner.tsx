@@ -1,14 +1,18 @@
 import { useNetworkGuard } from "../hooks/useNetworkGuard";
 
 /**
- * Displays blocking banner when user is on wrong network and has rejected auto-switch.
- * Shows clear action: "Switch to Celo" button to retry the switch prompt.
+ * Fallback for when the automatic Celo switch doesn't complete — almost always
+ * because the user dismissed the wallet prompt. The guard prompts on its own
+ * first, so this only appears after an attempt has settled and left the wallet
+ * on the wrong chain.
  */
 export function NetworkGuardBanner() {
-  const { isWrongNetwork, switchPending, switchError, retrySwitch } = useNetworkGuard();
+  const { isWrongNetwork, switchPending, switchError, hasAttempted, retrySwitch } =
+    useNetworkGuard();
 
-  // Only show if user is on wrong network and switch was rejected (switchError present)
-  if (!isWrongNetwork || !switchError) {
+  // While the wallet prompt is open, let the wallet UI speak for itself.
+  // `hasAttempted` keeps the banner from flashing before the first prompt.
+  if (!isWrongNetwork || switchPending || !hasAttempted) {
     return null;
   }
 
@@ -18,7 +22,9 @@ export function NetworkGuardBanner() {
         <div className="network-guard-banner__icon">⚠️</div>
         <div className="network-guard-banner__text">
           <h3 className="network-guard-banner__title">Wrong Network</h3>
-          <p className="network-guard-banner__message">{switchError}</p>
+          <p className="network-guard-banner__message">
+            {switchError ?? "Switch to Celo in your wallet to keep playing."}
+          </p>
         </div>
         <button
           className="network-guard-banner__button"

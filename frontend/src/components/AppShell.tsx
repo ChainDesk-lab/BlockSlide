@@ -3,7 +3,8 @@
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { useAccount, useChainId, useConnections } from "wagmi";
+import { useAccount, useConnections } from "wagmi";
+import { useWalletChainId } from "../hooks/useWalletChainId";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
 import { useIdentity } from "../hooks/useIdentity";
@@ -196,7 +197,9 @@ function DiagnosticFooter() {
   // "connected"), not wagmi's, or Magic users always show as disconnected here.
   const { address: wagmiAddress } = useAccount();
   const { address: authAddress, authType } = useAuth();
-  const chainId = useChainId();
+  // The wallet's real chain, not wagmi's config chain — otherwise this debug
+  // readout claims 42220 even while the wallet sits on Ethereum.
+  const chainId = useWalletChainId();
   const connections = useConnections();
   const address = authAddress ?? wagmiAddress;
 

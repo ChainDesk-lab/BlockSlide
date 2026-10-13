@@ -3,12 +3,12 @@ import { BaseError, ContractFunctionRevertedError, encodeFunctionData, keccak256
 import { signTransaction } from "viem/actions";
 import {
   useBalance,
-  useChainId,
   usePublicClient,
   useReadContract,
   useSwitchChain,
   useWaitForTransactionReceipt,
 } from "wagmi";
+import { useWalletChainId } from "./useWalletChainId";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
@@ -43,7 +43,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export function useGameSession() {
   const address = useContractAddress();
   const { isConnected, authType } = useAuth();
-  const chainId = useChainId();
+  const chainId = useWalletChainId();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
   const { triggerNoGas } = useNoGas();
   const { showToast } = useToast();
@@ -80,9 +80,10 @@ export function useGameSession() {
   const [sessionStuck, setSessionStuck] = useState(false);
 
   // For Magic users, the embedded wallet is hardcoded to Celo (42220) via Magic's config,
-  // so we never need to check/switch chains. For Web3 wallet users, check against the
-  // actual wagmi chainId which reflects their connected wallet's network.
-  const isWrongChain = authType === "magic" ? false : (!!address && chainId !== TARGET_CHAIN.id);
+  // so we never need to check/switch chains. For Web3 wallet users, compare against the
+  // wallet's real chain — see useWalletChainId for why useChainId() can't do this.
+  const isWrongChain =
+    authType === "magic" ? false : (!!address && chainId !== undefined && chainId !== TARGET_CHAIN.id);
 
   // Log auth state for debugging (especially Magic/email submit issues)
   useEffect(() => {
@@ -951,7 +952,7 @@ export function useGameSession() {
 
       // Re-check chain right before submission, not just from initialization
       // (chainId can change between hook init and when user clicks Submit)
-      if (authType !== "magic" && chainId !== TARGET_CHAIN.id) {
+      if (authType !== "magic" && chainId !== undefined && chainId !== TARGET_CHAIN.id) {
         setPhase("active");
         setError("Wrong network — please switch to Celo mainnet in your wallet.");
         submissionInProgressRef.current = false;
