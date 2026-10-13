@@ -53,7 +53,7 @@ export async function GET() {
 
   if (state.checkpointBlock < state.genesisBlock) {
     return NextResponse.json(
-      { error: "stats_unseeded", message: "No aggregate yet. Run scripts/seed-stats.mjs to load history, then this endpoint keeps itself current." },
+      { error: "stats_unseeded", message: "No aggregate yet. Run scripts/analytics/seed-stats.mjs to load history, then this endpoint keeps itself current." },
       { status: 503 }
     );
   }

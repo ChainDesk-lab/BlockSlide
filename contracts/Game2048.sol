@@ -16,14 +16,16 @@ interface IIdentity {
     function isWhitelisted(address user) external view returns (bool);
 }
 
-/// @title BlockSlide — onchain 2048 with G$ milestone rewards, XP, streaks, and a shop
+/// @title BlockSlide — onchain 2048 with G$ milestone rewards, XP, streaks, shop, and cosmetics
 ///
 /// Anti-cheat: player commits keccak256(seed) before playing. On submit, the seed
 /// is revealed and verified, preventing cherry-picking a lucky seed post-game.
 ///
 /// Shop (G$ payments go to treasury):
-///   - Streak Shield: protects against one streak break, lasts 24 h from purchase.
-///   - 2x / 5x XP Boost: multiplies XP earned from games for 24 h.
+///   - Streak Shield: non-consumable, protects against one streak break per shield owned
+///   - 2x / 5x XP Boost: applies multiplier for 5 hours (changed from 24h)
+///   - Undo Move: consumable, credits per player, consumeUndo decrements
+///   - Cosmetics: catalog of visual items (tile skins, avatar accessories, etc)
 ///
 /// XP:
 ///   - Base XP per game = score / 10.
@@ -47,7 +49,7 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public constant REWARD_2048 = 100e18;
 
     uint256 public constant SESSION_TIMEOUT = 2 hours;
-    uint256 public constant BOOST_DURATION  = 24 hours;
+    uint256 public constant BOOST_DURATION_V6  = 5 hours;  // Changed from 24 hours in V5
 
     uint8 private constant MILESTONE_256  = 1 << 0;
     uint8 private constant MILESTONE_512  = 1 << 1;
@@ -74,6 +76,11 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     struct XpBoost {
         uint8  multiplier; // 2 or 5
         uint64 expiry;     // unix timestamp
+    }
+
+    struct CosmeticItem {
+        uint256 price;
+        bool    exists;
     }
 
     // ─── Core game state ──────────────────────────────────────────────────────
@@ -105,10 +112,21 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     mapping(bytes32 => address) public nameOwner;    // keccak(lowercased name) => owner
     mapping(address => bytes32) private _nameKey;     // owner => their current name hash
 
-    // ─── Referral state (appended in V6 — keep at end for UUPS layout safety) ──
+    // ─── Referral state (appended in V5 — keep at end for UUPS layout safety) ──
 
     mapping(address => address) public referrerOf;   // player => their referrer (set once, immutable)
     mapping(address => uint256) public referralCount; // referrer => count of players they referred
+
+    // ─── V6: New shop items — appended after referral state ─────────────────────
+
+    // Undo Move shop item: consumable credits per player
+    mapping(address => uint256) public undoCredits;
+    uint256 public undoPrice;
+
+    // Cosmetics catalog: itemId => CosmeticItem (price, exists flag)
+    mapping(uint256 => CosmeticItem) public cosmeticCatalog;
+    // Cosmetics ownership: player => (itemId => owned)
+    mapping(address => mapping(uint256 => bool)) public cosmeticsOwned;
 
     // ─── Events ───────────────────────────────────────────────────────────────
 
@@ -117,9 +135,13 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event RewardPaid(address indexed player, uint32 milestone, uint256 amount);
     event XpEarned(address indexed player, uint256 amount, uint256 total);
     event StreakUpdated(address indexed player, uint256 streak);
-    event ShieldPurchased(address indexed player, uint256 count);
-    event XpBoostPurchased(address indexed player, uint8 multiplier, uint64 expiry);
-    event ShopPricesUpdated(uint256 shield, uint256 boost2x, uint256 boost5x);
+    event ShieldPurchased(address indexed player, uint256 count, uint256 pricePaid);
+    event XpBoostPurchased(address indexed player, uint8 multiplier, uint64 expiry, uint256 pricePaid);
+    event UndoPurchased(address indexed player, uint256 quantity, uint256 pricePaid);
+    event UndoConsumed(address indexed player);
+    event CosmeticPurchased(address indexed player, uint256 indexed itemId, uint256 pricePaid);
+    event ShopPricesUpdated(uint256 shield, uint256 boost2x, uint256 boost5x, uint256 undo);
+    event CosmeticCatalogUpdated(uint256 indexed itemId, uint256 price, bool exists);
     event UsernameSet(address indexed player, string name);
     event ReferrerSet(address indexed player, address indexed referrer);
 
@@ -137,6 +159,12 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error UsernameTaken();
     error InvalidUsername();
     error LeaderboardAlreadySeeded();
+    error ZeroPriceNotAllowed();
+    error CosmeticDoesNotExist();
+    error InsufficientUndoCredits();
+    error ReferrerAlreadySet();
+    error CannotReferSelf();
+    error InvalidReferrer();
 
     // ─── Init ─────────────────────────────────────────────────────────────────
 
@@ -153,6 +181,7 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         shieldPrice  = 25e18;  // 25 G$
         boost2xPrice = 50e18;  // 50 G$
         boost5xPrice = 125e18; // 125 G$
+        undoPrice    = 40e18;  // 40 G$ for undo move credit
     }
 
     // ─── Game ─────────────────────────────────────────────────────────────────
@@ -178,6 +207,8 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     /// Submit result of a completed game.
+    /// NOTE: V6 removes verification gate from submission itself. Verification is only
+    /// required for G$ milestone rewards (see _payMilestoneRewards).
     /// @param score        Final score
     /// @param highestTile  Highest tile reached (power of 2, 2–131072)
     /// @param moveCount    Total moves made (1–10 000)
@@ -190,7 +221,8 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         bytes32 seed,
         uint256 comboMoves
     ) external {
-        if (!identity.isWhitelisted(msg.sender)) revert NotVerifiedHuman();
+        // V6: Removed verification gate — players can submit without verification,
+        // but only verified players receive G$ rewards (checked in _payMilestoneRewards).
 
         Session storage session = sessions[msg.sender];
         if (!session.active)                                              revert NoActiveSession();
@@ -226,30 +258,62 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     /// Buy one streak shield. Shields sit in inventory until a missed day consumes one.
     function buyStreakShield() external {
+        if (shieldPrice == 0) revert ZeroPriceNotAllowed();
         gDollar.transferFrom(msg.sender, address(this), shieldPrice);
         uint256 count = ++shieldCount[msg.sender];
-        emit ShieldPurchased(msg.sender, count);
+        emit ShieldPurchased(msg.sender, count, shieldPrice);
     }
 
-    /// Buy an XP boost that multiplies game XP earned for 24 h.
+    /// Buy an XP boost that multiplies game XP earned for 5 hours (changed from 24h).
     /// @param multiplier 2 for 2× boost, 5 for 5× boost
     function buyXpBoost(uint8 multiplier) external {
         if (multiplier != 2 && multiplier != 5) revert InvalidBoostMultiplier();
         uint256 price = multiplier == 2 ? boost2xPrice : boost5xPrice;
+        if (price == 0) revert ZeroPriceNotAllowed();
         gDollar.transferFrom(msg.sender, address(this), price);
-        uint64 expiry = uint64(block.timestamp + BOOST_DURATION);
+        uint64 expiry = uint64(block.timestamp + BOOST_DURATION_V6);
         xpBoost[msg.sender] = XpBoost({ multiplier: multiplier, expiry: expiry });
-        emit XpBoostPurchased(msg.sender, multiplier, expiry);
+        emit XpBoostPurchased(msg.sender, multiplier, expiry, price);
     }
 
-    // ─── Referrals ────────────────────────────────────────────────────────────────
+    /// Buy undo move credits (consumable). Each credit can be used once per game session.
+    /// @param quantity Number of undo credits to purchase
+    function buyUndoMove(uint256 quantity) external {
+        if (quantity == 0) revert("Quantity must be > 0");
+        if (undoPrice == 0) revert ZeroPriceNotAllowed();
+        uint256 totalCost = undoPrice * quantity;
+        gDollar.transferFrom(msg.sender, address(this), totalCost);
+        undoCredits[msg.sender] += quantity;
+        emit UndoPurchased(msg.sender, quantity, totalCost);
+    }
+
+    /// Consume one undo credit (called during game session).
+    /// Must be called by game logic to decrement the player's undo credits.
+    function consumeUndo(address player) external {
+        if (undoCredits[player] == 0) revert InsufficientUndoCredits();
+        undoCredits[player]--;
+        emit UndoConsumed(player);
+    }
+
+    /// Buy a cosmetic item from the catalog.
+    /// @param itemId ID of the cosmetic item to purchase
+    function buyCosmetic(uint256 itemId) external {
+        CosmeticItem storage item = cosmeticCatalog[itemId];
+        if (!item.exists) revert CosmeticDoesNotExist();
+        if (item.price == 0) revert ZeroPriceNotAllowed();
+        gDollar.transferFrom(msg.sender, address(this), item.price);
+        cosmeticsOwned[msg.sender][itemId] = true;
+        emit CosmeticPurchased(msg.sender, itemId, item.price);
+    }
+
+    // ─── Referrals ────────────────────────────────────────────────────────────
 
     /// Register a referrer for this player. Can only be called once per player (immutable).
     /// Referrer must be a valid address (not zero, not self).
     function registerReferrer(address referrer) external {
-        if (referrer == address(0)) revert("Invalid referrer");
-        if (referrer == msg.sender) revert("Cannot refer yourself");
-        if (referrerOf[msg.sender] != address(0)) revert("Referrer already set");
+        if (referrer == address(0)) revert InvalidReferrer();
+        if (referrer == msg.sender) revert CannotReferSelf();
+        if (referrerOf[msg.sender] != address(0)) revert ReferrerAlreadySet();
 
         referrerOf[msg.sender] = referrer;
         referralCount[referrer]++;
@@ -334,15 +398,34 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         gDollar.transfer(owner(), amount);
     }
 
+    /// Update shop prices for existing items (shield, boosts) and new undo item.
     function setShopPrices(
         uint256 _shieldPrice,
         uint256 _boost2xPrice,
-        uint256 _boost5xPrice
+        uint256 _boost5xPrice,
+        uint256 _undoPrice
     ) external onlyOwner {
         shieldPrice  = _shieldPrice;
         boost2xPrice = _boost2xPrice;
         boost5xPrice = _boost5xPrice;
-        emit ShopPricesUpdated(_shieldPrice, _boost2xPrice, _boost5xPrice);
+        undoPrice    = _undoPrice;
+        emit ShopPricesUpdated(_shieldPrice, _boost2xPrice, _boost5xPrice, _undoPrice);
+    }
+
+    /// Add or update a cosmetic item in the catalog.
+    /// @param itemId   Unique ID for this cosmetic
+    /// @param price    Price in G$ (must be > 0)
+    function setCosmeticPrice(uint256 itemId, uint256 price) external onlyOwner {
+        if (price == 0) revert ZeroPriceNotAllowed();
+        cosmeticCatalog[itemId] = CosmeticItem({ price: price, exists: true });
+        emit CosmeticCatalogUpdated(itemId, price, true);
+    }
+
+    /// Remove a cosmetic item from the catalog (sets exists=false).
+    /// @param itemId   ID of the cosmetic to remove
+    function removeCosmeticItem(uint256 itemId) external onlyOwner {
+        delete cosmeticCatalog[itemId];
+        emit CosmeticCatalogUpdated(itemId, 0, false);
     }
 
     /// Seed the leaderboard with historical data during migration. Owner-only,
@@ -382,6 +465,21 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function getXpBoost(address player) external view returns (XpBoost memory) {
         return xpBoost[player];
+    }
+
+    function getCosmeticItem(uint256 itemId) external view returns (CosmeticItem memory) {
+        return cosmeticCatalog[itemId];
+    }
+
+    function getCosmeticsOwned(address player, uint256[] calldata itemIds)
+        external
+        view
+        returns (bool[] memory owned)
+    {
+        owned = new bool[](itemIds.length);
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            owned[i] = cosmeticsOwned[player][itemIds[i]];
+        }
     }
 
     // ─── UUPS ─────────────────────────────────────────────────────────────────
@@ -440,6 +538,10 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function _payMilestoneRewards(uint32 highestTile) internal {
+        // V6: Verification gate moved here. Only verified humans receive G$ rewards,
+        // but anyone can submit scores.
+        if (!identity.isWhitelisted(msg.sender)) return;
+
         uint8 claimed = claimedMilestones[msg.sender];
 
         // Only mark a milestone claimed once the reward is actually paid, so a

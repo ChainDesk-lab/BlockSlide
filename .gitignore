@@ -29,3 +29,20 @@
 
 # Snapshot cheatcodes output
 /snapshots
+
+# ── Build output, test runs and generated data (chore/repo-cleanup) ──────────
+# NOTE: `artifacts/` is deliberately NOT used unanchored. Unanchored it also
+# matches ignition/deployments/<chain>/artifacts/, which holds deployment
+# RECORDS (live proxy addresses and upgrade history), not build output. Those
+# must stay tracked. Root Hardhat output is already covered by /artifacts
+# and /cache above.
+subgraph/build/
+subgraph/generated/
+test-results/
+frontend/test-results/
+scripts/out/
+*.tsbuildinfo
+leaderboard-export.json
+
+# macOS Finder metadata
+.DS_Store

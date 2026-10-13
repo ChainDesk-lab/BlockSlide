@@ -555,7 +555,7 @@ npx hardhat ignition deploy ignition/modules/Game2048UpgradeV4.ts --network celo
 ### Post-Deploy Setup (Development)
 
 ```bash
-npx hardhat run scripts/setup-dev.ts --network celoSepolia
+npx hardhat run scripts/admin/setup-dev.ts --network celoSepolia
 ```
 
 This whitelists the deployer, funds the treasury, and updates `frontend/src/lib/constants.ts`.
@@ -578,12 +578,12 @@ The frontend is configured for Vercel via `vercel.json` with Next.js framework p
 
 | Script | Purpose |
 |---|---|
-| `scripts/setup-dev.ts` | Post-deploy dev setup: whitelist, fund treasury, patch constants |
-| `scripts/deployDevSepolia.ts` | Deploy with mocks to Celo Sepolia (viem-based) |
-| `scripts/exportLeaderboard.ts` | Export onchain leaderboard to JSON |
-| `scripts/seedLeaderboard.ts` | Seed leaderboard from exported JSON |
-| `scripts/testSeedLocal.ts` | Test `seedLeaderboard()` on local hardhat network |
-| `scripts/rollbackV5.ts` | Roll proxy back to pre-V5 implementation |
+| `scripts/admin/setup-dev.ts` | Post-deploy dev setup: whitelist, fund treasury, patch constants |
+| `scripts/admin/deployDevSepolia.ts` | Deploy with mocks to Celo Sepolia (viem-based) |
+| `scripts/analytics/exportLeaderboard.ts` | Export onchain leaderboard to JSON |
+| `scripts/admin/seedLeaderboard.ts` | Seed leaderboard from exported JSON |
+| `scripts/admin/testSeedLocal.ts` | Test `seedLeaderboard()` on local hardhat network |
+| `scripts/admin/rollbackV5.ts` | Roll proxy back to pre-V5 implementation |
 
 ---
 
@@ -593,7 +593,7 @@ The frontend is configured for Vercel via `vercel.json` with Next.js framework p
 
 **V3: Corrected G$ token address** — The initial `initialize()` committed a typo'd G$ address (`…462A4e`) on Celo that had no deployed code. `submitScore` would revert when trying to pay rewards. Fix: V3 upgrade added `setTokens()` and try/catch around all token interactions.
 
-**V5 Rollback** — A V5 implementation was deployed that used a storage layout mismatched with the existing proxy's storage. This caused all state reads (XP, username, bestScore) to return garbage. Fix: `scripts/rollbackV5.ts` re-pointed the proxy to the known-good V3 implementation at `0x6b730fbfe0c7bbc8b308c9963d2ecec4064910dd`.
+**V5 Rollback** — A V5 implementation was deployed that used a storage layout mismatched with the existing proxy's storage. This caused all state reads (XP, username, bestScore) to return garbage. Fix: `scripts/admin/rollbackV5.ts` re-pointed the proxy to the known-good V3 implementation at `0x6b730fbfe0c7bbc8b308c9963d2ecec4064910dd`.
 
 ---
 
@@ -604,8 +604,6 @@ blockslide/
 ├── contracts/
 │   ├── Game2048.sol                 # Main game contract (UUPS proxy-compatible)
 │   ├── Game2048.t.sol               # Solidity unit tests (forge-std)
-│   ├── Counter.sol                  # Example contract (reference)
-│   ├── Counter.t.sol                # Counter Solidity tests
 │   ├── Proxy.sol                    # ERC1967Proxy wrapper for Hardhat
 │   ├── vendor/
 │   │   └── ERC1967Proxy.sol         # Game2048Proxy — deployable artifact
@@ -614,7 +612,6 @@ blockslide/
 │       └── MockIdentity.sol         # Mock GoodDollar identity for dev testing
 ├── test/
 │   ├── Game2048.ts                  # TypeScript integration tests
-│   └── Counter.ts                   # Counter integration tests
 ├── ignition/
 │   ├── modules/
 │   │   ├── Game2048.ts              # Production deployment (Celo mainnet)

@@ -30,7 +30,7 @@ const GAME2048_ADDRESS = getAddress("0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6"
 
 export default buildModule("Game2048V6Upgrade", (m) => {
   // Deploy the V6 implementation
-  const game2048V6 = m.contract("Game2048V6");
+  const game2048V6 = m.contract("Game2048");
 
   // Upgrade the proxy to V6
   // This calls the proxy's upgradeToAndCall function (from UUPSUpgradeable)

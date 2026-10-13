@@ -210,7 +210,7 @@ contract Game2048Test is Test {
         vm.prank(alice);
         game.buyXpBoost(2);
 
-        vm.warp(block.timestamp + game.BOOST_DURATION() + 1);
+        vm.warp(block.timestamp + game.BOOST_DURATION_V6() + 1);
 
         _startSession(alice);
         uint256 score = 1000;
@@ -323,14 +323,15 @@ contract Game2048Test is Test {
     function test_Shop_SetPricesOnlyOwner() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
-        game.setShopPrices(1e18, 2e18, 5e18);
+        game.setShopPrices(1e18, 2e18, 5e18, 3e18);
     }
 
     function test_Shop_SetPrices() public {
-        game.setShopPrices(1e18, 2e18, 5e18);
+        game.setShopPrices(1e18, 2e18, 5e18, 3e18);
         assertEq(game.shieldPrice(), 1e18);
         assertEq(game.boost2xPrice(), 2e18);
         assertEq(game.boost5xPrice(), 5e18);
+        assertEq(game.undoPrice(), 3e18);
     }
 
     // ─── Milestone rewards ────────────────────────────────────────────────────
