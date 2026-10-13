@@ -17,3 +17,6 @@ export const IDENTITY_ADDRESS = getAddress("0xc361a6e67822a0edc17d899227dd9fc50b
 // Treasury/funding wallet used to auto-fund new Magic.link wallets with CELO for gas.
 // The private key for this wallet is stored in FUNDING_WALLET_PRIVATE_KEY env var.
 export const FUNDING_WALLET_ADDRESS = getAddress("0xcb6f72152db12546b21ef0dd5f614ca532531838");
+
+// GoodDollar faucet contract on Celo mainnet (Tier 1 gas sponsorship)
+export const GOODDOLLAR_FAUCET_ADDRESS = getAddress("0x4F93Fa058b03953C851eFaA2e4FC5C34afDFAb84");

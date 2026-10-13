@@ -156,15 +156,16 @@ export function useUsername() {
 
         // Ensure user has enough gas before attempting transaction
         // For new email users, this is critical since they haven't funded their wallet yet
-        const gasResult = await topUpGasIfNeeded();
+        const gasResult = await topUpGasIfNeeded(setError);
         if (!gasResult.ok) {
-          // Sponsored gas failed — fall back to the manual top-up modal (shows
-          // the wallet address) so the user is never stuck with just an error.
+          // The faucet couldn't cover them — fall back to the manual top-up
+          // modal (shows the wallet address) so they're never stuck with just an error.
           triggerNoGas();
           setError(gasResult.error || "Unable to ensure sufficient gas for transaction. Please try again.");
           setIsSaving(false);
           return;
         }
+        setError(null);
 
         try {
           // For Magic.link, use sendTransaction with timeout

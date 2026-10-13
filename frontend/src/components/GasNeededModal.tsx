@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { fetchHasEnoughGas } from "../hooks/useGasFaucet";
 
 interface Props {
   onClose: () => void;
@@ -15,6 +16,8 @@ const TELEGRAM_GAS_URL = "https://t.me/blockslide_xyz/394";
 export default function GasNeededModal({ onClose }: Props) {
   const { address } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const copy = async () => {
     if (!address) return;
@@ -30,6 +33,25 @@ export default function GasNeededModal({ onClose }: Props) {
   const openTelegram = () => {
     void copy();
     window.open(TELEGRAM_GAS_URL, "_blank", "noopener,noreferrer");
+  };
+
+  // Confirm the CELO actually arrived before closing, so the player isn't sent
+  // straight back into the same "not enough gas" failure. If the check itself
+  // can't run, close anyway rather than trap them in the modal.
+  const confirmTopUp = async () => {
+    if (!address) {
+      onClose();
+      return;
+    }
+    setChecking(true);
+    setConfirmError(null);
+    const hasEnough = await fetchHasEnoughGas(address);
+    setChecking(false);
+    if (hasEnough === false) {
+      setConfirmError("No CELO has arrived yet. It can take a minute after someone sends it, so try again shortly.");
+      return;
+    }
+    onClose();
   };
 
   return (
@@ -67,13 +89,15 @@ export default function GasNeededModal({ onClose }: Props) {
         </ol>
 
         <div className="username-modal__actions username-modal__actions--stack">
-          <button className="btn btn--secondary" onClick={openTelegram} disabled={!address}>
+          <button className="btn btn--secondary" onClick={openTelegram} disabled={!address || checking}>
             Get gas in Telegram ↗
           </button>
-          <button className="btn btn--primary" onClick={onClose}>
-            I've topped up
+          <button className="btn btn--primary" onClick={confirmTopUp} disabled={checking}>
+            {checking ? "Checking..." : "I've topped up"}
           </button>
         </div>
+
+        {confirmError && <p className="gas-modal__error">{confirmError}</p>}
       </div>
     </div>
   );
