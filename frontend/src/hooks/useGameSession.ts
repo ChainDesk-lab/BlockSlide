@@ -343,8 +343,9 @@ export function useGameSession() {
       let p = await plan();
       if (p.sufficient) return p;
 
-      setError("Topping up gas...");
-      const gasResult = await topUpGasIfNeeded(p.requiredWei);
+      // Short: try the GoodDollar faucet first (useGasFaucet). It reports its
+      // own progress through setError, and only when a top-up is under way.
+      const gasResult = await topUpGasIfNeeded(p.requiredWei, setError);
       if (gasResult.ok) {
         p = await plan();
         if (p.sufficient) {
@@ -352,11 +353,12 @@ export function useGameSession() {
           return p;
         }
       }
-      // Sponsored gas didn't cover it — fall back to the manual top-up modal so
-      // the player is never stuck with just an error.
-      triggerNoGas();
+      // The faucet didn't cover it — fall back to the manual top-up modal so
+      // the player is never stuck with just an error. The modal checks against
+      // this transaction's requirement when the player says they've topped up.
+      triggerNoGas(p.requiredWei);
       setError(
-        `This transaction needs up to ${formatCelo(p.requiredWei)} CELO for gas; your wallet has ${formatCelo(p.balance)} CELO. Top up and try again.`,
+        `This transaction needs up to ${formatCelo(p.requiredWei)} CELO for gas; your wallet has ${formatCelo(p.balance)} CELO. Follow the steps to top up, then try again.`,
       );
       return null;
     } catch (e) {
@@ -681,7 +683,11 @@ export function useGameSession() {
   // tap can't start a second submission while the first is still preparing.
   const submitScoreOnce = useCallback(
     async (gameState: GameState, seed: `0x${string}`) => {
-      if (!address) return;
+      if (!address) {
+        // Bailing out silently left the player tapping Submit with no feedback.
+        setError("Wallet disconnected — reconnect to submit your score.");
+        return;
+      }
       if (!contractDeployed) {
         setError("Deploy the contract and update GAME2048_ADDRESS to submit scores on-chain.");
         return;
