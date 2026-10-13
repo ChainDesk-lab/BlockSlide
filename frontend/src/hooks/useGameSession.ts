@@ -392,11 +392,10 @@ export function useGameSession() {
       }
 
       if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
-        setError("Topping up gas...");
-        const gasResult = await topUpGasIfNeeded();
+        const gasResult = await topUpGasIfNeeded(setError);
         if (!gasResult.ok) {
-          // Sponsored gas failed — fall back to the manual top-up modal so
-          // the user is never stuck with just an error.
+          // The faucet couldn't cover them — fall back to the manual top-up
+          // modal so the user is never stuck with just an error.
           triggerNoGas();
           setError(gasResult.error || "Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
           return;
@@ -626,24 +625,27 @@ export function useGameSession() {
   // ── submitScore ───────────────────────────────────────────────────────────
   const submitScore = useCallback(
     async (gameState: GameState, seed: `0x${string}`) => {
-      if (!address) return;
+      if (!address) {
+        // Bailing out silently left the player tapping Submit with no feedback.
+        setError("Wallet disconnected — reconnect to submit your score.");
+        return;
+      }
       if (!contractDeployed) {
         setError("Deploy the contract and update GAME2048_ADDRESS to submit scores on-chain.");
         return;
       }
       // If gas is low, try to top up using the faucet
       if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
-        setError("Topping up gas...");
-        const gasResult = await topUpGasIfNeeded();
+        const gasResult = await topUpGasIfNeeded(setError);
         if (!gasResult.ok) {
-          // Sponsored gas failed — fall back to the manual top-up modal so
-          // the user is never stuck with just an error.
+          // The faucet couldn't cover them — fall back to the manual top-up
+          // modal so the user is never stuck with just an error.
           triggerNoGas();
           setError(gasResult.error || "Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
           return;
         }
         setError(null);
-        // Gas was topped up successfully, continue with submission
+        // Gas is covered, continue with submission
       }
       if (!isConnected) {
         setError("Wallet is still connecting — please wait a moment and try again.");

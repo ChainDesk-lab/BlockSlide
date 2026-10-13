@@ -475,6 +475,7 @@ html.dark-mode {
 .gas-modal__steps { margin: 14px 0 4px; padding-left: 18px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; }
 .gas-modal__steps li + li { margin-top: 4px; }
 .gas-modal__steps strong { color: var(--text, #2a2722); font-weight: 700; }
+.gas-modal__error { margin: 12px 0 0; font-size: 0.82rem; color: var(--error); text-align: center; }
 
 /* ─── Home / landing ─────────────────────────────────────────────────────── */
 .home {
