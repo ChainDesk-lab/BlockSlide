@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getWalletClient } from "wagmi/actions";
-import { useChainId } from "wagmi";
 import { wagmiConfig } from "../auth/wagmiConfig";
 import { useAuth } from "../auth/AuthContext";
 import { useContractWalletClient } from "./useContractData";
@@ -30,7 +29,6 @@ interface UseSignerResult {
  */
 export function useSigner(): UseSignerResult {
   const { authType, address: authAddress } = useAuth();
-  useChainId(); // Needed by network guard to detect chain changes
   const walletClientHook = useContractWalletClient();
   const { isWrongNetwork } = useNetworkGuard();
 
@@ -182,7 +180,7 @@ export function useSigner(): UseSignerResult {
       cancelled = true;
       console.log(`[useSigner:${initId}] useEffect cleanup - cancelled future updates`);
     };
-  }, [authAddress, authType]);
+  }, [authAddress, authType, walletClientHook]);
 
   // If on wrong chain, provide that specific error
   if (isWrongChain) {
