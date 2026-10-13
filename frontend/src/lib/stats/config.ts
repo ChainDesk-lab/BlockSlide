@@ -2,9 +2,16 @@
  * Shared constants for the public stats page.
  *
  * Every number the page shows is derived from Celo mainnet event logs for the
- * game contract, NOT from the leaderboard subgraph. The subgraph only creates a
- * Player entity for some event types, so it undercounts real players (609 vs
- * 676 as of 24 Sep 2026). Chain logs are the only defensible source.
+ * game contract, NOT from the leaderboard subgraph.
+ *
+ * The DEPLOYED subgraph undercounts real players: 613 against 676 on chain
+ * (25 Sep 2026). That is a deployment lag rather than a design limit — the
+ * mapping source gained handleSessionStarted on 17 Sep, but the live
+ * blockslide-leaderboard/2.0.0 build predates it and so never creates a Player
+ * for a wallet that only started a session. Redeploying should close the gap.
+ *
+ * Reading chain logs directly keeps this page correct either way, which is why
+ * it does not depend on the subgraph at all.
  */
 import { getAddress, toEventSelector } from "viem";
 

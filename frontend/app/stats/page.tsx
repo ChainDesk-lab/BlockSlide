@@ -6,9 +6,10 @@
  * contract, aggregated server-side and refreshed incrementally, so nobody has
  * to run a script to get current numbers.
  *
- * Deliberately NOT sourced from the leaderboard subgraph: the subgraph only
- * creates a Player entity for some event types and so undercounts real players
- * (609 against 676 on 24 Sep 2026). Chain logs are the defensible source.
+ * Deliberately NOT sourced from the leaderboard subgraph: the deployed subgraph
+ * reports 613 players against 676 on chain (25 Sep 2026), because the live build
+ * predates the handleSessionStarted mapping added on 17 Sep. Chain logs are the
+ * defensible source and stay correct whether or not the subgraph is redeployed.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
