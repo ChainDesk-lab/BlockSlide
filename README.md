@@ -304,13 +304,17 @@ Shields stack in inventory (unlimited). A shield is consumed automatically on th
 
 ### Shop Items
 
-| Item | Price | Effect |
-|---|---|---|
-| Streak Shield | 25 G$ | Prevents one streak break. Stacks in inventory. |
-| 2x XP Boost | 50 G$ | Doubles XP from all games for 24 hours. |
-| 5x XP Boost | 125 G$ | 5x XP from all games for 24 hours. Overwrites existing boost. |
+| Item | Effect |
+|---|---|
+| Streak Shield | Prevents one streak break. Stacks in inventory. |
+| 2x XP Boost | Doubles XP from all games for 5 hours (`BOOST_DURATION_V6`). |
+| 5x XP Boost | 5x XP from all games for 5 hours. Overwrites an existing boost. |
+| Undo Step | **Disabled** (`UNDO_ENABLED = false` in `frontend/src/lib/constants.ts`): the deployed `consumeUndo(address)` has no caller check and the game can't revert a move yet. Credits already bought stay on-chain; new purchases are blocked in the UI. |
+| Cosmetics (ids 1–5) | Tile skin, outfit, leaderboard flair, goggles, caps. |
 
-All shop G$ payments go to the contract treasury (not burned). The owner can adjust prices at any time via `setShopPrices()`.
+Prices are not stored in the frontend. The shop reads every price from the contract (`shieldPrice`, `boost2xPrice`, `boost5xPrice`, `undoPrice`, `getCosmeticItem`), including when no wallet is connected. While a read is in flight the price shows "…", and if it fails, "Unavailable". Neither state is ever shown as 0 G$ or allowed to be bought. An on-chain price of 0 shows as "Coming soon", since the contract rejects purchases at zero (`ZeroPriceNotAllowed`).
+
+All shop G$ payments go to the contract treasury (not burned). The owner can adjust prices at any time via `setShopPrices()` and `setCosmeticPrice()`.
 
 ---
 
@@ -401,10 +405,13 @@ The frontend implements a **dual-path transaction strategy** for Celo compatibil
 1. **Primary path**: `eth_signTransaction` — signs locally (pure crypto, no RPC calls from the wallet), then broadcasts via ankr public RPC. This bypasses Celo's `forno` RPC entirely.
 2. **Fallback path**: `eth_sendTransaction` — for wallets like Coinbase Wallet that don't expose `eth_signTransaction`. The wallet handles signing and broadcast through its own RPC.
 
-Transaction parameters:
-- `maxFeePerGas`: 500 gwei
-- `maxPriorityFeePerGas`: 2.5 gwei
-- Gas limit: 200,000 for startSession, 500,000 for submitScore, 120,000 for setUsername
+Transaction parameters are planned per transaction from live chain data (`frontend/src/lib/gasPlan.ts`):
+- Gas limit: `eth_estimateGas` + 20%, with at least 50,000 gas of headroom. Only if estimation fails: 200,000 (startSession), 500,000 (submitScore), 120,000 (setUsername).
+- Fees: EIP-1559 `maxFeePerGas` = base fee + 20% + suggested tip, where the base fee is the higher of the latest block's and `eth_gasPrice` minus the tip (guards against a lagging RPC node). Email (Magic) wallets on the legacy path get `gasPrice` = live gas price + 20%. There is no fixed fee cap. Celo currently charges no OP Stack L1 data fee (receipts show `l1Fee: 0`), so gas × fee cap is the full requirement.
+- Before sending, the app checks the balance a node will demand (gas limit × fee cap) against a fresh balance read. If it falls short, the gas top-up flow opens and the message states both amounts. Unreadable fees are reported as a network problem, not as missing gas.
+- Score submission is locked from the first tap until it settles. If the receipt isn't in after 2 minutes, the app keeps waiting (up to 10 more minutes) and tells the player not to resubmit, instead of reporting a failure.
+
+`GET /api/gas-faucet?address=…&minWei=…` reports `balanceSufficient` against `minWei` (the app always sends the transaction's requirement); without it, against a 250,000-gas budget at the live gas price + 20%. It used to be a fixed 0.001 CELO, which at a 200 gwei base fee covers about 5,000 gas.
 
 ### Sound System
 
@@ -458,6 +465,12 @@ players(first: 10, orderBy: xp, orderDirection: desc) {
 ```
 
 Deployed on Goldsky at `blockslide-leaderboard/1.0.0`.
+
+### Freshness and outages (`/api/leaderboard`)
+
+Each response includes `freshness`: the subgraph's indexed block, the chain head (read through the same RPC helper as `/stats`, honouring `CELO_RPC_URLS`), the lag in blocks, and the limit. `stale` is true when the lag exceeds `LEADERBOARD_MAX_LAG_BLOCKS` (default 600, about 10 minutes at Celo's ~1 s blocks), when the subgraph reports indexing errors, or when it couldn't be read. If the chain head can't be read, the lag is reported as `null` rather than guessed.
+
+If the subgraph can't be read in full, the route doesn't build the leaderboard from the off-chain registry alone (that showed every player at 0 XP). It serves the last complete leaderboard (kept in Redis for 24 hours) with `servedFrom: "last_known_good"` and its `builtAt` time, which the page states. With no saved leaderboard it returns 503 and the page says the leaderboard is temporarily unavailable.
 
 ---
 
