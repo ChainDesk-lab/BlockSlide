@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { shouldShowNotification, markNotificationShown, shouldShowBountyWinnerNotification, markBountyWinnerNotificationShown } from "../lib/notificationManager";
 import { getUserStorage, setUserStorage } from "../lib/unifiedStorage";
 import { findBountyWinner } from "../lib/bountyWinners";
+import { UNDO_ENABLED } from "../lib/constants";
 
 interface ActiveNotification {
   type: "undoStep" | "cosmetics" | "flowStateVoting" | "bountyWinner";
@@ -67,8 +68,9 @@ export function useFeatureNotifications(
     if (!address || !isGameActive) return;
 
     // Trigger Undo Step notification after 3+ moves into the session
-    // (give player time to understand the game before announcing features)
-    if (moveCount === 3 && !shownThisSession.has("undoStep")) {
+    // (give player time to understand the game before announcing features).
+    // Never advertise Undo while it is disabled.
+    if (UNDO_ENABLED && moveCount === 3 && !shownThisSession.has("undoStep")) {
       if (shouldShowNotification("undoStep", sessionCount)) {
         setActiveNotifications((prev) => [
           ...prev,

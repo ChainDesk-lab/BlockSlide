@@ -5,6 +5,8 @@ import { useShop } from "../hooks/useShop";
 import { ShopIcon } from "./ShopIcon";
 import { CategoryIcon } from "./CategoryIcon";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
+import { UNDO_ENABLED } from "../lib/constants";
+import { priceLabel, priceBlockReason, type PriceRead } from "../lib/shopPrice";
 
 function fmtG(val: bigint | undefined): string {
   if (val === undefined) return "…";
@@ -66,6 +68,7 @@ export default function Shop() {
     playerXp, streakCount,
     gdBalance,
     undoPrice, undoCredits,
+    prices, cosmeticPrices,
     pendingAction,
     approve, buyShield, buyBoost, buyUndoMove, buyCosmetic,
     isApproved, canAfford,
@@ -98,24 +101,34 @@ export default function Shop() {
   const isPending = (a: typeof pendingAction) => pendingAction === a;
 
   function ItemButton({
-    price,
+    price: priceRead,
+    quantity = 1n,
+    listed = true,
     buyAction,
     pendingKey,
   }: {
-    price: bigint | undefined;
+    price: PriceRead;
+    /** Units being bought; the cost checked is price × quantity. */
+    quantity?: bigint;
+    /** False when the contract says the item doesn't exist. */
+    listed?: boolean;
     buyAction: () => void;
     pendingKey: "shield" | "boost2" | "boost5" | "undo" | "cosmetic";
   }) {
     const pending = isPending(pendingKey);
     const approvePending = isPending("approve");
 
-    if (price === undefined || price === 0n) {
+    // Loading, unavailable, unlisted or zero-priced items can't be bought —
+    // a price that failed to load must never look free.
+    const blocked = priceBlockReason(priceRead, listed);
+    if (blocked) {
       return (
         <button className="shop-btn shop-btn--disabled" disabled>
-          Coming soon
+          {blocked}
         </button>
       );
     }
+    const price = (priceRead.value as bigint) * quantity;
 
     if (!canAfford(price)) {
       return (
@@ -263,9 +276,9 @@ export default function Shop() {
             </div>
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+                <span className="shop-item__price">{priceLabel(prices.shield)}</span>
               </div>
-              <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
+              <ItemButton price={prices.shield} buyAction={buyShield} pendingKey="shield" />
             </div>
           </div>
 
@@ -289,9 +302,9 @@ export default function Shop() {
             </div>
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+                <span className="shop-item__price">{priceLabel(prices.boost2x)}</span>
               </div>
-              <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
+              <ItemButton price={prices.boost2x} buyAction={() => buyBoost(2)} pendingKey="boost2" />
             </div>
           </div>
 
@@ -315,9 +328,9 @@ export default function Shop() {
             </div>
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+                <span className="shop-item__price">{priceLabel(prices.boost5x)}</span>
               </div>
-              <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
+              <ItemButton price={prices.boost5x} buyAction={() => buyBoost(5)} pendingKey="boost5" />
             </div>
           </div>
 
@@ -331,7 +344,9 @@ export default function Shop() {
             </div>
             <div className="shop-item__content">
               <p className="shop-item__desc">
-                Revert your last move during gameplay.
+                {UNDO_ENABLED
+                  ? "Revert your last move during gameplay."
+                  : "Temporarily unavailable while we fix it. Credits you already own are kept."}
               </p>
               <p className="shop-item__status">
                 {Number(undoCredits) > 0
@@ -341,7 +356,7 @@ export default function Shop() {
             </div>
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(undoPrice)}</span>
+                <span className="shop-item__price">{priceLabel(prices.undo)}</span>
               </div>
               <div className="shop-item__quantity-selector">
                 <input
@@ -351,14 +366,22 @@ export default function Shop() {
                   value={undoQuantity}
                   onChange={(e) => setUndoQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
                   className="shop-item__quantity-input"
-                  disabled={!!pendingAction}
+                  disabled={!!pendingAction || !UNDO_ENABLED}
                 />
               </div>
-              <ItemButton
-                price={undoPrice ? undoPrice * BigInt(undoQuantity) : undefined}
-                buyAction={() => buyUndoMove(undoQuantity)}
-                pendingKey="undo"
-              />
+              {UNDO_ENABLED ? (
+                <ItemButton
+                  price={prices.undo}
+                  quantity={BigInt(undoQuantity)}
+                  buyAction={() => buyUndoMove(undoQuantity)}
+                  pendingKey="undo"
+                />
+              ) : (
+                // Don't sell credits that can't be used yet.
+                <button className="shop-btn shop-btn--disabled" disabled>
+                  Unavailable
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -406,6 +429,7 @@ export default function Shop() {
 
         <div className="shop__items shop__items--cosmetics">
           {COSMETICS_CATALOG.map((cosmetic) => {
+            const onChain = cosmeticPrices[cosmetic.id];
             const iconMap: Record<number, any> = {
               1: "tile",
               2: "fits",
@@ -430,10 +454,13 @@ export default function Shop() {
               </div>
               <div className="shop-item__footer">
                 <div className="shop-item__price-section">
-                  <span className="shop-item__price">{fmtG(cosmetic.price)}</span>
+                  <span className="shop-item__price">
+                    {onChain.listed ? priceLabel(onChain.price) : "Unavailable"}
+                  </span>
                 </div>
                 <ItemButton
-                  price={cosmetic.price}
+                  price={onChain.price}
+                  listed={onChain.listed}
                   buyAction={() => buyCosmetic(cosmetic.id)}
                   pendingKey="cosmetic"
                 />

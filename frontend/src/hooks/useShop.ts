@@ -1,19 +1,25 @@
 import { useState, useEffect } from "react";
 import { maxUint256 } from "viem";
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
 import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
 import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED } from "../lib/constants";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
 import { isInsufficientGasError } from "../lib/gasError";
+import { classifyTxError } from "../lib/txErrors";
 import { useNoGas } from "../contexts/NoGasContext";
+import { COSMETICS_CATALOG } from "../lib/avatarSystem";
+import { cosmeticPriceFromRead, toPriceRead, type CosmeticPrice } from "../lib/shopPrice";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
 export function useShop() {
   const address = useContractAddress();
   const publicClient = useContractPublicClient();
+  // Player-specific reads need an address; prices don't. Prices are read even
+  // with no wallet connected, so visitors see real on-chain prices.
   const enabled = !!address && CONTRACT_DEPLOYED;
+  const pricesEnabled = CONTRACT_DEPLOYED;
   const { triggerNoGas } = useNoGas();
 
   const { writeContractAsync } = useWriteContract();
@@ -23,20 +29,34 @@ export function useShop() {
 
   const { isLoading: isTxPending } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // ── Shop prices (V5 + V6) ──────────────────────────────────────────────────
-  const { data: shieldPrice, error: shieldPriceError } = useReadContract({
-    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "shieldPrice", query: { enabled }
+  // ── Shop prices (V5 + V6), read-only, wallet not required ─────────────────
+  const shieldPriceRead = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "shieldPrice", query: { enabled: pricesEnabled }
   });
-  const { data: boost2xPrice, error: boost2xPriceError } = useReadContract({
-    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost2xPrice", query: { enabled }
+  const boost2xPriceRead = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost2xPrice", query: { enabled: pricesEnabled }
   });
-  const { data: boost5xPrice, error: boost5xPriceError } = useReadContract({
-    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost5xPrice", query: { enabled }
+  const boost5xPriceRead = useReadContract({
+    address: GAME2048_ADDRESS, abi: GAME2048_ABI, functionName: "boost5xPrice", query: { enabled: pricesEnabled }
   });
-  // V6 functions may not exist on deployed contract - handle gracefully
-  const { data: undoPrice, error: undoPriceError, refetch: refetchUndoPrice } = useReadContract({
+  const undoPriceRead = useReadContract({
     address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI,
-    functionName: "undoPrice", query: { enabled },
+    functionName: "undoPrice", query: { enabled: pricesEnabled },
+  });
+  const { data: shieldPrice, error: shieldPriceError } = shieldPriceRead;
+  const { data: boost2xPrice, error: boost2xPriceError } = boost2xPriceRead;
+  const { data: boost5xPrice, error: boost5xPriceError } = boost5xPriceRead;
+  const { data: undoPrice, error: undoPriceError, refetch: refetchUndoPrice } = undoPriceRead;
+
+  // Cosmetic prices come from the contract's catalog, one read per item.
+  const cosmeticReads = useReadContracts({
+    contracts: COSMETICS_CATALOG.map((c) => ({
+      address: GAME2048_ADDRESS,
+      abi: GAME2048_MERGED_ABI,
+      functionName: "getCosmeticItem" as const,
+      args: [BigInt(c.id)] as const,
+    })),
+    query: { enabled: pricesEnabled },
   });
   const { data: undoCreditsRaw, error: undoCreditsError, refetch: refetchUndoCredits } = useReadContract({
     address: GAME2048_ADDRESS, abi: GAME2048_MERGED_ABI, functionName: "undoCredits",
@@ -120,7 +140,17 @@ export function useShop() {
           return;
         }
       } catch (receiptErr) {
-        setError(`Transaction confirmation failed: ${(receiptErr as Error).message}`);
+        if (classifyTxError(receiptErr) === "receipt_timeout") {
+          // Not mined yet isn't a failure — the purchase may still land.
+          // Refresh once it has had more time, and say so plainly.
+          setError(`Still confirming (tx ${hash.slice(0, 10)}…). Your balance will update when it lands — please don't buy again yet.`);
+          setTimeout(() => {
+            refetchAll();
+            window.dispatchEvent(new Event("gdBalanceChanged"));
+          }, 60_000);
+        } else {
+          setError(`Transaction confirmation failed: ${(receiptErr as Error).message}`);
+        }
         return;
       }
 
@@ -181,15 +211,8 @@ export function useShop() {
       })
     );
 
-  const consumeUndo = () =>
-    run("undo", () =>
-      writeContractAsync({
-        address: GAME2048_ADDRESS,
-        abi: GAME2048_MERGED_ABI,
-        functionName: "consumeUndo",
-        args: [],
-      })
-    );
+  // No consumeUndo action: Undo is disabled (UNDO_ENABLED). The deployed
+  // consumeUndo(address) has no caller check, so the app must not call it.
 
   const buyCosmetic = (itemId: number) =>
     run("cosmetic", () =>
@@ -218,7 +241,7 @@ export function useShop() {
 
   // ── Storage corruption detection & normalization ────────────────────────────
   // The deployed contract has storage layout misalignment (failed V5 upgrade).
-  // Detect and normalize corrupted values with fallbacks.
+  // Detect and normalize corrupted values (player stats only — never prices).
 
   // Normalize streak: if value looks like a timestamp (>10000), it's corrupted
   const normalizedStreakCount = (() => {
@@ -231,17 +254,18 @@ export function useShop() {
     return val;
   })();
 
-  // Normalize prices: use contract values, fallback to configured prices if undefined
-  // If prices are 0 on-chain (unconfigured), leave them as 0 to trigger guards
-  const SHIELD_PRICE_DEFAULT = 500n * 10n ** 18n; // 500 G$ (current mainnet)
-  const BOOST_2X_PRICE_DEFAULT = 1500n * 10n ** 18n; // 1,500 G$ (current mainnet)
-  const BOOST_5X_PRICE_DEFAULT = 4000n * 10n ** 18n; // 4,000 G$ (current mainnet)
-
-  // Use contract prices if they exist (even if 0), otherwise fall back to defaults
-  // This allows the zero-price guard to block purchases when prices aren't set
-  const normalizedShieldPrice = shieldPrice !== undefined ? shieldPrice : SHIELD_PRICE_DEFAULT;
-  const normalizedBoost2xPrice = boost2xPrice !== undefined ? boost2xPrice : BOOST_2X_PRICE_DEFAULT;
-  const normalizedBoost5xPrice = boost5xPrice !== undefined ? boost5xPrice : BOOST_5X_PRICE_DEFAULT;
+  // Prices: only what the chain returned. No hard-coded fallbacks — a missing
+  // price is "loading" or "unavailable", never a guessed number or zero.
+  const prices = {
+    shield: toPriceRead(shieldPriceRead),
+    boost2x: toPriceRead(boost2xPriceRead),
+    boost5x: toPriceRead(boost5xPriceRead),
+    undo: toPriceRead(undoPriceRead),
+  };
+  const cosmeticPrices: Record<number, CosmeticPrice> = {};
+  COSMETICS_CATALOG.forEach((c, i) => {
+    cosmeticPrices[c.id] = cosmeticPriceFromRead(cosmeticReads.data?.[i], cosmeticReads.status);
+  });
 
   // Sanity-check XP: if it's suspiciously large (like a timestamp), log warning
   if ((playerXp ?? 0n) > 10000000n) {
@@ -254,10 +278,12 @@ export function useShop() {
   }
 
   return {
-    // V5 prices & state
-    shieldPrice: normalizedShieldPrice,
-    boost2xPrice: normalizedBoost2xPrice,
-    boost5xPrice: normalizedBoost5xPrice,
+    // Prices: undefined until the chain returns them (see `prices` for status)
+    shieldPrice,
+    boost2xPrice,
+    boost5xPrice,
+    prices,
+    cosmeticPrices,
     shieldCount: shieldCount ?? 0n,
     xpBoost, boostActive,
     playerXp: playerXp ?? 0n,
@@ -266,13 +292,13 @@ export function useShop() {
     gdAllowance: gdAllowance ?? 0n,
 
     // V6 prices & state
-    undoPrice: undoPrice ?? 0n,
+    undoPrice,
     undoCredits: undoCreditsRaw ?? 0n,
 
     // Actions
     pendingAction, isTxPending, error,
     approve, buyShield, buyBoost,
-    buyUndoMove, consumeUndo, buyCosmetic,
+    buyUndoMove, buyCosmetic,
     isApproved, canAfford,
   };
 }

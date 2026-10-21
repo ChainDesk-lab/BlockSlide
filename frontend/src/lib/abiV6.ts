@@ -23,9 +23,11 @@ export const GAME2048_V6_FUNCTIONS = [
     stateMutability: "nonpayable" as const,
     type: "function" as const,
   },
-  // Write: consume undo (called by game logic or player)
+  // Write: consume undo. Signature from the compiled contract: it takes the
+  // player address and has no caller check, so the app must never call it
+  // while Undo is disabled (UNDO_ENABLED).
   {
-    inputs: [],
+    inputs: [{ internalType: "address", name: "player", type: "address" }],
     name: "consumeUndo",
     outputs: [],
     stateMutability: "nonpayable" as const,
@@ -84,9 +86,17 @@ export const GAME2048_V6_FUNCTIONS = [
   {
     inputs: [{ internalType: "uint256", name: "itemId", type: "uint256" }],
     name: "getCosmeticItem",
+    // Returns a struct (one tuple output), as compiled — not two outputs.
     outputs: [
-      { internalType: "uint256", name: "price", type: "uint256" },
-      { internalType: "bool", name: "exists", type: "bool" },
+      {
+        components: [
+          { internalType: "uint256", name: "price", type: "uint256" },
+          { internalType: "bool", name: "exists", type: "bool" },
+        ],
+        internalType: "struct Game2048.CosmeticItem",
+        name: "",
+        type: "tuple",
+      },
     ],
     stateMutability: "view" as const,
     type: "function" as const,
@@ -102,6 +112,11 @@ export const GAME2048_V6_FUNCTIONS = [
     stateMutability: "view" as const,
     type: "function" as const,
   },
+  // Custom errors the V6 shop can revert with (from the compiled contract), so
+  // reverts decode to a name instead of an unknown signature.
+  { inputs: [], name: "ZeroPriceNotAllowed", type: "error" as const },
+  { inputs: [], name: "CosmeticDoesNotExist", type: "error" as const },
+  { inputs: [], name: "InsufficientUndoCredits", type: "error" as const },
 ] as const;
 
 export const GAME2048_V6_EVENTS = [
