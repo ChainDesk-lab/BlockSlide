@@ -309,7 +309,7 @@ Shields stack in inventory (unlimited). A shield is consumed automatically on th
 | Streak Shield | Prevents one streak break. Stacks in inventory. |
 | 2x XP Boost | Doubles XP from all games for 5 hours (`BOOST_DURATION_V6`). |
 | 5x XP Boost | 5x XP from all games for 5 hours. Overwrites an existing boost. |
-| Undo Step | **Disabled** (`UNDO_ENABLED = false` in `frontend/src/lib/constants.ts`): the deployed `consumeUndo(address)` has no caller check and the game can't revert a move yet. Credits already bought stay on-chain; new purchases are blocked in the UI. |
+| Undo Step | Takes back your last move (Undo button under the board, during play or after a game-over; not after a win). Tapping it spends one credit on-chain via `consumeUndo(player)`; the move is reverted only after that confirms. The tile RNG is rewound too (`frontend/src/lib/undoHistory.ts`), so an undo can't re-roll a spawn. One step at a time. Known contract limitation until an upgrade: `consumeUndo(address)` has no caller check, so anyone can burn anyone's credits. `UNDO_ENABLED` in `frontend/src/lib/constants.ts` switches it off. |
 | Cosmetics (ids 1–5) | Tile skin, outfit, leaderboard flair, goggles, caps. |
 
 Prices are not stored in the frontend. The shop reads every price from the contract (`shieldPrice`, `boost2xPrice`, `boost5xPrice`, `undoPrice`, `getCosmeticItem`), including when no wallet is connected. While a read is in flight the price shows "…", and if it fails, "Unavailable". Neither state is ever shown as 0 G$ or allowed to be bought. An on-chain price of 0 shows as "Coming soon", since the contract rejects purchases at zero (`ZeroPriceNotAllowed`).

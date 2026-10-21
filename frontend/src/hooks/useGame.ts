@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
-  applyMove,
   Direction,
   GameState,
   generateSeed,
   initGame,
 } from "../lib/gameLogic";
+import { canUndoFrom, countedRng, moveWithUndo, undoTo, type CountedRng, type UndoSnapshot } from "../lib/undoHistory";
 import { getUserStorage, setUserStorage, removeUserStorage } from "../lib/unifiedStorage";
 
 const STORAGE_KEY = "game_state";
@@ -23,7 +23,14 @@ export function useGame(
   const [state, setState] = useState<GameState | null>(null);
   const [seed, setSeed] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const rngRef = useRef<(() => number) | null>(null);
+  // Counted PRNG (lib/undoHistory.ts) so an undo can rewind it exactly.
+  const rngRef = useRef<CountedRng | null>(null);
+  // Latest state, read synchronously by moves so the RNG is drawn once per
+  // move (never inside a React state updater, which can run twice).
+  const stateRef = useRef<GameState | null>(null);
+  // State before the last move, for a one-step undo. Not persisted: a reload
+  // clears it.
+  const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
   // Direction of the most recent move — the animation layer needs it to know
   // which way tiles slid. Not part of GameState (that stays untouched).
   const [lastDirection, setLastDirection] = useState<Direction | null>(null);
@@ -47,7 +54,7 @@ export function useGame(
       }
       const saved: PersistedGame = JSON.parse(raw);
       // Re-init RNG from seed and fast-forward to saved moveCount
-      const { rng } = initGame(saved.seed);
+      const rng = countedRng(saved.seed);
       // Replay moves is complex; instead we just restore the board state directly
       // and re-create the RNG at its current position by replaying dummy moves.
       // Simpler: store the RNG state indirectly by re-seeding and skipping.
@@ -56,14 +63,17 @@ export function useGame(
       // seed still locks in the game's starting conditions.
       rngRef.current = rng;
       setSeed(saved.seed);
-      setState({
+      const restored: GameState = {
         ...saved.state,
         newTiles:     [],
         mergedTiles:  [],
         // Guard fields added after old saves were written
         currentCombo: saved.state.currentCombo ?? 0,
         maxCombo:     saved.state.maxCombo     ?? 0,
-      });
+      };
+      stateRef.current = restored;
+      setState(restored);
+      setUndoSnapshot(null);
     } catch {
       // corrupt storage — ignore
     } finally {
@@ -81,32 +91,54 @@ export function useGame(
   const startNewGame = useCallback((existingSeed?: string) => {
     const s = existingSeed ?? generateSeed();
     console.log(`[useGame] startNewGame called with seed: ${s ? s.slice(0, 10) + "..." : "generated"}`);
-    const { state: initial, rng } = initGame(s);
-    rngRef.current = rng;
+    const { state: initial } = initGame(s);
+    rngRef.current = countedRng(s);
     setSeed(s);
+    stateRef.current = initial;
     setState(initial);
+    setUndoSnapshot(null);
     setLastDirection(null);
     console.log(`[useGame] Game initialized with seed, phase should update to 'active' now`);
     return s;
   }, []);
 
   const clearGame = useCallback(() => {
+    stateRef.current = null;
     setState(null);
     setSeed(null);
+    setUndoSnapshot(null);
     rngRef.current = null;
     setLastDirection(null);
     if (address) removeUserStorage(address, STORAGE_KEY);
   }, [address]);
 
   const handleMove = useCallback((dir: Direction) => {
-    if (!rngRef.current) return;
-    const rng = rngRef.current;
+    const counted = rngRef.current;
+    const prev = stateRef.current;
+    if (!counted || !prev || prev.over || prev.won) return;
     setLastDirection(dir);
-    setState((prev) => {
-      if (!prev || prev.over || prev.won) return prev;
-      return applyMove(prev, dir, rng);
-    });
+    const { next, snapshot } = moveWithUndo(prev, dir, counted);
+    stateRef.current = next;
+    setState(next);
+    if (snapshot) setUndoSnapshot(snapshot);
   }, []);
+
+  /**
+   * Take back the last move: board, score, combo and the PRNG position all go
+   * back to just before it. One step only — after an undo, another move is
+   * needed before undoing again. Returns false if there was nothing to undo.
+   * Spending the on-chain credit is the caller's job (useGameSession).
+   */
+  const undoLastMove = useCallback((): boolean => {
+    if (!seed || !canUndoFrom(stateRef.current, undoSnapshot) || !undoSnapshot) return false;
+    const { state: restored, counted } = undoTo(seed, undoSnapshot);
+    rngRef.current = counted;
+    stateRef.current = restored;
+    setState(restored);
+    setUndoSnapshot(null);
+    setLastDirection(null);
+    return true;
+  }, [seed, undoSnapshot]);
 
   // Keyboard controls
   useEffect(() => {
@@ -180,5 +212,7 @@ export function useGame(
     };
   }, [handleMove, boardRef]);
 
-  return { state, seed, startNewGame, clearGame, handleMove, isInitialized, lastDirection };
+  const canUndo = canUndoFrom(state, undoSnapshot);
+
+  return { state, seed, startNewGame, clearGame, handleMove, isInitialized, lastDirection, canUndo, undoLastMove };
 }
