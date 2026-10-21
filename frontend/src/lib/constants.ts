@@ -9,12 +9,12 @@ export const GAME2048_ADDRESS = getAddress("0xD551317265B9c4D1D453d399D8b8fa0b98
 export const CONTRACT_DEPLOYED =
   GAME2048_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
-// Undo is switched off until it can work end to end. The deployed contract's
-// consumeUndo(address) lets any caller burn any player's credits, and the game
-// has no move-reversal logic, so spending a credit did nothing. Re-enable only
-// after a contract upgrade restricts consumeUndo to the player AND the board
-// can actually revert a move. Purchased credits stay on-chain untouched.
-export const UNDO_ENABLED = false;
+// Undo: spends one on-chain credit via consumeUndo(player), then the board
+// takes back the last move (lib/undoHistory.ts rewinds the tile RNG too, so an
+// undo can't re-roll a spawn). Known contract limitation, fixed only by an
+// upgrade: consumeUndo(address) has no caller check, so anyone can burn
+// anyone's credits. Set false to hide Undo and stop selling credits.
+export const UNDO_ENABLED = true;
 
 // GoodDollar contracts on Celo mainnet — G$ token (used by the shop) and the
 // identity registry. Addresses must use proper EIP-55 checksum for viem validation.
