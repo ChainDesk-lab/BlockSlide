@@ -5,6 +5,7 @@ import { useAccount, useDisconnect } from "wagmi";
 import { AuthContext, type AuthValue } from "./AuthContext";
 import { useAuthSelection } from "../contexts/AuthSelectionContext";
 import { getMagic, isMagicConfigured } from "../magic";
+import { NetworkGuardProvider } from "../hooks/useNetworkGuard";
 
 /**
  * Single source of truth for auth state.
@@ -26,6 +27,11 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
   // ---- Web3 wallet state (wagmi) ----
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
   const { disconnect } = useDisconnect();
+
+  // Chain enforcement lives in NetworkGuardProvider (mounted below), which
+  // handles switch -> add -> re-switch and the rejection path. The auto-switch
+  // that used to sit here compared wagmi's useChainId() against Celo, a value
+  // pinned to 42220 by our single-chain config, so it never actually fired.
 
   const clearWagmiStorage = () => {
     if (typeof localStorage === "undefined") return;
@@ -273,5 +279,9 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
           logout: magicLogout,
         };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <NetworkGuardProvider>{children}</NetworkGuardProvider>
+    </AuthContext.Provider>
+  );
 }

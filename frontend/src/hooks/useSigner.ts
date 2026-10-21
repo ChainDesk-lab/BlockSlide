@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getWalletClient } from "wagmi/actions";
-import { useChainId } from "wagmi";
 import { wagmiConfig } from "../auth/wagmiConfig";
 import { useAuth } from "../auth/AuthContext";
 import { useContractWalletClient } from "./useContractData";
@@ -30,9 +29,14 @@ interface UseSignerResult {
  */
 export function useSigner(): UseSignerResult {
   const { authType, address: authAddress } = useAuth();
-  useChainId(); // Needed by network guard to detect chain changes
   const walletClientHook = useContractWalletClient();
   const { isWrongNetwork } = useNetworkGuard();
+  // What the signer effect re-runs on. For browser wallets, wagmi's client
+  // (stable; it changes on reconnect or a chain switch, which is exactly when
+  // the signer must be re-resolved). For Magic, a constant: its client comes
+  // from Magic's provider, and useContractWalletClient returns a fresh object
+  // on every render, which as a dependency re-ran this effect on every render.
+  const signerSourceKey = authType === "magic" ? "magic" : walletClientHook;
 
   // State tracking
   const [signer, setSigner] = useState<any | null>(null);
@@ -182,7 +186,7 @@ export function useSigner(): UseSignerResult {
       cancelled = true;
       console.log(`[useSigner:${initId}] useEffect cleanup - cancelled future updates`);
     };
-  }, [authAddress, authType]);
+  }, [authAddress, authType, signerSourceKey]);
 
   // If on wrong chain, provide that specific error
   if (isWrongChain) {
