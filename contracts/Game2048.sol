@@ -165,6 +165,7 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error ReferrerAlreadySet();
     error CannotReferSelf();
     error InvalidReferrer();
+    error NotPlayer();
 
     // ─── Init ─────────────────────────────────────────────────────────────────
 
@@ -221,6 +222,40 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         bytes32 seed,
         uint256 comboMoves
     ) external {
+        _submitScore(score, highestTile, moveCount, seed, comboMoves, 0);
+    }
+
+    /// Submit a game in which the player used `undosUsed` Undo Step credits.
+    /// The credits are deducted here, in the transaction the player already
+    /// signs to submit — the same way an XP boost or a streak shield is applied
+    /// inside submitScore — so using Undo during play needs no transaction.
+    /// Reverts InsufficientUndoCredits (and records nothing) if the player
+    /// holds fewer credits than claimed.
+    function submitScoreWithUndos(
+        uint256 score,
+        uint32  highestTile,
+        uint256 moveCount,
+        bytes32 seed,
+        uint256 comboMoves,
+        uint256 undosUsed
+    ) external {
+        _submitScore(score, highestTile, moveCount, seed, comboMoves, undosUsed);
+    }
+
+    /// Lets the frontend detect this implementation (true) versus an older one
+    /// without submitScoreWithUndos (the call reverts).
+    function supportsUndoAtSubmit() external pure returns (bool) {
+        return true;
+    }
+
+    function _submitScore(
+        uint256 score,
+        uint32  highestTile,
+        uint256 moveCount,
+        bytes32 seed,
+        uint256 comboMoves,
+        uint256 undosUsed
+    ) internal {
         // V6: Removed verification gate — players can submit without verification,
         // but only verified players receive G$ rewards (checked in _payMilestoneRewards).
 
@@ -232,6 +267,14 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         if (comboMoves > moveCount)                                       revert InvalidComboCount();
         if (highestTile < 2 || highestTile > 131_072)                    revert InvalidTileValue();
         if ((highestTile & (highestTile - 1)) != 0)                      revert InvalidTileValue();
+
+        if (undosUsed > 0) {
+            if (undoCredits[msg.sender] < undosUsed) revert InsufficientUndoCredits();
+            undoCredits[msg.sender] -= undosUsed;
+            // One event per credit, same as consumeUndo, so indexers that
+            // count UndoConsumed stay correct.
+            for (uint256 i = 0; i < undosUsed; i++) emit UndoConsumed(msg.sender);
+        }
 
         session.active = false;
 
@@ -287,9 +330,11 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit UndoPurchased(msg.sender, quantity, totalCost);
     }
 
-    /// Consume one undo credit (called during game session).
-    /// Must be called by game logic to decrement the player's undo credits.
+    /// Consume one of your own undo credits. The `player` argument is kept for
+    /// ABI compatibility; it must be the caller (previously anyone could burn
+    /// anyone's credits). Credits are normally spent via submitScoreWithUndos.
     function consumeUndo(address player) external {
+        if (player != msg.sender) revert NotPlayer();
         if (undoCredits[player] == 0) revert InsufficientUndoCredits();
         undoCredits[player]--;
         emit UndoConsumed(player);

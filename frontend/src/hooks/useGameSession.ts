@@ -684,7 +684,7 @@ export function useGameSession() {
   // submitScoreOnce does the work; submitScore (below) guards it so a double
   // tap can't start a second submission while the first is still preparing.
   const submitScoreOnce = useCallback(
-    async (gameState: GameState, seed: `0x${string}`) => {
+    async (gameState: GameState, seed: `0x${string}`, undosUsed: number = 0) => {
       if (!address) {
         // Bailing out silently left the player tapping Submit with no feedback.
         setError("Wallet disconnected — reconnect to submit your score.");
@@ -976,27 +976,48 @@ export function useGameSession() {
       // instead of a silently-reverting tx that hangs on "Submitting…".
       // Only block on a genuine contract revert; a flaky-RPC/network error
       // shouldn't stop a valid submission, so in that case we fall through.
+      // Undos used this game are paid for here, in the submission itself
+      // (submitScoreWithUndos), only after the undo-at-submit upgrade — App
+      // passes a count only when the contract supports it.
+      const withUndos = undosUsed > 0;
+      const undoArgs = [...args, BigInt(undosUsed)] as const;
       try {
-        await publicClient!.simulateContract({
-          account: address,
-          address: GAME2048_ADDRESS,
-          abi: GAME2048_ABI,
-          functionName: "submitScore",
-          args,
-        });
+        if (withUndos) {
+          await publicClient!.simulateContract({
+            account: address,
+            address: GAME2048_ADDRESS,
+            abi: GAME2048_MERGED_ABI,
+            functionName: "submitScoreWithUndos",
+            args: undoArgs,
+          });
+        } else {
+          await publicClient!.simulateContract({
+            account: address,
+            address: GAME2048_ADDRESS,
+            abi: GAME2048_ABI,
+            functionName: "submitScore",
+            args,
+          });
+        }
       } catch (simErr) {
-        const isContractRevert =
-          simErr instanceof BaseError &&
-          !!simErr.walk((e) => e instanceof ContractFunctionRevertedError);
-        if (isContractRevert) {
-          setError(parseContractError(simErr as Error));
+        const revert =
+          simErr instanceof BaseError
+            ? (simErr.walk((e) => e instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | null)
+            : null;
+        if (revert) {
+          const name = (revert as { data?: { errorName?: string } }).data?.errorName;
+          setError(name === "InsufficientUndoCredits"
+            ? `This game used ${undosUsed} undo${undosUsed === 1 ? "" : "s"}, but your wallet doesn't hold that many credits. Buy more in the shop, then submit again.`
+            : parseContractError(simErr as Error));
           return; // don't send a doomed transaction
         }
         // Network/RPC error during simulation — proceed and let the tx decide.
       }
 
       // Gas preflight for this exact transaction (live estimate × live fees).
-      const submitData = encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args });
+      const submitData = withUndos
+        ? encodeFunctionData({ abi: GAME2048_MERGED_ABI, functionName: "submitScoreWithUndos", args: undoArgs })
+        : encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args });
       const submitPlan = await ensureGas(submitData, SUBMIT_SCORE_FALLBACK_GAS);
       if (!submitPlan) return;
 
@@ -1121,8 +1142,8 @@ export function useGameSession() {
   const submitInFlightRef = useRef(false);
   const [submitBusy, setSubmitBusy] = useState(false);
   const submitScore = useCallback(
-    async (gameState: GameState, seed: `0x${string}`) => {
-      await runExclusive(submitInFlightRef, () => submitScoreOnce(gameState, seed), setSubmitBusy);
+    async (gameState: GameState, seed: `0x${string}`, undosUsed: number = 0) => {
+      await runExclusive(submitInFlightRef, () => submitScoreOnce(gameState, seed, undosUsed), setSubmitBusy);
     },
     [submitScoreOnce],
   );
