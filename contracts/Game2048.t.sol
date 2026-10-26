@@ -432,4 +432,89 @@ contract Game2048Test is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
         game.withdrawTreasury(1e18);
     }
+
+    // ─── Undo Step: credits deducted at submit ────────────────────────────────
+
+    event UndoConsumed(address indexed player);
+
+    function _buyUndos(address player, uint256 n) internal {
+        token.mint(player, game.undoPrice() * n);
+        vm.startPrank(player);
+        token.approve(address(game), type(uint256).max);
+        game.buyUndoMove(n);
+        vm.stopPrank();
+    }
+
+    function test_SubmitWithUndos_DeductsCredits() public {
+        _buyUndos(alice, 3);
+        _startSession(alice);
+        vm.prank(alice);
+        game.submitScoreWithUndos(400, 128, 100, SEED, 0, 2);
+        assertEq(game.undoCredits(alice), 1);
+        assertEq(game.bestScore(alice), 400);
+        assertFalse(game.getSession(alice).active);
+    }
+
+    function test_SubmitWithUndos_EmitsOneUndoConsumedPerCredit() public {
+        _buyUndos(alice, 2);
+        _startSession(alice);
+        vm.expectEmit(true, false, false, false, address(game));
+        emit UndoConsumed(alice);
+        vm.expectEmit(true, false, false, false, address(game));
+        emit UndoConsumed(alice);
+        vm.prank(alice);
+        game.submitScoreWithUndos(400, 128, 100, SEED, 0, 2);
+    }
+
+    function test_SubmitWithUndos_RevertsWhenClaimingMoreThanOwned() public {
+        _buyUndos(alice, 1);
+        _startSession(alice);
+        vm.prank(alice);
+        vm.expectRevert(Game2048.InsufficientUndoCredits.selector);
+        game.submitScoreWithUndos(400, 128, 100, SEED, 0, 2);
+        // nothing was recorded: credits intact, session still open
+        assertEq(game.undoCredits(alice), 1);
+        assertTrue(game.getSession(alice).active);
+        assertEq(game.bestScore(alice), 0);
+    }
+
+    function test_SubmitWithUndos_ZeroBehavesLikeSubmitScore() public {
+        _startSession(alice);
+        vm.prank(alice);
+        game.submitScoreWithUndos(400, 128, 100, SEED, 0, 0);
+        assertEq(game.bestScore(alice), 400);
+        assertEq(game.xp(alice), 40);
+    }
+
+    function test_SubmitWithUndos_StillChecksTheSeed() public {
+        _buyUndos(alice, 1);
+        _startSession(alice);
+        vm.prank(alice);
+        vm.expectRevert(Game2048.InvalidSeed.selector);
+        game.submitScoreWithUndos(400, 128, 100, bytes32(uint256(1)), 0, 1);
+        assertEq(game.undoCredits(alice), 1);
+    }
+
+    function test_SubmitScore_DoesNotTouchUndoCredits() public {
+        _buyUndos(alice, 2);
+        _startSession(alice);
+        _submit(alice, 400, 128, 0);
+        assertEq(game.undoCredits(alice), 2);
+    }
+
+    function test_SupportsUndoAtSubmit() public view {
+        assertTrue(game.supportsUndoAtSubmit());
+    }
+
+    function test_ConsumeUndo_OnlyByThePlayer() public {
+        _buyUndos(alice, 1);
+        vm.prank(bob);
+        vm.expectRevert(Game2048.NotPlayer.selector);
+        game.consumeUndo(alice);
+        assertEq(game.undoCredits(alice), 1);
+
+        vm.prank(alice);
+        game.consumeUndo(alice);
+        assertEq(game.undoCredits(alice), 0);
+    }
 }

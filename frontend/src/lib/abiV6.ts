@@ -112,6 +112,31 @@ export const GAME2048_V6_FUNCTIONS = [
     stateMutability: "view" as const,
     type: "function" as const,
   },
+  // Undo-at-submit upgrade (contracts/Game2048.sol on feat/undo-at-submit).
+  // Not on the live implementation until that upgrade ships; the app checks
+  // supportsUndoAtSubmit() before using submitScoreWithUndos.
+  {
+    inputs: [
+      { internalType: "uint256", name: "score", type: "uint256" },
+      { internalType: "uint32", name: "highestTile", type: "uint32" },
+      { internalType: "uint256", name: "moveCount", type: "uint256" },
+      { internalType: "bytes32", name: "seed", type: "bytes32" },
+      { internalType: "uint256", name: "comboMoves", type: "uint256" },
+      { internalType: "uint256", name: "undosUsed", type: "uint256" },
+    ],
+    name: "submitScoreWithUndos",
+    outputs: [],
+    stateMutability: "nonpayable" as const,
+    type: "function" as const,
+  },
+  {
+    inputs: [],
+    name: "supportsUndoAtSubmit",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "pure" as const,
+    type: "function" as const,
+  },
+  { inputs: [], name: "NotPlayer", type: "error" as const },
   // Custom errors the V6 shop can revert with (from the compiled contract), so
   // reverts decode to a name instead of an unknown signature.
   { inputs: [], name: "ZeroPriceNotAllowed", type: "error" as const },

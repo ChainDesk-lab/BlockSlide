@@ -25,6 +25,8 @@ import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { usePlayerRegistration } from "./hooks/usePlayerRegistration";
 import { useUndoCredits } from "./hooks/useUndoCredits";
+import { useUndoMode } from "./hooks/useUndoMode";
+import { undosAvailable } from "./lib/undoHistory";
 import { UNDO_ENABLED } from "./lib/constants";
 import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
 import { useFlowstateVotingContext } from "./contexts/FlowstateVotingContext";
@@ -88,7 +90,7 @@ export default function App() {
     setShowHowToPlay(false);
   };
   const boardWrapperRef = useRef<HTMLDivElement>(null);
-  const { state, seed, startNewGame, clearGame, isInitialized, lastDirection, canUndo, undoLastMove } = useGame(address, view === "game", boardWrapperRef);
+  const { state, seed, startNewGame, clearGame, isInitialized, lastDirection, canUndo, undoLastMove, undosUsed } = useGame(address, view === "game", boardWrapperRef);
   const {
     phase,
     isPending,
@@ -125,8 +127,19 @@ export default function App() {
   // Spend one on-chain credit (consumeUndo(player)); only once it confirms,
   // take the move back. A rejected or failed transaction leaves the board alone.
   const { undoCredits, refetchUndoCredits } = useUndoCredits(address as `0x${string}` | undefined);
+  // After the undo-at-submit upgrade ("at_submit"), Undo is instant — no wallet
+  // prompt — and this game's tally is paid with the score submission, like an
+  // XP boost. On the current contract ("per_use") each undo is its own
+  // transaction. While the check is in flight ("unknown"), Undo waits.
+  const undoMode = useUndoMode();
+  const undosLeft = undosAvailable(undoCredits, undosUsed, undoMode);
   const handleUndo = async () => {
-    if (!UNDO_ENABLED || !canUndo) return;
+    if (!UNDO_ENABLED || !canUndo || undoMode === "unknown") return;
+    if (undoMode === "at_submit") {
+      if (undosLeft <= 0n) return;
+      if (undoLastMove({ countCredit: true })) sounds.slide();
+      return;
+    }
     const spent = await spendUndoCredit();
     if (spent) {
       undoLastMove();
@@ -134,6 +147,12 @@ export default function App() {
     }
     refetchUndoCredits();
   };
+  // Credits change on-chain when a score is submitted with undos.
+  useEffect(() => {
+    const onSubmitted = () => refetchUndoCredits();
+    window.addEventListener("scoreSubmitted", onSubmitted);
+    return () => window.removeEventListener("scoreSubmitted", onSubmitted);
+  }, [refetchUndoCredits]);
 
   useEffect(() => {
     // On wallet change, read the dismiss state from storage.
@@ -186,7 +205,7 @@ export default function App() {
       return;
     }
     console.log(`[App] handleSubmit with seed=${seed.slice(0, 10)}...`);
-    submitScore(state, seed as `0x${string}`);
+    submitScore(state, seed as `0x${string}`, undoMode === "at_submit" ? undosUsed : 0);
   };
 
   // Auto-clear stale error messages when the session expires so the user
@@ -401,8 +420,8 @@ export default function App() {
               canSubmitScore={isVerifiedForSubmission}
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
-              undoCredits={undoCredits}
-              canUndo={canUndo}
+              undoCredits={undosLeft}
+              canUndo={canUndo && undoMode !== "unknown"}
               onUndo={handleUndo}
               undoPending={undoPending}
             />

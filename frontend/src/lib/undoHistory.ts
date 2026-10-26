@@ -66,3 +66,26 @@ export function undoTo(seed: string, snapshot: UndoSnapshot): { state: GameState
     counted: countedRng(seed, snapshot.rngCalls),
   };
 }
+
+/**
+ * How Undo spends credits.
+ *  - "at_submit": the contract supports submitScoreWithUndos. Undo is instant
+ *    and local; the number used is sent with the score and deducted in that
+ *    same transaction, like an XP boost.
+ *  - "per_use": older contract. Each undo is its own consumeUndo transaction.
+ *  - "unknown": still checking which contract is live — Undo waits.
+ */
+export type UndoMode = "at_submit" | "per_use" | "unknown";
+
+export function undoModeFrom(read: { status: "pending" | "error" | "success"; data?: unknown }): UndoMode {
+  if (read.status === "success") return read.data === true ? "at_submit" : "per_use";
+  if (read.status === "error") return "per_use"; // the function doesn't exist on the live contract
+  return "unknown";
+}
+
+/** Credits the player can still use in this game. */
+export function undosAvailable(credits: bigint, usedThisGame: number, mode: UndoMode): bigint {
+  if (mode !== "at_submit") return credits;
+  const left = credits - BigInt(usedThisGame);
+  return left > 0n ? left : 0n;
+}

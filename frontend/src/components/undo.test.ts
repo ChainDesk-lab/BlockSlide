@@ -163,3 +163,51 @@ describe("board undo (lib/undoHistory)", () => {
     expect(canUndoFrom(snap.state, null)).toBe(false);
   });
 });
+
+describe("undo at submit (after the contract upgrade)", () => {
+  it("detects the mode from supportsUndoAtSubmit()", async () => {
+    const { undoModeFrom } = await import("../lib/undoHistory");
+    expect(undoModeFrom({ status: "success", data: true })).toBe("at_submit");
+    expect(undoModeFrom({ status: "error" })).toBe("per_use"); // current contract: the call reverts
+    expect(undoModeFrom({ status: "pending" })).toBe("unknown");
+  });
+
+  it("shows credits left = owned minus used this game, never negative", async () => {
+    const { undosAvailable } = await import("../lib/undoHistory");
+    expect(undosAvailable(3n, 1, "at_submit")).toBe(2n);
+    expect(undosAvailable(1n, 4, "at_submit")).toBe(0n);
+    expect(undosAvailable(3n, 1, "per_use")).toBe(3n); // per-use credits drop on-chain each time
+  });
+
+  it("is instant in at-submit mode: no transaction, just the local undo counted against credits", () => {
+    const app = readFileSync(join(SRC, "App.tsx"), "utf8");
+    const instant = app.slice(app.indexOf('if (undoMode === "at_submit") {'), app.indexOf("const spent = await spendUndoCredit();"));
+    expect(instant).toMatch(/undoLastMove\(\{ countCredit: true \}\)/);
+    expect(instant).not.toMatch(/spendUndoCredit|writeContract|signAndBroadcast/);
+    expect(app).toMatch(/if \(undosLeft <= 0n\) return;/);
+  });
+
+  it("sends the game's undo count with the score only when the contract supports it", () => {
+    const app = readFileSync(join(SRC, "App.tsx"), "utf8");
+    expect(app).toMatch(/submitScore\(state, seed as `0x\$\{string\}`, undoMode === "at_submit" \? undosUsed : 0\)/);
+    const session = readFileSync(join(SRC, "hooks/useGameSession.ts"), "utf8");
+    expect(session).toMatch(/const withUndos = undosUsed > 0;/);
+    expect(session).toMatch(/functionName: "submitScoreWithUndos", args: undoArgs/);
+  });
+
+  it("encodes submitScoreWithUndos to the compiled selector", () => {
+    const data = encodeFunctionData({
+      abi: GAME2048_MERGED_ABI,
+      functionName: "submitScoreWithUndos",
+      args: [400n, 128, 50n, ("0x" + "11".repeat(32)) as `0x${string}`, 0n, 2n],
+    });
+    expect(data.length).toBe(2 + 8 + 64 * 6);
+  });
+
+  it("counts an undo used and keeps the count through a reload (persisted with the game)", () => {
+    const g = readFileSync(join(SRC, "hooks/useGame.ts"), "utf8");
+    expect(g).toMatch(/if \(options\?\.countCredit\) setUndosUsed\(\(n\) => n \+ 1\);/);
+    expect(g).toMatch(/const data: PersistedGame = \{ seed, state, undosUsed \};/);
+    expect(g).toMatch(/setUndosUsed\(saved\.undosUsed \?\? 0\);/);
+  });
+});

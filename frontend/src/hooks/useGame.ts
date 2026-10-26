@@ -13,6 +13,8 @@ const STORAGE_KEY = "game_state";
 interface PersistedGame {
   seed: string;
   state: GameState;
+  /** Undo credits used this game, still to be settled at submit. */
+  undosUsed?: number;
 }
 
 export function useGame(
@@ -31,6 +33,9 @@ export function useGame(
   // State before the last move, for a one-step undo. Not persisted: a reload
   // clears it.
   const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
+  // Undo credits used this game when they are settled at submit (UndoMode
+  // "at_submit"). Persisted with the game so a reload can't reset it.
+  const [undosUsed, setUndosUsed] = useState(0);
   // Direction of the most recent move — the animation layer needs it to know
   // which way tiles slid. Not part of GameState (that stays untouched).
   const [lastDirection, setLastDirection] = useState<Direction | null>(null);
@@ -74,6 +79,7 @@ export function useGame(
       stateRef.current = restored;
       setState(restored);
       setUndoSnapshot(null);
+      setUndosUsed(saved.undosUsed ?? 0);
     } catch {
       // corrupt storage — ignore
     } finally {
@@ -84,9 +90,9 @@ export function useGame(
   // Persist game state whenever it changes
   useEffect(() => {
     if (!address || !state || !seed) return;
-    const data: PersistedGame = { seed, state };
+    const data: PersistedGame = { seed, state, undosUsed };
     setUserStorage(address, STORAGE_KEY, JSON.stringify(data));
-  }, [address, state, seed]);
+  }, [address, state, seed, undosUsed]);
 
   const startNewGame = useCallback((existingSeed?: string) => {
     const s = existingSeed ?? generateSeed();
@@ -97,6 +103,7 @@ export function useGame(
     stateRef.current = initial;
     setState(initial);
     setUndoSnapshot(null);
+    setUndosUsed(0);
     setLastDirection(null);
     console.log(`[useGame] Game initialized with seed, phase should update to 'active' now`);
     return s;
@@ -107,6 +114,7 @@ export function useGame(
     setState(null);
     setSeed(null);
     setUndoSnapshot(null);
+    setUndosUsed(0);
     rngRef.current = null;
     setLastDirection(null);
     if (address) removeUserStorage(address, STORAGE_KEY);
@@ -127,9 +135,10 @@ export function useGame(
    * Take back the last move: board, score, combo and the PRNG position all go
    * back to just before it. One step only — after an undo, another move is
    * needed before undoing again. Returns false if there was nothing to undo.
-   * Spending the on-chain credit is the caller's job (useGameSession).
+   * Spending the on-chain credit is the caller's job (useGameSession). With
+   * `countCredit`, the undo is added to this game's tally, settled at submit.
    */
-  const undoLastMove = useCallback((): boolean => {
+  const undoLastMove = useCallback((options?: { countCredit?: boolean }): boolean => {
     if (!seed || !canUndoFrom(stateRef.current, undoSnapshot) || !undoSnapshot) return false;
     const { state: restored, counted } = undoTo(seed, undoSnapshot);
     rngRef.current = counted;
@@ -137,6 +146,7 @@ export function useGame(
     setState(restored);
     setUndoSnapshot(null);
     setLastDirection(null);
+    if (options?.countCredit) setUndosUsed((n) => n + 1);
     return true;
   }, [seed, undoSnapshot]);
 
@@ -214,5 +224,5 @@ export function useGame(
 
   const canUndo = canUndoFrom(state, undoSnapshot);
 
-  return { state, seed, startNewGame, clearGame, handleMove, isInitialized, lastDirection, canUndo, undoLastMove };
+  return { state, seed, startNewGame, clearGame, handleMove, isInitialized, lastDirection, canUndo, undoLastMove, undosUsed };
 }
