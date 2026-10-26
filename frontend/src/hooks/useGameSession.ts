@@ -9,6 +9,7 @@ import {
 } from "wagmi";
 import { useWalletChainId } from "./useWalletChainId";
 import { GAME2048_ABI } from "../lib/abi";
+import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
 import { isInsufficientGasError } from "../lib/gasError";
@@ -29,6 +30,7 @@ import { useGasFaucet } from "./useGasFaucet";
 // lib/gasPlan.ts. There is no fixed "enough gas" threshold any more.
 const START_SESSION_FALLBACK_GAS = 200_000n;
 const SUBMIT_SCORE_FALLBACK_GAS = 500_000n;
+const CONSUME_UNDO_FALLBACK_GAS = 80_000n;
 
 // How long to keep waiting for a submitted score's receipt after the first
 // 2-minute wait times out, before telling the player it couldn't be confirmed.
@@ -1125,6 +1127,86 @@ export function useGameSession() {
     [submitScoreOnce],
   );
 
+  // ── spendUndoCredit ───────────────────────────────────────────────────────
+  // Spends one on-chain undo credit: consumeUndo(player), simulated first,
+  // gas-planned like every other transaction, and confirmed before returning
+  // true. The caller reverts the move only after this succeeds, so a failed or
+  // rejected transaction never costs the player their move.
+  const undoInFlightRef = useRef(false);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const spendUndoCredit = useCallback(async (): Promise<boolean> => {
+    let spent = false;
+    await runExclusive(undoInFlightRef, async () => {
+      if (!address || !contractDeployed) return;
+      if (isWrongChain) {
+        setError("Wrong network — please switch to Celo mainnet in your wallet.");
+        return;
+      }
+      if (!signer || !publicClient) {
+        setError(signerError || "Wallet signer not available — please try again.");
+        return;
+      }
+
+      const args = [address] as const;
+      try {
+        await publicClient.simulateContract({
+          account: address,
+          address: GAME2048_ADDRESS,
+          abi: GAME2048_MERGED_ABI,
+          functionName: "consumeUndo",
+          args,
+        });
+      } catch (simErr) {
+        const revert =
+          simErr instanceof BaseError
+            ? (simErr.walk((e) => e instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | null)
+            : null;
+        if (revert) {
+          const name = (revert as { data?: { errorName?: string } }).data?.errorName;
+          setError(name === "InsufficientUndoCredits"
+            ? "You have no undo credits left. Get more in the shop."
+            : parseContractError(simErr as Error));
+          return;
+        }
+        // RPC hiccup during simulation — let the transaction decide.
+      }
+
+      const data = encodeFunctionData({ abi: GAME2048_MERGED_ABI, functionName: "consumeUndo", args });
+      const plan = await ensureGas(data, CONSUME_UNDO_FALLBACK_GAS);
+      if (!plan) return;
+
+      setError(null);
+      try {
+        const hash = await signAndBroadcast(signer, data, plan, false);
+        let receipt;
+        try {
+          receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+        } catch (receiptErr) {
+          if (classifyTxError(receiptErr) !== "receipt_timeout") throw receiptErr;
+          setError(`Still confirming your undo (tx ${hash.slice(0, 10)}…). Please wait.`);
+          receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+        }
+        if (receipt.status === "reverted") {
+          setError("Undo failed on-chain — your move and credit are unchanged.");
+          return;
+        }
+        setError(null);
+        spent = true;
+      } catch (e) {
+        if (isInsufficientGasError(e)) triggerNoGas();
+        const kind = classifyTxError(e);
+        if (kind === "user_rejected") {
+          setError(null); // they cancelled; nothing changed
+        } else if (kind === "receipt_timeout") {
+          setError("Couldn't confirm the undo yet. If it goes through, your credit count will update; your move was not reverted.");
+        } else {
+          setError(parseContractError(e as Error));
+        }
+      }
+    }, setUndoBusy);
+    return spent;
+  }, [address, contractDeployed, isWrongChain, signer, signerError, publicClient, ensureGas, signAndBroadcast, triggerNoGas]);
+
   const reset = useCallback(() => {
     setPhase("idle");
     pendingActionRef.current = null;
@@ -1150,6 +1232,8 @@ export function useGameSession() {
     // so the Submit button can't be pressed twice.
     isPending: isPending || submitBusy,
     isSwitchPending,
+    spendUndoCredit,
+    undoPending: undoBusy,
     isWrongChain,
     txHash,
     error,

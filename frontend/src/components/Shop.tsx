@@ -345,7 +345,7 @@ export default function Shop() {
             <div className="shop-item__content">
               <p className="shop-item__desc">
                 {UNDO_ENABLED
-                  ? "Revert your last move during gameplay."
+                  ? "Take back your last move — tap Undo under the board. One credit per undo."
                   : "Temporarily unavailable while we fix it. Credits you already own are kept."}
               </p>
               <p className="shop-item__status">
