@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
+import { defaultRequiredWei, parseMinWei } from "../../../src/lib/gasPlan";
 
 /**
  * Server-side Gas Balance Checker
@@ -9,18 +10,36 @@ import { celo } from "viem/chains";
  * POST: Disabled — faucet service removed due to reliability issues
  *
  * Bypasses client-side CORS restrictions by checking balance server-side.
+ *
+ * "Sufficient" means the balance covers the transaction about to be sent:
+ *   - `minWei` (query param or body field): the caller's own requirement,
+ *     gas limit × fee cap from src/lib/gasPlan.ts — the app always sends it;
+ *   - otherwise DEFAULT_GAS_BUDGET (250k gas) at the live gas price + 20%.
+ * It used to be a fixed 0.001 CELO, which at Celo's ~200 gwei base fee pays
+ * for about 5,000 gas — less than any BlockSlide transaction.
  */
 
-const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO
+/** The balance to require: the caller's, or the default budget at live fees. */
+async function requiredWeiFor(
+  publicClient: { getGasPrice(): Promise<bigint> },
+  minWeiRaw: string | null | undefined
+): Promise<bigint> {
+  const fromCaller = parseMinWei(minWeiRaw);
+  if (fromCaller !== null) return fromCaller;
+  return defaultRequiredWei(await publicClient.getGasPrice());
+}
 
 interface GasCheckRequest {
   address: string;
+  minWei?: string;
 }
 
 interface GasCheckResponse {
   address: string;
   balance: string;
   balanceSufficient: boolean;
+  /** The requirement the balance was compared against, in wei. */
+  requiredWei: string;
   error?: string;
 }
 
@@ -50,17 +69,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<GasCheckR
     });
 
     let balance = 0n;
+    let requiredWei: bigint;
     try {
-      balance = await publicClient.getBalance({ address: address as `0x${string}` });
+      [balance, requiredWei] = await Promise.all([
+        publicClient.getBalance({ address: address as `0x${string}` }),
+        requiredWeiFor(publicClient, body.minWei),
+      ]);
     } catch (err) {
-      console.error(`[Gas Check] Failed to fetch balance:`, err);
+      console.error(`[Gas Check] Failed to fetch balance or fees:`, err);
       return NextResponse.json(
         { error: "Could not fetch balance. Please try again." } as any,
         { status: 500 }
       );
     }
 
-    const balanceSufficient = balance >= LOW_GAS_THRESHOLD;
+    const balanceSufficient = balance >= requiredWei;
 
     // If balance is sufficient, user can proceed with transaction
     if (balanceSufficient) {
@@ -69,15 +92,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<GasCheckR
         address: address.toLowerCase(),
         balance: balance.toString(),
         balanceSufficient: true,
+        requiredWei: requiredWei.toString(),
       });
     }
 
     // Balance is insufficient — user must manually top up
-    console.log(`[Gas Check] Insufficient balance for ${address.slice(0, 6)}...: ${balance.toLocaleString()} wei (need ${LOW_GAS_THRESHOLD.toLocaleString()})`);
+    console.log(`[Gas Check] Insufficient balance for ${address.slice(0, 6)}...: ${balance.toLocaleString()} wei (need ${requiredWei.toLocaleString()})`);
     return NextResponse.json({
       address: address.toLowerCase(),
       balance: balance.toString(),
       balanceSufficient: false,
+      requiredWei: requiredWei.toString(),
       error: "Insufficient CELO balance for gas. Please top up your wallet.",
     });
   } catch (error) {
@@ -111,23 +136,28 @@ export async function GET(request: NextRequest): Promise<NextResponse<GasCheckRe
     });
 
     let balance = 0n;
+    let requiredWei: bigint;
     try {
-      balance = await publicClient.getBalance({ address: address as `0x${string}` });
-      console.log(`[Gas Check] Balance for ${address.slice(0, 6)}...: ${balance.toLocaleString()} wei`);
+      [balance, requiredWei] = await Promise.all([
+        publicClient.getBalance({ address: address as `0x${string}` }),
+        requiredWeiFor(publicClient, searchParams.get("minWei")),
+      ]);
+      console.log(`[Gas Check] Balance for ${address.slice(0, 6)}...: ${balance.toLocaleString()} wei (need ${requiredWei.toLocaleString()})`);
     } catch (err) {
-      console.error(`[Gas Check] Failed to fetch balance:`, err);
+      console.error(`[Gas Check] Failed to fetch balance or fees:`, err);
       return NextResponse.json(
         { error: "Could not fetch balance. Please try again." } as any,
         { status: 500 }
       );
     }
 
-    const balanceSufficient = balance >= LOW_GAS_THRESHOLD;
+    const balanceSufficient = balance >= requiredWei;
     return NextResponse.json(
       {
         address: address.toLowerCase(),
         balance: balance.toString(),
         balanceSufficient,
+        requiredWei: requiredWei.toString(),
       },
       {
         headers: {

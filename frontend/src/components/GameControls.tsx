@@ -2,6 +2,7 @@ import { useAuth } from "../auth/AuthContext";
 import { SessionPhase } from "../hooks/useGameSession";
 import { IdentityStatus } from "../hooks/useIdentity";
 import { GameState } from "../lib/gameLogic";
+import { UNDO_ENABLED } from "../lib/constants";
 
 interface GameControlsProps {
   state: GameState | null;
@@ -80,8 +81,9 @@ export default function GameControls({
         </button>
       )}
 
-      {/* Undo button — shown during active gameplay */}
-      {phase === "active" && !gameEnded && onUndo && (
+      {/* Undo button — shown during active gameplay, only while Undo is enabled
+          (see UNDO_ENABLED for why it is off) */}
+      {UNDO_ENABLED && phase === "active" && !gameEnded && onUndo && (
         <button
           className="btn btn--tertiary undo-btn"
           onClick={onUndo}

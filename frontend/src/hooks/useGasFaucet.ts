@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useContractAddress } from "./useContractData";
+import { formatCelo } from "../lib/gasPlan";
 
 export interface GasTopUpResult {
   ok: boolean;
@@ -8,7 +9,12 @@ export interface GasTopUpResult {
 }
 
 interface UseGasFaucetResult {
-  topUpGasIfNeeded: () => Promise<GasTopUpResult>;
+  /**
+   * `requiredWei` is the balance the next transaction needs (gas limit × fee
+   * cap, from lib/gasPlan.ts). Without it, /api/gas-faucet uses its default
+   * budget at live fees.
+   */
+  topUpGasIfNeeded: (requiredWei?: bigint) => Promise<GasTopUpResult>;
   error: string | null;
 }
 
@@ -26,7 +32,7 @@ export function useGasFaucet(): UseGasFaucetResult {
   const address = useContractAddress();
   const [error, setError] = useState<string | null>(null);
 
-  const topUpGasIfNeeded = useCallback(async (): Promise<GasTopUpResult> => {
+  const topUpGasIfNeeded = useCallback(async (requiredWei?: bigint): Promise<GasTopUpResult> => {
     // If we don't have the address, can't proceed
     if (!address) {
       const msg = "Wallet not connected";
@@ -38,7 +44,9 @@ export function useGasFaucet(): UseGasFaucetResult {
       console.log(`[Gas Check] Checking CELO balance for ${address.slice(0, 6)}...`);
 
       // Fetch current balance via GET endpoint (balance check only, no faucet trigger)
-      const response = await fetch(`/api/gas-faucet?address=${address}`);
+      const qs = new URLSearchParams({ address });
+      if (requiredWei !== undefined) qs.set("minWei", requiredWei.toString());
+      const response = await fetch(`/api/gas-faucet?${qs.toString()}`);
 
       if (!response.ok) {
         const msg = "Could not verify wallet balance. Please check your connection and try again.";
@@ -50,6 +58,7 @@ export function useGasFaucet(): UseGasFaucetResult {
       const result = (await response.json()) as {
         balance: string;
         balanceSufficient: boolean;
+        requiredWei?: string;
       };
 
       const balanceBigInt = BigInt(result.balance);
@@ -62,8 +71,10 @@ export function useGasFaucet(): UseGasFaucetResult {
       }
 
       // Balance is insufficient — user needs to manually top up
-      const celoInDecimal = Number(balanceBigInt) / 1e18;
-      const msg = `Insufficient CELO for gas (${celoInDecimal.toFixed(3)} CELO). You need at least 0.001 CELO to submit transactions. Please top up your wallet.`;
+      const needed = result.requiredWei ? BigInt(result.requiredWei) : requiredWei;
+      const msg = needed !== undefined
+        ? `Insufficient CELO for gas (${formatCelo(balanceBigInt)} CELO). This transaction needs up to ${formatCelo(needed)} CELO. Please top up your wallet.`
+        : `Insufficient CELO for gas (${formatCelo(balanceBigInt)} CELO). Please top up your wallet.`;
       console.warn(`[Gas Check] Balance too low for ${address.slice(0, 6)}...`);
       setError(msg);
       return { ok: false, error: msg };

@@ -24,7 +24,6 @@ import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { usePlayerRegistration } from "./hooks/usePlayerRegistration";
-import { useShop } from "./hooks/useShop";
 import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
 import { useFlowstateVotingContext } from "./contexts/FlowstateVotingContext";
 import { sounds } from "./lib/sounds";
@@ -118,20 +117,9 @@ export default function App() {
   // on the leaderboard even before any on-chain username or score.
   usePlayerRegistration(username);
 
-  // Shop state for undo button
-  const { undoCredits, consumeUndo, pendingAction: shopPending } = useShop();
-  const [undoLocalPending, setUndoLocalPending] = useState(false);
-
-  const handleUndo = async () => {
-    setUndoLocalPending(true);
-    try {
-      await consumeUndo();
-      // TODO: Revert the last move in the game state
-      // This would require integrating with the game logic
-    } finally {
-      setUndoLocalPending(false);
-    }
-  };
+  // No Undo wiring here: Undo is disabled (UNDO_ENABLED). The old handler
+  // called consumeUndo() with no argument, a selector the deployed contract
+  // doesn't have, and never reverted the move.
 
   useEffect(() => {
     // On wallet change, read the dismiss state from storage.
@@ -399,9 +387,6 @@ export default function App() {
               canSubmitScore={isVerifiedForSubmission}
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
-              undoCredits={undoCredits}
-              onUndo={handleUndo}
-              undoPending={undoLocalPending || shopPending === "undo"}
             />
           </div>
         )}

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
 import Avatar from "./Avatar";
+import { freshnessNotice, type StaleReason } from "../lib/leaderboardFreshness";
 
 const PAGE_SIZE = 50;
 
@@ -22,6 +23,9 @@ interface LeaderboardResponse {
   totalPlayers: number;
   totalPages: number;
   stale?: boolean;
+  freshness?: { reason?: StaleReason | null; lagBlocks?: number | null } | null;
+  servedFrom?: "live" | "last_known_good" | null;
+  builtAt?: number | null;
   error?: string;
 }
 
@@ -82,7 +86,7 @@ export default function Leaderboard() {
   );
   const totalPages = data?.totalPages ?? 1;
   const totalPlayers = data?.totalPlayers ?? 0;
-  const isStale = data?.stale === true;
+  const notice = data ? freshnessNotice(data) : null;
 
   // Keep the current page in range if the total player count shrinks.
   useEffect(() => {
@@ -97,7 +101,9 @@ export default function Leaderboard() {
 
   // Only the genuine "nobody has played" case — a transient fetch error keeps
   // the last good page visible via placeholderData rather than flashing empty.
-  const showEmpty = !isLoading && totalPlayers === 0 && entries.length === 0;
+  // A failed load with nothing to show is "unavailable", not "no scores yet".
+  const showUnavailable = !isLoading && isError && entries.length === 0;
+  const showEmpty = !isLoading && !isError && totalPlayers === 0 && entries.length === 0;
   const isLastPage = currentPage >= totalPages - 1;
   const showPagination = entries.length > 0 && totalPages > 1;
 
@@ -132,9 +138,13 @@ export default function Leaderboard() {
 
       {isLoading && <p className="leaderboard__empty">Loading…</p>}
 
-      {isStale && !isLoading && !showEmpty && (
+      {notice && !isLoading && !showEmpty && (
+        <p className="leaderboard__empty">{notice}</p>
+      )}
+
+      {showUnavailable && (
         <p className="leaderboard__empty">
-          Live rankings are catching up — some recent XP may not show yet.
+          The leaderboard is temporarily unavailable. Please try again in a few minutes.
         </p>
       )}
 

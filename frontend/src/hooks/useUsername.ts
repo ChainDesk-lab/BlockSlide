@@ -9,6 +9,7 @@ import { signTransaction } from "viem/actions";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { isInsufficientGasError } from "../lib/gasError";
+import { feeCap, formatCelo, planTransaction, type TxPlan } from "../lib/gasPlan";
 import { useNoGas } from "../contexts/NoGasContext";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
 import { useAuth } from "../auth/AuthContext";
@@ -130,13 +131,33 @@ export function useUsername() {
           nonce = await publicClient.getTransactionCount({ address, blockTag: "pending" });
         } catch { /* let the wallet manage it */ }
 
+        // Gas limit and fees from live chain data (lib/gasPlan.ts) instead of a
+        // fixed 120k limit and 500 gwei cap, which made nodes demand 0.06 CELO.
+        let plan: TxPlan;
+        try {
+          plan = await planTransaction(publicClient as any, {
+            account: address,
+            to: GAME2048_ADDRESS,
+            data,
+            fallbackGas: 120_000n,
+            legacy: false,
+          });
+        } catch (planErr) {
+          console.error("Gas preflight failed:", planErr);
+          setError("Couldn't reach the Celo network to check fees. Check your connection and try again.");
+          setIsSaving(false);
+          return;
+        }
+        const maxFee = feeCap(plan.fees);
+        const tip = plan.fees.type === "eip1559" ? plan.fees.maxPriorityFeePerGas : maxFee;
+
         const base = {
           account: address,
           to: GAME2048_ADDRESS,
           data,
-          gas: 120_000n,
-          maxFeePerGas: 500_000_000_000n,
-          maxPriorityFeePerGas: 2_500_000_000n,
+          gas: plan.gas,
+          maxFeePerGas: maxFee,
+          maxPriorityFeePerGas: tip,
           ...(nonce !== undefined ? { nonce } : {}),
           chainId: TARGET_CHAIN.id,
         } as const;
@@ -156,7 +177,7 @@ export function useUsername() {
 
         // Ensure user has enough gas before attempting transaction
         // For new email users, this is critical since they haven't funded their wallet yet
-        const gasResult = await topUpGasIfNeeded();
+        const gasResult = await topUpGasIfNeeded(plan.requiredWei);
         if (!gasResult.ok) {
           // Sponsored gas failed — fall back to the manual top-up modal (shows
           // the wallet address) so the user is never stuck with just an error.
@@ -185,9 +206,9 @@ export function useUsername() {
                     from: address,
                     to: GAME2048_ADDRESS,
                     data,
-                    gas: "0x1d4c0", // 120000 in hex
-                    maxFeePerGas: "0x7428000000", // 500 Gwei in hex
-                    maxPriorityFeePerGas: "0x95a0f200", // 2.5 Gwei in hex
+                    gas: toHex(plan.gas),
+                    maxFeePerGas: toHex(maxFee),
+                    maxPriorityFeePerGas: toHex(tip),
                     chainId: "0xa4ec", // Celo mainnet
                     type: "0x2",
                     ...(nonce !== undefined ? { nonce: `0x${nonce.toString(16)}` } : {}),
@@ -231,7 +252,7 @@ export function useUsername() {
           if (authType === "magic") {
             if (msg.includes("insufficient balance") || msg.includes("insufficient funds") || msg.includes("insufficient gas")) {
               triggerNoGas();
-              setError("You need CELO in your wallet to pay for gas. A small amount (0.01 CELO) is enough.");
+              setError(`You need CELO in your wallet to pay for gas — up to ${formatCelo(plan.requiredWei)} CELO for this transaction.`);
               setIsSaving(false);
               return;
             }
@@ -269,9 +290,9 @@ export function useUsername() {
               from: address,
               to: GAME2048_ADDRESS,
               data,
-              gas: toHex(120_000n),
-              maxFeePerGas: toHex(500_000_000_000n),
-              maxPriorityFeePerGas: toHex(2_500_000_000n),
+              gas: toHex(plan.gas),
+              maxFeePerGas: toHex(maxFee),
+              maxPriorityFeePerGas: toHex(tip),
               chainId: toHex(TARGET_CHAIN.id),
               type: "0x2",
               ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),

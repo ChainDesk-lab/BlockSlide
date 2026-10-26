@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BaseError, ContractFunctionRevertedError, encodeFunctionData, keccak256, toHex } from "viem";
 import { signTransaction } from "viem/actions";
 import {
-  useBalance,
   usePublicClient,
   useReadContract,
   useSwitchChain,
@@ -13,6 +12,9 @@ import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
 import { GameState, generateSeed } from "../lib/gameLogic";
 import { isInsufficientGasError } from "../lib/gasError";
+import { formatCelo, planTransaction, type TxPlan } from "../lib/gasPlan";
+import { classifyTxError } from "../lib/txErrors";
+import { runExclusive } from "../lib/runExclusive";
 import { useNoGas } from "../contexts/NoGasContext";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../auth/AuthContext";
@@ -22,7 +24,15 @@ import { storeSeedInIndexedDB, recoverSeedFromIndexedDB, clearSeedFromIndexedDB 
 import { useSigner } from "./useSigner";
 import { useGasFaucet } from "./useGasFaucet";
 
-const LOW_GAS_THRESHOLD = 1_000_000_000_000_000n; // 0.001 CELO (sufficient for Celo gas costs)
+// Gas limits used only if live estimation fails. The balance a node requires
+// is computed per transaction from these (or the estimate) × live fees — see
+// lib/gasPlan.ts. There is no fixed "enough gas" threshold any more.
+const START_SESSION_FALLBACK_GAS = 200_000n;
+const SUBMIT_SCORE_FALLBACK_GAS = 500_000n;
+
+// How long to keep waiting for a submitted score's receipt after the first
+// 2-minute wait times out, before telling the player it couldn't be confirmed.
+const SLOW_RECEIPT_EXTRA_MS = 10 * 60_000;
 
 // Durable, session-scoped copy of the committed seed. Kept separate from the
 // game-state seed (blockslide_game_*) so a board reset, remount, or "play
@@ -91,11 +101,6 @@ export function useGameSession() {
       console.log(`[Game Session] Submitting with authType=${authType}, chainId=${chainId}, isWrongChain=${isWrongChain}`);
     }
   }, [phase, authType, chainId, isWrongChain]);
-
-  const { data: celoBalance } = useBalance({
-    address,
-    query: { enabled: !!address },
-  });
 
   const contractDeployed = GAME2048_ADDRESS !== ZERO_ADDRESS;
 
@@ -192,9 +197,11 @@ export function useGameSession() {
   const signAndBroadcast = useCallback(async (
     activeSigner: any,
     data: `0x${string}`,
-    gas: bigint,
+    plan: TxPlan,
     waitForReceipt: boolean = false,
   ): Promise<`0x${string}`> => {
+    // Gas limit and fees come from the live plan (lib/gasPlan.ts), never fixed caps.
+    const { gas, fees } = plan;
     if (!activeSigner || !address) throw new Error("Wallet not connected");
     if (!publicClient) throw new Error("Network unavailable");
 
@@ -206,13 +213,16 @@ export function useGameSession() {
         nonce = await publicClient.getTransactionCount({ address, blockTag: "pending" });
       } catch { /* proceed without explicit nonce */ }
 
+      const feeFields =
+        fees.type === "eip1559"
+          ? { maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas }
+          : { maxFeePerGas: fees.gasPrice, maxPriorityFeePerGas: fees.gasPrice };
       const txBase = {
         account: address,
         to: GAME2048_ADDRESS,
         data,
         gas,
-        maxFeePerGas:         500_000_000_000n,
-        maxPriorityFeePerGas:   2_500_000_000n,
+        ...feeFields,
         ...(nonce !== undefined ? { nonce } : {}),
         chainId: TARGET_CHAIN.id,
       } as const;
@@ -230,14 +240,9 @@ export function useGameSession() {
       const isMagicWallet = authType === "magic";
 
       if (isMagicWallet) {
-        // Fetch live gas price immediately before broadcast — never send a stale hardcoded value.
-        // Celo's base fee floats (currently ~200 Gwei); add 20% buffer so we clear it
-        // even if it ticks up between the fetch and when the block is mined.
-        let gasPrice = 300_000_000_000n; // 300 Gwei safe fallback if live fetch fails
-        try {
-          const liveGasPrice = await publicClient.getGasPrice();
-          gasPrice = liveGasPrice + liveGasPrice / 5n; // live + 20%
-        } catch { /* use fallback */ }
+        // Legacy gasPrice from the live plan (live price + 20%). No hard-coded
+        // fallback: if fees can't be read, planning fails before we get here.
+        const gasPrice = fees.type === "legacy" ? fees.gasPrice : fees.maxFeePerGas;
 
         hash = await (activeSigner as any).request({
           method: "eth_sendTransaction",
@@ -284,8 +289,8 @@ export function useGameSession() {
               to:                   GAME2048_ADDRESS,
               data,
               gas:                  toHex(gas),
-              maxFeePerGas:         toHex(500_000_000_000n),
-              maxPriorityFeePerGas: toHex(2_500_000_000n),
+              maxFeePerGas:         toHex(feeFields.maxFeePerGas),
+              maxPriorityFeePerGas: toHex(feeFields.maxPriorityFeePerGas),
               chainId:              toHex(TARGET_CHAIN.id),
               type:                 "0x2",
               ...(nonce !== undefined ? { nonce: toHex(nonce) } : {}),
@@ -313,6 +318,57 @@ export function useGameSession() {
       throw e;
     }
   }, [publicClient, address, authType]);
+
+  // ── gas preflight ─────────────────────────────────────────────────────────
+  // Plans the exact transaction (live gas estimate × live fee cap) and checks
+  // the balance a node will demand for it. Returns the plan to broadcast with,
+  // or null after telling the player why it can't be sent. An unreadable fee
+  // or balance is reported as a network problem, never as "no gas".
+  const ensureGas = useCallback(async (
+    data: `0x${string}`,
+    fallbackGas: bigint,
+  ): Promise<TxPlan | null> => {
+    if (!address || !publicClient) {
+      setError("Network unavailable — please try again.");
+      return null;
+    }
+    const plan = () => planTransaction(publicClient as any, {
+      account: address,
+      to: GAME2048_ADDRESS,
+      data,
+      fallbackGas,
+      legacy: authType === "magic",
+    });
+    try {
+      let p = await plan();
+      if (p.sufficient) return p;
+
+      setError("Topping up gas...");
+      const gasResult = await topUpGasIfNeeded(p.requiredWei);
+      if (gasResult.ok) {
+        p = await plan();
+        if (p.sufficient) {
+          setError(null);
+          return p;
+        }
+      }
+      // Sponsored gas didn't cover it — fall back to the manual top-up modal so
+      // the player is never stuck with just an error.
+      triggerNoGas();
+      setError(
+        `This transaction needs up to ${formatCelo(p.requiredWei)} CELO for gas; your wallet has ${formatCelo(p.balance)} CELO. Top up and try again.`,
+      );
+      return null;
+    } catch (e) {
+      console.error("[Game Session] Gas preflight failed:", e);
+      setError(
+        classifyTxError(e) === "rpc_unavailable"
+          ? "Couldn't reach the Celo network to check fees. Check your connection and try again."
+          : "Couldn't prepare the transaction. Please try again.",
+      );
+      return null;
+    }
+  }, [address, publicClient, authType, topUpGasIfNeeded, triggerNoGas]);
 
   // ── resume an already-active on-chain session ────────────────────────────
   // The contract allows only one live session per player. If one already
@@ -392,18 +448,8 @@ export function useGameSession() {
         return;
       }
 
-      if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
-        setError("Topping up gas...");
-        const gasResult = await topUpGasIfNeeded();
-        if (!gasResult.ok) {
-          // Sponsored gas failed — fall back to the manual top-up modal so
-          // the user is never stuck with just an error.
-          triggerNoGas();
-          setError(gasResult.error || "Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
-          return;
-        }
-        setError(null);
-      }
+      // The gas check happens after simulation, below, against the exact
+      // startSession transaction — before the seed reaches the board.
 
       const SESSION_TIMEOUT_SECS = 2n * 3600n;
       // Pre-flight: read the session straight from chain (never trust only the
@@ -528,6 +574,16 @@ export function useGameSession() {
         }
       }
 
+      // Gas preflight for this exact transaction, before the seed is stored or
+      // handed to the board: if the wallet can't pay, nothing has started.
+      const startData = encodeFunctionData({ abi: GAME2048_ABI, functionName: "startSession", args: [keccak256(seed)] });
+      const startPlan = await ensureGas(startData, START_SESSION_FALLBACK_GAS);
+      if (!startPlan) {
+        setPhase("idle");
+        pendingActionRef.current = null;
+        return;
+      }
+
       lastStartSeedRef.current = seed;
       // Durably persist the committed seed *before* handing it to the game, so a
       // later board reset / remount / "play locally" can't orphan this session.
@@ -550,11 +606,7 @@ export function useGameSession() {
       console.log(`[Game Session] Callback onSeedReady completed`);
 
       try {
-        await signAndBroadcast(
-          signer,
-          encodeFunctionData({ abi: GAME2048_ABI, functionName: "startSession", args: [keccak256(seed)] }),
-          200_000n,
-        );
+        await signAndBroadcast(signer, startData, startPlan);
         console.log(`[Game Session] Transaction successful, refetching session to clear cache`);
         // Refetch to clear wagmi's cached session data so submitScore reads the fresh on-chain seed hash
         refetchSession();
@@ -621,31 +673,21 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, isWrongChain, celoBalance, onChainSession, signer, signerError, publicClient, refetchSession, tryResumeActiveSession, signAndBroadcast, triggerNoGas, showToast, topUpGasIfNeeded],
+    [address, isConnected, contractDeployed, isWrongChain, onChainSession, signer, signerError, publicClient, refetchSession, tryResumeActiveSession, signAndBroadcast, triggerNoGas, showToast, ensureGas],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
-  const submitScore = useCallback(
+  // submitScoreOnce does the work; submitScore (below) guards it so a double
+  // tap can't start a second submission while the first is still preparing.
+  const submitScoreOnce = useCallback(
     async (gameState: GameState, seed: `0x${string}`) => {
       if (!address) return;
       if (!contractDeployed) {
         setError("Deploy the contract and update GAME2048_ADDRESS to submit scores on-chain.");
         return;
       }
-      // If gas is low, try to top up using the faucet
-      if (celoBalance && celoBalance.value < LOW_GAS_THRESHOLD) {
-        setError("Topping up gas...");
-        const gasResult = await topUpGasIfNeeded();
-        if (!gasResult.ok) {
-          // Sponsored gas failed — fall back to the manual top-up modal so
-          // the user is never stuck with just an error.
-          triggerNoGas();
-          setError(gasResult.error || "Your CELO balance is too low to pay for gas. Top up your wallet and try again.");
-          return;
-        }
-        setError(null);
-        // Gas was topped up successfully, continue with submission
-      }
+      // The gas check happens after simulation, below, against the exact
+      // submitScore transaction.
       if (!isConnected) {
         setError("Wallet is still connecting — please wait a moment and try again.");
         return;
@@ -945,6 +987,11 @@ export function useGameSession() {
         // Network/RPC error during simulation — proceed and let the tx decide.
       }
 
+      // Gas preflight for this exact transaction (live estimate × live fees).
+      const submitData = encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args });
+      const submitPlan = await ensureGas(submitData, SUBMIT_SCORE_FALLBACK_GAS);
+      if (!submitPlan) return;
+
       setError(null);
       pendingActionRef.current = "submit";
       setPhase("submitting");
@@ -963,8 +1010,8 @@ export function useGameSession() {
       try {
         const hash = await signAndBroadcast(
           signer,
-          encodeFunctionData({ abi: GAME2048_ABI, functionName: "submitScore", args }),
-          500_000n,
+          submitData,
+          submitPlan,
           false, // don't wait for receipt yet; show sending state first
         );
 
@@ -977,7 +1024,20 @@ export function useGameSession() {
         try {
           receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
         } catch (receiptErr) {
-          throw new Error(`Transaction ${hash} failed to confirm: ${(receiptErr as Error).message}`);
+          if (classifyTxError(receiptErr) !== "receipt_timeout") {
+            throw new Error(`Transaction ${hash} failed to confirm: ${(receiptErr as Error).message}`);
+          }
+          // Not mined yet is not a failure: the transaction may still land.
+          // Keep the submit locked and keep waiting rather than inviting a
+          // resubmission that would revert.
+          setError(`Still confirming your score (tx ${hash.slice(0, 10)}…). Please don't submit again.`);
+          try {
+            receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: SLOW_RECEIPT_EXTRA_MS });
+          } catch {
+            throw new Error(
+              `Transaction ${hash} hasn't confirmed after 12 minutes. Check it on Celoscan before submitting again.`,
+            );
+          }
         }
         if (receipt.status === "reverted") {
           throw new Error("Score submission reverted on-chain. Your session is still open — try submitting again.");
@@ -1044,7 +1104,19 @@ export function useGameSession() {
         submissionInProgressRef.current = false;
       }
     },
-    [address, isConnected, contractDeployed, celoBalance, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, topUpGasIfNeeded],
+    [address, isConnected, contractDeployed, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, ensureGas],
+  );
+
+  // One submission at a time, from the first tap: the gas check, seed recovery
+  // and simulation all run before the transaction's own pending state begins,
+  // so without this a second tap could start a second, reverting submission.
+  const submitInFlightRef = useRef(false);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const submitScore = useCallback(
+    async (gameState: GameState, seed: `0x${string}`) => {
+      await runExclusive(submitInFlightRef, () => submitScoreOnce(gameState, seed), setSubmitBusy);
+    },
+    [submitScoreOnce],
   );
 
   const reset = useCallback(() => {
@@ -1068,7 +1140,9 @@ export function useGameSession() {
 
   return {
     phase,
-    isPending,
+    // Busy from the first tap on Submit, not only while the tx is broadcasting,
+    // so the Submit button can't be pressed twice.
+    isPending: isPending || submitBusy,
     isSwitchPending,
     isWrongChain,
     txHash,
