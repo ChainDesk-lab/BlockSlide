@@ -1,183 +1,154 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http, parseEther } from "viem";
+import { createPublicClient, createWalletClient, http, parseAbi, parseEther } from "viem";
 import { celo } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { getRedis } from "../_lib/redis";
+import { GAME2048_ADDRESS } from "../../../src/lib/constants";
 
 /**
- * POST /api/fund-wallet
+ * POST /api/fund-wallet — sends a small amount of CELO to a brand-new email
+ * (Magic) wallet so its first transaction can pay for gas.
  *
- * Auto-funds newly created Magic.link wallets with a small amount of CELO for gas.
- * This is a serverless function that runs once per new wallet signup.
+ * DISABLED BY DEFAULT. It answers 503 unless FUND_WALLET_ENABLED=true.
  *
- * Request body:
- * {
- *   address: "0x...",      // New wallet address to fund
- *   email: "user@example.com", // User email (for logging/tracking)
- * }
+ * Why: until October 2026 this route signed with FUNDING_WALLET_PRIVATE_KEY,
+ * which was the contract OWNER key (the key that can upgrade the game
+ * contract and withdraw its treasury), and it accepted any address from any
+ * caller with only an in-memory duplicate check that reset on every
+ * serverless instance. Anyone could drain it, and the owner key sat in a web
+ * server's environment.
  *
- * Returns:
- * { success: true, txHash: "0x..." }
- * OR
- * { success: false, error: "...", alreadyFunded: boolean }
+ * When re-enabled, it is bounded:
+ *  - it signs only with GAS_FUNDER_PRIVATE_KEY (FUNDING_WALLET_PRIVATE_KEY is
+ *    never read) and refuses to send if that key is the contract's owner();
+ *  - each address is funded at most once, recorded durably in Redis; with
+ *    Redis unavailable it refuses (fails closed);
+ *  - at most FUND_WALLET_DAILY_CAP payouts per UTC day (default 20) and 3
+ *    requests per IP per day;
+ *  - only wallets that have never sent a transaction and hold < 0.02 CELO.
+ * It still has no proof that the caller owns the address (that needs Magic
+ * DID-token verification, a follow-up), so the daily cap is the hard bound on
+ * loss: 20 × 0.05 = 1 CELO per day.
  */
 
-const FUNDING_AMOUNT = "0.05"; // 0.05 CELO = ~50 tx worth of gas
-const FUNDING_WALLET_KEY = process.env.FUNDING_WALLET_PRIVATE_KEY;
+export const runtime = "nodejs";
 
-// Track funded wallets in memory (in production, use a database)
-// This prevents accidental duplicate funding due to retry logic
-const fundedWallets = new Set<string>();
+const FUNDING_AMOUNT = "0.05"; // CELO
+const FRESH_BALANCE_MAX = parseEther("0.02");
+const DEFAULT_DAILY_CAP = 20;
+const PER_IP_DAILY_LIMIT = 3;
+const FUNDED_TTL_SECONDS = 365 * 24 * 60 * 60;
+const DAY_TTL_SECONDS = 2 * 24 * 60 * 60;
+const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
+const OWNER_ABI = parseAbi(["function owner() view returns (address)"]);
 
-async function isFundingRequired(address: `0x${string}`): Promise<boolean> {
-  if (fundedWallets.has(address)) {
-    return false;
-  }
-
-  try {
-    // Check if wallet already has > 0.02 CELO (enough for gas)
-    const response = await fetch("https://forno.celo.org", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        method: "eth_getBalance",
-        params: [address, "latest"],
-        id: 1,
-      }),
-    });
-
-    const data = await response.json() as { result?: string };
-    const balance = BigInt(data.result || "0");
-    const minThreshold = parseEther("0.02");
-
-    return balance < minThreshold;
-  } catch (err) {
-    console.error("Error checking wallet balance:", err);
-    // On error, assume funding is needed (safe default)
-    return true;
-  }
+function json(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-async function fundWallet(
-  toAddress: `0x${string}`,
-  email: string
-): Promise<{ txHash: `0x${string}` } | { error: string; alreadyFunded: boolean }> {
-  if (!FUNDING_WALLET_KEY) {
-    return {
-      error: "Funding wallet not configured. Set FUNDING_WALLET_PRIVATE_KEY env var.",
-      alreadyFunded: false,
-    };
-  }
+function isEnabled(): boolean {
+  return process.env.FUND_WALLET_ENABLED === "true";
+}
 
-  const fundingKey = FUNDING_WALLET_KEY.startsWith("0x")
-    ? (FUNDING_WALLET_KEY as `0x${string}`)
-    : (`0x${FUNDING_WALLET_KEY}` as `0x${string}`);
+function dailyCap(): number {
+  const n = Number(process.env.FUND_WALLET_DAILY_CAP);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : DEFAULT_DAILY_CAP;
+}
 
-  try {
-    const account = privateKeyToAccount(fundingKey);
+function clientIp(request: NextRequest): string {
+  return (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+}
 
-    const client = createWalletClient({
-      account,
-      chain: celo,
-      transport: http("https://forno.celo.org"),
-    });
+function utcDay(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
-    // Send funding transaction
-    const txHash = await client.sendTransaction({
-      to: toAddress,
-      value: parseEther(FUNDING_AMOUNT),
-    });
-
-    // Mark as funded in memory
-    fundedWallets.add(toAddress);
-
-    console.log(
-      `✅ Funded wallet ${toAddress} (${email}) with ${FUNDING_AMOUNT} CELO. Tx: ${txHash}`
-    );
-
-    return { txHash };
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-
-    // Check if error is due to already being funded
-    if (errorMsg.includes("nonce") || errorMsg.includes("known")) {
-      console.warn(`⚠️  Possible duplicate funding attempt for ${toAddress}`);
-      return { error: "Wallet may already be funded", alreadyFunded: true };
-    }
-
-    console.error(`❌ Funding failed for ${toAddress} (${email}):`, errorMsg);
-    return { error: errorMsg, alreadyFunded: false };
-  }
+/** Increment a per-day counter; returns the new count. */
+async function bump(redis: NonNullable<Awaited<ReturnType<typeof getRedis>>>, key: string): Promise<number> {
+  const n = await redis.incr(key);
+  if (n === 1) await redis.expire(key, DAY_TTL_SECONDS);
+  return n;
 }
 
 export async function POST(request: NextRequest) {
+  if (!isEnabled()) {
+    return json({ success: false, disabled: true, error: "Automatic wallet funding is paused." }, 503);
+  }
+
+  let address: string | undefined;
   try {
-    const { address, email } = (await request.json()) as {
-      address?: string;
-      email?: string;
-    };
+    ({ address } = (await request.json()) as { address?: string });
+  } catch {
+    return json({ success: false, error: "Invalid request body" }, 400);
+  }
+  if (!address || !ADDR_RE.test(address)) {
+    return json({ success: false, error: "Invalid address" }, 400);
+  }
+  const to = address.toLowerCase() as `0x${string}`;
 
-    // Validate input
-    if (!address || !email) {
-      return NextResponse.json(
-        { success: false, error: "Missing address or email" },
-        { status: 400 }
-      );
+  const rawKey = process.env.GAS_FUNDER_PRIVATE_KEY;
+  if (!rawKey) {
+    return json({ success: false, error: "Funding is not configured." }, 503);
+  }
+  const redis = await getRedis();
+  if (!redis) {
+    // Without durable records there is no duplicate protection: refuse.
+    return json({ success: false, error: "Funding is temporarily unavailable." }, 503);
+  }
+
+  try {
+    if ((await bump(redis, `fundwallet:ip:${clientIp(request)}:${utcDay()}`)) > PER_IP_DAILY_LIMIT) {
+      return json({ success: false, error: "Too many funding requests. Try again tomorrow." }, 429);
+    }
+    if (await redis.get(`fundwallet:funded:${to}`)) {
+      return json({ success: true, alreadyFunded: true, txHash: null, message: "Wallet was already funded" });
     }
 
-    if (!address.startsWith("0x") || address.length !== 42) {
-      return NextResponse.json(
-        { success: false, error: "Invalid Ethereum address" },
-        { status: 400 }
-      );
+    const publicClient = createPublicClient({ chain: celo, transport: http("https://forno.celo.org", { timeout: 10_000 }) });
+    const [nonce, balance, owner] = await Promise.all([
+      publicClient.getTransactionCount({ address: to }),
+      publicClient.getBalance({ address: to }),
+      publicClient.readContract({ address: GAME2048_ADDRESS, abi: OWNER_ABI, functionName: "owner" }),
+    ]);
+    if (nonce > 0 || balance >= FRESH_BALANCE_MAX) {
+      return json({ success: true, txHash: null, message: "Wallet is not new or already has gas" });
     }
 
-    const checksumAddress = address.toLowerCase() as `0x${string}`;
-
-    // Check if funding is needed
-    const needsFunding = await isFundingRequired(checksumAddress);
-
-    if (!needsFunding) {
-      console.log(`ℹ️  Wallet ${checksumAddress} already has sufficient balance`);
-      return NextResponse.json({
-        success: true,
-        message: "Wallet already funded",
-        txHash: null,
-      });
+    const account = privateKeyToAccount((rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`) as `0x${string}`);
+    if (account.address.toLowerCase() === (owner as string).toLowerCase()) {
+      console.error("[fund-wallet] REFUSING: GAS_FUNDER_PRIVATE_KEY is the contract owner key");
+      return json({ success: false, error: "Funding is misconfigured." }, 503);
     }
 
-    // Perform funding
-    const result = await fundWallet(checksumAddress, email);
-
-    if ("error" in result) {
-      return NextResponse.json(
-        { success: false, ...result },
-        { status: 400 }
-      );
+    // Claim the address first so concurrent requests can't both pay it, then
+    // count against the daily cap.
+    const claimed = await redis.set(`fundwallet:funded:${to}`, "pending", { NX: true, EX: FUNDED_TTL_SECONDS });
+    if (claimed !== "OK") {
+      return json({ success: true, alreadyFunded: true, txHash: null, message: "Wallet was already funded" });
+    }
+    if ((await bump(redis, `fundwallet:day:${utcDay()}`)) > dailyCap()) {
+      await redis.del(`fundwallet:funded:${to}`);
+      return json({ success: false, error: "Daily funding limit reached. Try again tomorrow." }, 429);
     }
 
-    return NextResponse.json({
-      success: true,
-      txHash: result.txHash,
-      amount: FUNDING_AMOUNT,
-      message: `Wallet funded with ${FUNDING_AMOUNT} CELO`,
-    });
+    try {
+      const wallet = createWalletClient({ account, chain: celo, transport: http("https://forno.celo.org", { timeout: 15_000 }) });
+      const txHash = await wallet.sendTransaction({ to, value: parseEther(FUNDING_AMOUNT) });
+      await redis.set(`fundwallet:funded:${to}`, txHash, { EX: FUNDED_TTL_SECONDS });
+      console.log(`[fund-wallet] funded ${to.slice(0, 8)}… with ${FUNDING_AMOUNT} CELO`);
+      return json({ success: true, txHash, amount: FUNDING_AMOUNT });
+    } catch (sendErr) {
+      // Not paid: release the claim so a later request can retry.
+      await redis.del(`fundwallet:funded:${to}`);
+      console.error("[fund-wallet] send failed:", sendErr instanceof Error ? sendErr.message : sendErr);
+      return json({ success: false, error: "Funding failed. Please try again later." }, 502);
+    }
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error("Fund wallet API error:", errorMsg);
-
-    return NextResponse.json(
-      { success: false, error: "Internal server error: " + errorMsg },
-      { status: 500 }
-    );
+    console.error("[fund-wallet] error:", err instanceof Error ? err.message : err);
+    return json({ success: false, error: "Funding is temporarily unavailable." }, 503);
   }
 }
 
 export async function GET() {
-  return NextResponse.json({
-    message: "Wallet funding API. POST to fund a new wallet.",
-    endpoint: "/api/fund-wallet",
-    method: "POST",
-    body: { address: "0x...", email: "user@example.com" },
-  });
+  return json({ enabled: isEnabled() });
 }
