@@ -24,6 +24,8 @@ import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { usePlayerRegistration } from "./hooks/usePlayerRegistration";
+import { useUndoCredits } from "./hooks/useUndoCredits";
+import { UNDO_ENABLED } from "./lib/constants";
 import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
 import { useFlowstateVotingContext } from "./contexts/FlowstateVotingContext";
 import { sounds } from "./lib/sounds";
@@ -86,7 +88,7 @@ export default function App() {
     setShowHowToPlay(false);
   };
   const boardWrapperRef = useRef<HTMLDivElement>(null);
-  const { state, seed, startNewGame, clearGame, isInitialized, lastDirection } = useGame(address, view === "game", boardWrapperRef);
+  const { state, seed, startNewGame, clearGame, isInitialized, lastDirection, canUndo, undoLastMove } = useGame(address, view === "game", boardWrapperRef);
   const {
     phase,
     isPending,
@@ -100,6 +102,8 @@ export default function App() {
     sessionExpired,
     sessionStuck,
     switchToTargetChain,
+    spendUndoCredit,
+    undoPending,
   } = useGameSession();
 
   // ── Username ────────────────────────────────────────────────────────────────
@@ -117,9 +121,19 @@ export default function App() {
   // on the leaderboard even before any on-chain username or score.
   usePlayerRegistration(username);
 
-  // No Undo wiring here: Undo is disabled (UNDO_ENABLED). The old handler
-  // called consumeUndo() with no argument, a selector the deployed contract
-  // doesn't have, and never reverted the move.
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  // Spend one on-chain credit (consumeUndo(player)); only once it confirms,
+  // take the move back. A rejected or failed transaction leaves the board alone.
+  const { undoCredits, refetchUndoCredits } = useUndoCredits(address as `0x${string}` | undefined);
+  const handleUndo = async () => {
+    if (!UNDO_ENABLED || !canUndo) return;
+    const spent = await spendUndoCredit();
+    if (spent) {
+      undoLastMove();
+      sounds.slide();
+    }
+    refetchUndoCredits();
+  };
 
   useEffect(() => {
     // On wallet change, read the dismiss state from storage.
@@ -387,6 +401,10 @@ export default function App() {
               canSubmitScore={isVerifiedForSubmission}
               onNewGame={handleNewGame}
               onSubmit={handleSubmit}
+              undoCredits={undoCredits}
+              canUndo={canUndo}
+              onUndo={handleUndo}
+              undoPending={undoPending}
             />
           </div>
         )}
@@ -451,7 +469,7 @@ function FeatureNotificationRenderer({
       <FeatureNotification
         type="undoStep"
         title="✨ Undo Step"
-        message="Made a mistake? The new Undo Step feature in the shop lets you take back your last move once per game. Perfect for those tricky situations!"
+        message="Made a mistake? Buy Undo Step credits in the shop, then tap Undo under the board to take back your last move. Each undo uses one credit."
         actionLabel="Check it out"
         onAction={() => {
           // Could navigate to shop here if needed

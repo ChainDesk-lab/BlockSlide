@@ -1,92 +1,83 @@
 import { useCallback, useState } from "react";
-import { useContractAddress } from "./useContractData";
-import { formatCelo } from "../lib/gasPlan";
+import { useContractAddress, useContractPublicClient, useContractWalletClient } from "./useContractData";
+import { triggerFaucet } from "@goodsdks/citizen-sdk";
+import { TARGET_CHAIN, GOODDOLLAR_FAUCET_ADDRESS } from "../lib/constants";
+import { runGasTopUp, type GasTopUpResult } from "../lib/gasTopUp";
 
-export interface GasTopUpResult {
-  ok: boolean;
-  /** Error message if check failed */
-  error: string | null;
-}
+export type { GasTopUpResult } from "../lib/gasTopUp";
+export { GAS_TOP_UP_PROGRESS, GAS_MANUAL_NEEDED, fetchGasStatus } from "../lib/gasTopUp";
 
 interface UseGasFaucetResult {
   /**
-   * `requiredWei` is the balance the next transaction needs (gas limit × fee
-   * cap, from lib/gasPlan.ts). Without it, /api/gas-faucet uses its default
-   * budget at live fees.
+   * Make sure the wallet can pay for the next transaction.
+   *
+   * `requiredWei` is that transaction's requirement (gas limit × fee cap, from
+   * lib/gasPlan.ts); without it /api/gas-faucet uses its default budget at
+   * live fees. `onProgress` receives a player-facing status line, only once a
+   * faucet top-up is actually under way.
    */
-  topUpGasIfNeeded: (requiredWei?: bigint) => Promise<GasTopUpResult>;
+  topUpGasIfNeeded: (requiredWei?: bigint, onProgress?: (message: string) => void) => Promise<GasTopUpResult>;
   error: string | null;
 }
 
 /**
- * Gas balance checker for transactions
- *
- * NOTE: The gas faucet (triggerFaucet from @goodsdks/citizen-sdk) has been disabled
- * due to reliability issues causing false-negative errors even when wallets had sufficient
- * balance. This hook now only checks whether a wallet has enough CELO for gas.
- *
- * If balance is insufficient, the user is directed to manually fund their wallet.
- * If balance is sufficient, the transaction proceeds directly without any faucet dependency.
+ * Gas sponsorship: the GoodDollar faucet first, then the manual (Telegram)
+ * fallback. The flow itself lives in lib/gasTopUp.ts; this hook supplies the
+ * wallet clients, the faucet SDK and the /api/gas/tier1 bookkeeping.
  */
 export function useGasFaucet(): UseGasFaucetResult {
   const address = useContractAddress();
+  const publicClient = useContractPublicClient();
+  const walletClient = useContractWalletClient();
   const [error, setError] = useState<string | null>(null);
 
-  const topUpGasIfNeeded = useCallback(async (requiredWei?: bigint): Promise<GasTopUpResult> => {
-    // If we don't have the address, can't proceed
-    if (!address) {
-      const msg = "Wallet not connected";
-      setError(msg);
-      return { ok: false, error: msg };
-    }
-
-    try {
-      console.log(`[Gas Check] Checking CELO balance for ${address.slice(0, 6)}...`);
-
-      // Fetch current balance via GET endpoint (balance check only, no faucet trigger)
-      const qs = new URLSearchParams({ address });
-      if (requiredWei !== undefined) qs.set("minWei", requiredWei.toString());
-      const response = await fetch(`/api/gas-faucet?${qs.toString()}`);
-
-      if (!response.ok) {
-        const msg = "Could not verify wallet balance. Please check your connection and try again.";
-        console.error("[Gas Check] Balance fetch failed:", response.status);
+  const topUpGasIfNeeded = useCallback(
+    async (requiredWei?: bigint, onProgress?: (message: string) => void): Promise<GasTopUpResult> => {
+      if (!address) {
+        const msg = "No wallet address found";
         setError(msg);
         return { ok: false, error: msg };
       }
 
-      const result = (await response.json()) as {
-        balance: string;
-        balanceSufficient: boolean;
-        requiredWei?: string;
-      };
+      const result = await runGasTopUp({
+        address,
+        requiredWei,
+        onProgress,
+        deps: {
+          triggerFaucet:
+            publicClient && walletClient
+              ? () =>
+                  triggerFaucet({
+                    chainId: TARGET_CHAIN.id,
+                    account: address,
+                    publicClient,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    walletClient: walletClient as any,
+                    faucetAddress: GOODDOLLAR_FAUCET_ADDRESS,
+                    env: "production",
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  } as any) as Promise<string>
+              : null,
+          canUseFaucet: async () => {
+            const res = await fetch(`/api/gas/tier1?address=${address}`);
+            if (!res.ok) return true; // fail open; GoodDollar enforces its own limits
+            return ((await res.json()) as { canUseFaucet: boolean }).canUseFaucet;
+          },
+          markFaucetUsed: async () => {
+            await fetch(`/api/gas/tier1`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address }),
+            });
+          },
+        },
+      });
 
-      const balanceBigInt = BigInt(result.balance);
-      console.log(`[Gas Check] Balance for ${address.slice(0, 6)}...: ${balanceBigInt.toLocaleString()} wei (sufficient: ${result.balanceSufficient})`);
-
-      // If balance is sufficient, proceed
-      if (result.balanceSufficient) {
-        setError(null);
-        return { ok: true, error: null };
-      }
-
-      // Balance is insufficient — user needs to manually top up
-      const needed = result.requiredWei ? BigInt(result.requiredWei) : requiredWei;
-      const msg = needed !== undefined
-        ? `Insufficient CELO for gas (${formatCelo(balanceBigInt)} CELO). This transaction needs up to ${formatCelo(needed)} CELO. Please top up your wallet.`
-        : `Insufficient CELO for gas (${formatCelo(balanceBigInt)} CELO). Please top up your wallet.`;
-      console.warn(`[Gas Check] Balance too low for ${address.slice(0, 6)}...`);
-      setError(msg);
-      return { ok: false, error: msg };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error("[Gas Check] Exception during balance check:", { errorMessage: message, address: address?.slice(0, 6) });
-
-      const userMsg = "Balance check failed. Please ensure you have sufficient CELO for gas and try again.";
-      setError(userMsg);
-      return { ok: false, error: userMsg };
-    }
-  }, [address]);
+      setError(result.ok ? null : result.error);
+      return result;
+    },
+    [address, publicClient, walletClient],
+  );
 
   return {
     topUpGasIfNeeded,

@@ -18,6 +18,8 @@ interface GameControlsProps {
   onNewGame: () => void;
   onSubmit: () => void;
   undoCredits?: bigint;
+  /** There is a move to take back (and the game wasn't won). */
+  canUndo?: boolean;
   onUndo?: () => void;
   undoPending?: boolean;
 }
@@ -31,6 +33,7 @@ export default function GameControls({
   onNewGame,
   onSubmit,
   undoCredits,
+  canUndo,
   onUndo,
   undoPending,
 }: GameControlsProps) {
@@ -81,20 +84,22 @@ export default function GameControls({
         </button>
       )}
 
-      {/* Undo button — shown during active gameplay, only while Undo is enabled
-          (see UNDO_ENABLED for why it is off) */}
-      {UNDO_ENABLED && phase === "active" && !gameEnded && onUndo && (
+      {/* Undo — during play and after a game-over (take back the losing move),
+          not after a win. Spends one on-chain credit, then reverts the move. */}
+      {UNDO_ENABLED && phase === "active" && !state?.won && onUndo && (
         <button
           className="btn btn--tertiary undo-btn"
           onClick={onUndo}
-          disabled={!undoCredits || undoCredits === 0n || undoPending || isPending}
+          disabled={!canUndo || !undoCredits || undoCredits === 0n || undoPending || isPending}
           title={
             !undoCredits || undoCredits === 0n
-              ? "No undo credits available"
-              : `Undo move (${Number(undoCredits || 0)} credits left)`
+              ? "No undo credits — get some in the shop"
+              : !canUndo
+                ? "Make a move first — Undo takes back your last move"
+                : `Take back your last move (${Number(undoCredits)} credit${undoCredits === 1n ? "" : "s"} left)`
           }
         >
-          {undoPending ? <Spinner /> : `↶ Undo (${Number(undoCredits || 0)})`}
+          {undoPending ? <><Spinner /> Undoing…</> : `↶ Undo (${Number(undoCredits || 0)})`}
         </button>
       )}
 
