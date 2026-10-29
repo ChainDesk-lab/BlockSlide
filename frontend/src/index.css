@@ -4957,3 +4957,9 @@ html.dark-mode {
     min-width: auto;
   }
 }
+
+/* GoodDollar UBI contribution (shop) */
+.shop__ubi-note { margin: 8px 0 16px; font-size: 0.85rem; color: var(--text-muted); text-align: center; }
+.shop__ubi-note a, .shop__ubi-confirmed a { color: var(--brand); font-weight: 600; text-decoration: none; }
+.shop__ubi-confirmed { margin: 12px 0 0; font-size: 0.85rem; text-align: center; color: var(--text, inherit); }
+.shop-item__ubi { display: block; font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }

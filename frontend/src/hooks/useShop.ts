@@ -7,6 +7,7 @@ import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED } from "../lib/co
 import { useContractAddress, useContractPublicClient } from "./useContractData";
 import { isInsufficientGasError } from "../lib/gasError";
 import { useNoGas } from "../contexts/NoGasContext";
+import { contributionsFromReceipt } from "../lib/ubiContribution";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
@@ -20,6 +21,9 @@ export function useShop() {
   const [pendingAction, setPendingAction] = useState<ShopAction>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
   const [error, setError] = useState<string | null>(null);
+  // The UBI contribution of the last confirmed purchase, read from its receipt
+  // (UbiContribution event). null when there was none to show.
+  const [lastUbiContribution, setLastUbiContribution] = useState<{ amount: bigint; txHash: `0x${string}` } | null>(null);
 
   const { isLoading: isTxPending } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -102,6 +106,7 @@ export function useShop() {
   // ── Actions ────────────────────────────────────────────────────────────────
   const run = async (action: ShopAction, fn: () => Promise<`0x${string}`>) => {
     setError(null);
+    setLastUbiContribution(null);
     setPendingAction(action);
     try {
       const hash = await fn();
@@ -118,6 +123,12 @@ export function useShop() {
         if (receipt.status === "reverted") {
           setError("Transaction failed — please check your balance and try again.");
           return;
+        }
+        // Only report a contribution the receipt actually contains.
+        if (address) {
+          const found = contributionsFromReceipt(receipt.logs, GAME2048_ADDRESS, address);
+          const amount = found.reduce((sum, c) => sum + c.contribution, 0n);
+          if (amount > 0n) setLastUbiContribution({ amount, txHash: hash });
         }
       } catch (receiptErr) {
         setError(`Transaction confirmation failed: ${(receiptErr as Error).message}`);
@@ -271,6 +282,11 @@ export function useShop() {
 
     // Actions
     pendingAction, isTxPending, error,
+    lastUbiContribution,
+    // Prices exactly as read from the chain (undefined until loaded), for
+    // showing each item's UBI contribution. The normalized prices above may
+    // be fallbacks and must not be used for that.
+    onChainPrices: { shield: shieldPrice, boost2x: boost2xPrice, boost5x: boost5xPrice, undo: undoPrice },
     approve, buyShield, buyBoost,
     buyUndoMove, consumeUndo, buyCosmetic,
     isApproved, canAfford,
