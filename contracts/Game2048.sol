@@ -4,6 +4,10 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { IERC20 as OZIERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+// Stateless (EIP-1153 transient storage): adds no storage slots to the proxy.
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
@@ -34,7 +38,8 @@ interface IIdentity {
 ///   - An active XP boost then multiplies the result by 2 or 5.
 ///
 /// Upgradeable via UUPS proxy — only the owner can authorize upgrades.
-contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardTransient {
+    using SafeERC20 for OZIERC20;
 
     // ─── Interfaces ───────────────────────────────────────────────────────────
 
@@ -58,6 +63,32 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     uint256 public constant COMBO_THRESHOLD    = 5;  // moves needed to trigger 5x XP
     uint256 public constant COMBO_XP_MULTIPLIER = 5;
+
+    // ─── GoodDollar UBI contribution ──────────────────────────────────────────
+    //
+    // 5% of every paid shop purchase is sent, in the same transaction, to the
+    // GoodDollar UBI scheme. The buyer pays exactly the listed price; the
+    // contribution is carved out of it (rounded down, as GoodCollective does)
+    // and the rest stays in this contract's treasury as before.
+    //
+    // Route (verified Oct 2026): a checked G$ transfer to the UBIScheme proxy,
+    // whose daily pool is computed from its own G$ balance. GoodDollar's own
+    // GoodCollective factories on Celo send their 500 bps protocol fee to
+    // 0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1 the same way.
+    //
+    // Neither the rate nor the recipient is owner-configurable: changing them
+    // requires a reviewed upgrade. The recipient is an implementation
+    // immutable, set when the implementation is deployed (no proxy storage).
+
+    uint256 public constant UBI_CONTRIBUTION_BPS     = 500;    // 5%
+    uint256 public constant MAX_UBI_CONTRIBUTION_BPS = 1_000;  // safety cap for any future change
+    uint256 private constant BPS_DENOMINATOR         = 10_000;
+
+    /// GoodDollar UBIScheme (Celo production: 0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1).
+    address public immutable ubiRecipient;
+
+    /// Shop items, for the contribution event.
+    enum ShopItem { StreakShield, XpBoost, UndoMove, Cosmetic }
 
     // ─── Structs ──────────────────────────────────────────────────────────────
 
@@ -143,6 +174,17 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event ShopPricesUpdated(uint256 shield, uint256 boost2x, uint256 boost5x, uint256 undo);
     event CosmeticCatalogUpdated(uint256 indexed itemId, uint256 price, bool exists);
     event UsernameSet(address indexed player, string name);
+    /// Emitted only after the contribution transfer has succeeded.
+    /// itemId: boost multiplier for XpBoost, cosmetic id for Cosmetic, 0 otherwise.
+    event UbiContribution(
+        address indexed buyer,
+        ShopItem indexed item,
+        uint256 itemId,
+        uint256 quantity,
+        uint256 amountPaid,
+        uint256 contribution,
+        address indexed recipient
+    );
     event ReferrerSet(address indexed player, address indexed referrer);
 
     // ─── Errors ───────────────────────────────────────────────────────────────
@@ -165,11 +207,16 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error ReferrerAlreadySet();
     error CannotReferSelf();
     error InvalidReferrer();
+    error InvalidUbiRecipient();
+    error UbiRateAboveCap();
 
     // ─── Init ─────────────────────────────────────────────────────────────────
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
+    constructor(address _ubiRecipient) {
+        if (_ubiRecipient == address(0)) revert InvalidUbiRecipient();
+        if (UBI_CONTRIBUTION_BPS > MAX_UBI_CONTRIBUTION_BPS) revert UbiRateAboveCap();
+        ubiRecipient = _ubiRecipient;
         _disableInitializers();
     }
 
@@ -257,20 +304,20 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ─── Shop ─────────────────────────────────────────────────────────────────
 
     /// Buy one streak shield. Shields sit in inventory until a missed day consumes one.
-    function buyStreakShield() external {
+    function buyStreakShield() external nonReentrant {
         if (shieldPrice == 0) revert ZeroPriceNotAllowed();
-        gDollar.transferFrom(msg.sender, address(this), shieldPrice);
+        _collectPayment(ShopItem.StreakShield, 0, 1, shieldPrice);
         uint256 count = ++shieldCount[msg.sender];
         emit ShieldPurchased(msg.sender, count, shieldPrice);
     }
 
     /// Buy an XP boost that multiplies game XP earned for 5 hours (changed from 24h).
     /// @param multiplier 2 for 2× boost, 5 for 5× boost
-    function buyXpBoost(uint8 multiplier) external {
+    function buyXpBoost(uint8 multiplier) external nonReentrant {
         if (multiplier != 2 && multiplier != 5) revert InvalidBoostMultiplier();
         uint256 price = multiplier == 2 ? boost2xPrice : boost5xPrice;
         if (price == 0) revert ZeroPriceNotAllowed();
-        gDollar.transferFrom(msg.sender, address(this), price);
+        _collectPayment(ShopItem.XpBoost, multiplier, 1, price);
         uint64 expiry = uint64(block.timestamp + BOOST_DURATION_V6);
         xpBoost[msg.sender] = XpBoost({ multiplier: multiplier, expiry: expiry });
         emit XpBoostPurchased(msg.sender, multiplier, expiry, price);
@@ -278,11 +325,11 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     /// Buy undo move credits (consumable). Each credit can be used once per game session.
     /// @param quantity Number of undo credits to purchase
-    function buyUndoMove(uint256 quantity) external {
+    function buyUndoMove(uint256 quantity) external nonReentrant {
         if (quantity == 0) revert("Quantity must be > 0");
         if (undoPrice == 0) revert ZeroPriceNotAllowed();
         uint256 totalCost = undoPrice * quantity;
-        gDollar.transferFrom(msg.sender, address(this), totalCost);
+        _collectPayment(ShopItem.UndoMove, 0, quantity, totalCost);
         undoCredits[msg.sender] += quantity;
         emit UndoPurchased(msg.sender, quantity, totalCost);
     }
@@ -297,11 +344,11 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     /// Buy a cosmetic item from the catalog.
     /// @param itemId ID of the cosmetic item to purchase
-    function buyCosmetic(uint256 itemId) external {
+    function buyCosmetic(uint256 itemId) external nonReentrant {
         CosmeticItem storage item = cosmeticCatalog[itemId];
         if (!item.exists) revert CosmeticDoesNotExist();
         if (item.price == 0) revert ZeroPriceNotAllowed();
-        gDollar.transferFrom(msg.sender, address(this), item.price);
+        _collectPayment(ShopItem.Cosmetic, itemId, 1, item.price);
         cosmeticsOwned[msg.sender][itemId] = true;
         emit CosmeticPurchased(msg.sender, itemId, item.price);
     }
@@ -487,6 +534,27 @@ contract Game2048 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
     // ─── Internal ─────────────────────────────────────────────────────────────
+
+    /// The UBI contribution for a payment of `amount`: floor(amount × 5%).
+    function ubiContributionFor(uint256 amount) public pure returns (uint256) {
+        return (amount * UBI_CONTRIBUTION_BPS) / BPS_DENOMINATOR;
+    }
+
+    /// Every paid shop purchase pays through here. Takes exactly `amount` from
+    /// the buyer (checked), then forwards the UBI contribution (checked). Any
+    /// failure reverts the whole purchase, so a purchase never completes
+    /// without its contribution, and no contribution is recorded without the
+    /// transfer having succeeded. Free items never reach this function: every
+    /// caller rejects a zero price first.
+    function _collectPayment(ShopItem item, uint256 itemId, uint256 quantity, uint256 amount) internal {
+        OZIERC20 token = OZIERC20(address(gDollar));
+        token.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 contribution = ubiContributionFor(amount);
+        if (contribution > 0) {
+            token.safeTransfer(ubiRecipient, contribution);
+            emit UbiContribution(msg.sender, item, itemId, quantity, amount, contribution, ubiRecipient);
+        }
+    }
 
     function _awardXp(address player, uint256 score, uint256 comboMoves) internal {
         uint256 earned = score / 10;

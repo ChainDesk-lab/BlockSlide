@@ -23,7 +23,8 @@ async function main() {
   console.log("   ✓ MockIdentity:", identity.address);
 
   console.log("\n📦 Deploying Game2048 implementation…");
-  const impl = await viem.deployContract("Game2048", []);
+  // Local test: the UBI contribution goes to the deployer (mock G$).
+  const impl = await viem.deployContract("Game2048", [deployerAddr]);
   console.log("   ✓ Game2048 impl:", impl.address);
 
   // Deploy ERC1967Proxy

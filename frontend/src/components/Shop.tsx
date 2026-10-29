@@ -5,6 +5,15 @@ import { useShop } from "../hooks/useShop";
 import { ShopIcon } from "./ShopIcon";
 import { CategoryIcon } from "./CategoryIcon";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
+import { useUbiContribution } from "../hooks/useUbiContribution";
+import { formatBps, ubiContributionFor } from "../lib/ubiContribution";
+
+const CELOSCAN = "https://celoscan.io";
+
+/** G$ with up to 2 decimals (contributions are often fractional: 5% of 25 = 1.25). */
+function fmtGExact(val: bigint): string {
+  return (Number(val) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " G$";
+}
 
 function fmtG(val: bigint | undefined): string {
   if (val === undefined) return "…";
@@ -70,7 +79,36 @@ export default function Shop() {
     approve, buyShield, buyBoost, buyUndoMove, buyCosmetic,
     isApproved, canAfford,
     error,
+    lastUbiContribution, onChainPrices,
   } = useShop();
+  const ubi = useUbiContribution();
+
+  // Shown only when the contract reports its rate (i.e. after the UBI
+  // contribution upgrade). Before that, nothing is claimed.
+  const ubiNote = ubi.status === "ready" ? (
+    <p className="shop__ubi-note">
+      {formatBps(ubi.bps)} of every paid purchase supports GoodDollar UBI.{" "}
+      <a href={`${CELOSCAN}/address/${ubi.recipient}`} target="_blank" rel="noopener noreferrer">
+        Where it goes ↗
+      </a>
+    </p>
+  ) : null;
+
+  // Only what the confirmed receipt's UbiContribution event says.
+  const ubiConfirmed = lastUbiContribution ? (
+    <p className="shop__ubi-confirmed">
+      ✓ {fmtGExact(lastUbiContribution.amount)} of this purchase went to GoodDollar UBI ·{" "}
+      <a href={`${CELOSCAN}/tx/${lastUbiContribution.txHash}`} target="_blank" rel="noopener noreferrer">
+        View transaction ↗
+      </a>
+    </p>
+  ) : null;
+
+  /** "incl. 1.25 G$ for UBI" from the on-chain price, or nothing if unknown. */
+  const ubiShare = (price: bigint | undefined) =>
+    ubi.status === "ready" && price !== undefined && price > 0n ? (
+      <span className="shop-item__ubi">incl. {fmtGExact(ubiContributionFor(price, ubi.bps))} for UBI</span>
+    ) : null;
 
   // Debug: log shop state
   useEffect(() => {
@@ -163,6 +201,8 @@ export default function Shop() {
           </div>
         </div>
 
+        {ubiNote}
+
         <div className="shop__categories">
           <div
             className="shop__category-card"
@@ -190,6 +230,7 @@ export default function Shop() {
           </div>
         </div>
 
+        {ubiConfirmed}
         {error && <p className="shop__error">{error}</p>}
       </section>
     );
@@ -215,6 +256,8 @@ export default function Shop() {
             <div className="shop__balance-value">{fmtG(gdBalance)}</div>
           </div>
         </div>
+
+        {ubiNote}
 
         <div className="shop__category-tabs">
           <button
@@ -264,6 +307,7 @@ export default function Shop() {
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
                 <span className="shop-item__price">{fmtG(shieldPrice)}</span>
+                {ubiShare(onChainPrices.shield)}
               </div>
               <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
             </div>
@@ -290,6 +334,7 @@ export default function Shop() {
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
                 <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
+                {ubiShare(onChainPrices.boost2x)}
               </div>
               <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
             </div>
@@ -316,6 +361,7 @@ export default function Shop() {
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
                 <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
+                {ubiShare(onChainPrices.boost5x)}
               </div>
               <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
             </div>
@@ -342,6 +388,7 @@ export default function Shop() {
             <div className="shop-item__footer">
               <div className="shop-item__price-section">
                 <span className="shop-item__price">{fmtG(undoPrice)}</span>
+                {ubiShare(onChainPrices.undo !== undefined ? onChainPrices.undo * BigInt(undoQuantity) : undefined)}
               </div>
               <div className="shop-item__quantity-selector">
                 <input
@@ -363,6 +410,7 @@ export default function Shop() {
           </div>
         </div>
 
+        {ubiConfirmed}
         {error && <p className="shop__error">{error}</p>}
       </section>
     );
@@ -388,6 +436,8 @@ export default function Shop() {
             <div className="shop__balance-value">{fmtG(gdBalance)}</div>
           </div>
         </div>
+
+        {ubiNote}
 
         <div className="shop__category-tabs">
           <button
@@ -443,6 +493,7 @@ export default function Shop() {
           })}
         </div>
 
+        {ubiConfirmed}
         {error && <p className="shop__error">{error}</p>}
       </section>
     );

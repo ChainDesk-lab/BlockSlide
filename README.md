@@ -310,7 +310,26 @@ Shields stack in inventory (unlimited). A shield is consumed automatically on th
 | 2x XP Boost | 50 G$ | Doubles XP from all games for 24 hours. |
 | 5x XP Boost | 125 G$ | 5x XP from all games for 24 hours. Overwrites existing boost. |
 
-All shop G$ payments go to the contract treasury (not burned). The owner can adjust prices at any time via `setShopPrices()`.
+All shop G$ payments go to the contract treasury (not burned), minus the UBI contribution below. The owner can adjust prices at any time via `setShopPrices()`.
+
+### GoodDollar UBI contribution (after the UBI-contribution upgrade)
+
+5% of every paid shop purchase supports GoodDollar UBI. It applies to every item that pays through `_collectPayment`: streak shields, XP boosts, undo credits, cosmetics, and any future paid item, since all purchases go through that one function.
+
+| | |
+|---|---|
+| **Rate** | `UBI_CONTRIBUTION_BPS = 500` (5%), capped by `MAX_UBI_CONTRIBUTION_BPS = 1000`. A constant: changing it needs a reviewed upgrade. |
+| **Calculation** | `floor(pricePaid × 500 / 10,000)`, from the on-chain price, never a frontend value. The buyer pays exactly the listed price; the contribution is carved out of it, and the rest stays in the treasury. A price under 20 base units rounds to 0, and then nothing is sent or emitted. |
+| **Destination** | `ubiRecipient`, an implementation immutable. On Celo: the GoodDollar production UBIScheme `0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1` ([GoodDollar docs](https://docs.gooddollar.org/for-developers/apis-and-sdks/ubi)). Not owner-configurable. |
+| **Funding semantics** | A checked G$ transfer to the UBIScheme proxy (implementation `UBISchemeV2`, verified on Blockscout). Its daily pool is `G$ balance / cycleLength`, recalculated each cycle, so the contribution enters the claimable pool at the next cycle calculation. It's added to a pool governed by the GoodDollar DAO (which can `withdraw` from it), not earmarked. GoodDollar's own GoodCollective factories pay their 500 bps protocol fee to the same address the same way. |
+| **Atomicity** | Payment and contribution happen in the purchase transaction (`SafeERC20`, reentrancy guard on every purchase). If either transfer fails, the purchase reverts: no item, no charge, no event. |
+| **Record** | `UbiContribution(buyer, item, itemId, quantity, amountPaid, contribution, recipient)`, emitted only after the transfer succeeded. |
+
+**Verifying a contribution:** look for the G$ `Transfer` from the game proxy to the UBIScheme in the purchase transaction's receipt, together with `UbiContribution`. Don't compare the UBIScheme's balance before and after: it receives continuous Superfluid fee streams, so it grows every second.
+
+The shop shows the rate and each item's share only when the contract reports `UBI_CONTRIBUTION_BPS()`, and shows a confirmed amount only from the purchase receipt's `UbiContribution` event. Before the upgrade, it claims nothing.
+
+Rehearse the upgrade on a mainnet fork: `CELO_FORK_URL=<archive rpc> npx hardhat run --build-profile production scripts/checks/rehearse-ubi-contribution.ts`.
 
 ---
 
