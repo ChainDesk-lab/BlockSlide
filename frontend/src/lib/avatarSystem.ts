@@ -77,14 +77,16 @@ export function renderAvatarHtml(
 
 /**
  * Final cosmetics lineup (5 items exactly as specified).
- * Prices read from contract; shown as 0n until seeded on-chain.
+ * Display data only. Prices are NOT stored here: the shop reads each item's
+ * price from the contract (`getCosmeticItem`), so a price can never be shown
+ * from a stale or placeholder value.
  */
 export const COSMETICS_CATALOG = [
-  { id: 1, name: 'Tile Skin', category: 'tile', price: 0n, emoji: '🎨' },
-  { id: 2, name: 'Fits', category: 'avatar', price: 0n, emoji: '👔' },
-  { id: 3, name: 'Leaderboard Flair', category: 'flair', price: 0n, emoji: '⭐' },
-  { id: 4, name: 'Goggles', category: 'avatar', price: 0n, emoji: '🥽' },
-  { id: 5, name: 'Caps', category: 'avatar', price: 0n, emoji: '🧢' },
+  { id: 1, name: 'Tile Skin', category: 'tile', emoji: '🎨' },
+  { id: 2, name: 'Fits', category: 'avatar', emoji: '👔' },
+  { id: 3, name: 'Leaderboard Flair', category: 'flair', emoji: '⭐' },
+  { id: 4, name: 'Goggles', category: 'avatar', emoji: '🥽' },
+  { id: 5, name: 'Caps', category: 'avatar', emoji: '🧢' },
 ];
 
 export function getCosmetic(itemId: number) {

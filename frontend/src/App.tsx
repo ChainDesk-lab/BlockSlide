@@ -13,18 +13,19 @@ import IdentityGate from "./components/IdentityGate";
 import Leaderboard from "./components/Leaderboard";
 import SignInModal from "./components/SignInModal";
 import Shop from "./components/Shop";
-import ScorePanel from "./components/ScorePanel";
+import { LiveStanding, PodiumTeaser, ReadyToClimb, RunStatsBar, SubmitScoreCard, YourStats, useRunTimer } from "./components/PlayPanels";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
 import FeatureNotification from "./components/FeatureNotification";
-import { TrophyIcon, CartIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
 import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { usePlayerRegistration } from "./hooks/usePlayerRegistration";
-import { useShop } from "./hooks/useShop";
+import { useUndoCredits } from "./hooks/useUndoCredits";
+import { useUndoAvailability } from "./hooks/useUndoAvailability";
+import { usableUndoCredits } from "./lib/undoAvailability";
 import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
 import { useFlowstateVotingContext } from "./contexts/FlowstateVotingContext";
 import { sounds } from "./lib/sounds";
@@ -87,7 +88,7 @@ export default function App() {
     setShowHowToPlay(false);
   };
   const boardWrapperRef = useRef<HTMLDivElement>(null);
-  const { state, seed, startNewGame, clearGame, isInitialized, lastDirection } = useGame(address, view === "game", boardWrapperRef);
+  const { state, seed, startNewGame, clearGame, isInitialized, lastDirection, canUndo, undoLastMove, undosUsed } = useGame(address, view === "game", boardWrapperRef);
   const {
     phase,
     isPending,
@@ -118,20 +119,23 @@ export default function App() {
   // on the leaderboard even before any on-chain username or score.
   usePlayerRegistration(username);
 
-  // Shop state for undo button
-  const { undoCredits, consumeUndo, pendingAction: shopPending } = useShop();
-  const [undoLocalPending, setUndoLocalPending] = useState(false);
-
-  const handleUndo = async () => {
-    setUndoLocalPending(true);
-    try {
-      await consumeUndo();
-      // TODO: Revert the last move in the game state
-      // This would require integrating with the game logic
-    } finally {
-      setUndoLocalPending(false);
-    }
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  // Like an XP boost: taking a move back is instant and local, and this game's tally is deducted
+  // with the score (submitScoreWithUndos). Available only when the operator switch is on AND the
+  // live contract supports undo-at-submit (lib/undoAvailability). The app never calls consumeUndo.
+  const { undoCredits, refetchUndoCredits } = useUndoCredits(address as `0x${string}` | undefined);
+  const undo = useUndoAvailability();
+  const undosLeft = usableUndoCredits(undoCredits, undosUsed);
+  const handleUndo = () => {
+    if (!undo.available || !canUndo || undosLeft === null || undosLeft <= 0n) return;
+    if (undoLastMove({ countCredit: true })) sounds.slide();
   };
+  // Credits change on-chain when a score is submitted with undos.
+  useEffect(() => {
+    const onSubmitted = () => refetchUndoCredits();
+    window.addEventListener("scoreSubmitted", onSubmitted);
+    return () => window.removeEventListener("scoreSubmitted", onSubmitted);
+  }, [refetchUndoCredits]);
 
   useEffect(() => {
     // On wallet change, read the dismiss state from storage.
@@ -184,7 +188,9 @@ export default function App() {
       return;
     }
     console.log(`[App] handleSubmit with seed=${seed.slice(0, 10)}...`);
-    submitScore(state, seed as `0x${string}`);
+    // Undos are claimed only when Undo is available (switch on, upgraded contract); otherwise none
+    // can have been used. The contract rejects a claim above the player's credits and records nothing.
+    submitScore(state, seed as `0x${string}`, undo.available ? undosUsed : 0);
   };
 
   // Auto-clear stale error messages when the session expires so the user
@@ -195,6 +201,18 @@ export default function App() {
 
   const gameEnded = state && (state.over || state.won);
   const stuckActive = phase === "active" && !state;
+  const elapsedMs = useRunTimer(state, seed);
+  const controlPhase =
+    // stuckActive: on-chain session exists but local game state is gone
+    (stuckActive && !sessionExpired) ? "active" :
+    // session expired → unlock New Game regardless of phase/stuckActive
+    (stuckActive || sessionExpired) ? "idle" :
+    phase;
+  const controlProps = {
+    state, phase: controlPhase, isPending, isWrongChain, identityStatus, canSubmitScore: isVerifiedForSubmission,
+    onNewGame: handleNewGame, onSubmit: handleSubmit, undoAvailable: undo.available, undoCredits: undosLeft, canUndo,
+    onUndo: handleUndo,
+  } as const;
 
   // ── Session count & Feature notifications ──────────────────────────────────
   const [sessionCount, setSessionCount] = useState(0);
@@ -321,108 +339,115 @@ export default function App() {
 
         {/* ── Play screen ───────────────────────────────────────────────── */}
         {view === "game" && (
-          <div className="game-view">
-            <ScorePanel state={state} />
-
-            <div className="board-wrapper" ref={boardWrapperRef}>
-              {state ? (
-                <>
-                  <Board state={state} lastDirection={lastDirection} />
-                  {gameEnded && (
-                    <div className="game-overlay">
-                      <div className="game-overlay__content">
-                        <p className="game-overlay__title">
-                          {state.won ? "🎉 You reached 2048!" : "Game Over"}
-                        </p>
-                        <p className="game-overlay__score">Score: {state.score.toLocaleString()}</p>
+          <div className="play-layout">
+            <div className="play-layout__main">
+              <RunStatsBar state={state} elapsedMs={elapsedMs} />
+              <div className="card board-card">
+                <div className="board-wrapper" ref={boardWrapperRef}>
+                  {state ? (
+                    <>
+                      <Board state={state} lastDirection={lastDirection} />
+                      {gameEnded && (
+                        <div className="game-overlay">
+                          <div className="game-overlay__content">
+                            <p className="game-overlay__title">
+                              {state.won ? "🎉 You reached 2048!" : "Game Over"}
+                            </p>
+                            <p className="game-overlay__score">Score: {state.score.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : isInitialized ? (
+                    <div className="board board--empty">
+                      <div className="board-placeholder">
+                        {stuckActive ? (
+                          sessionExpired ? (
+                            <>
+                              <p>Previous session expired</p>
+                              <p className="board-placeholder__sub">Hit New Game — it will clear automatically.</p>
+                            </>
+                          ) : (
+                            <>
+                              <p>Session active on-chain</p>
+                              <SessionCountdown expiresAt={sessionExpiresAt!} />
+                              <p className="board-placeholder__sub">
+                                Game state was lost (page refresh?).{" "}
+                                <button
+                                  className="btn btn--xs"
+                                  onClick={() => { clearGame(); startNewGame(); }}
+                                  style={{ marginTop: "0.5rem" }}
+                                >
+                                  Play locally (off-chain)
+                                </button>
+                              </p>
+                            </>
+                          )
+                        ) : (
+                          <>
+                            <p>Ready to slide?</p>
+                            <p className="board-placeholder__sub">Hit New Game to start</p>
+                          </>
+                        )}
                       </div>
                     </div>
-                  )}
-                </>
-              ) : isInitialized ? (
-                <div className="board board--empty">
-                  <div className="board-placeholder">
-                    {stuckActive ? (
-                      sessionExpired ? (
-                        <>
-                          <p>Previous session expired</p>
-                          <p className="board-placeholder__sub">Hit New Game — it will clear automatically.</p>
-                        </>
-                      ) : (
-                        <>
-                          <p>Session active on-chain</p>
-                          <SessionCountdown expiresAt={sessionExpiresAt!} />
-                          <p className="board-placeholder__sub">
-                            Game state was lost (page refresh?).{" "}
-                            <button
-                              className="btn btn--xs"
-                              onClick={() => { clearGame(); startNewGame(); }}
-                              style={{ marginTop: "0.5rem" }}
-                            >
-                              Play locally (off-chain)
-                            </button>
-                          </p>
-                        </>
-                      )
-                    ) : (
-                      <>
-                        <p>Ready to slide?</p>
-                        <p className="board-placeholder__sub">Hit New Game to start</p>
-                      </>
+                  ) : null}
+                </div>
+                {error && (
+                  <div className="error-banner" role="alert">
+                    {error}
+                    {sessionStuck && sessionExpiresAt && !sessionExpired && (
+                      <SessionCountdown expiresAt={sessionExpiresAt} />
                     )}
                   </div>
-                </div>
-              ) : null}
-            </div>
-
-            {error && (
-              <div className="error-banner" role="alert">
-                {error}
-                {sessionStuck && sessionExpiresAt && !sessionExpired && (
-                  <SessionCountdown expiresAt={sessionExpiresAt} />
                 )}
+                <GameControls {...controlProps} part="board" />
               </div>
-            )}
-
-            <GameControls
-              state={state}
-              phase={
-                // stuckActive: on-chain session exists but local game state is gone
-                (stuckActive && !sessionExpired) ? "active" :
-                // session expired → unlock New Game regardless of phase/stuckActive
-                (stuckActive || sessionExpired) ? "idle" :
-                phase
-              }
-              isPending={isPending}
-              isWrongChain={isWrongChain}
-              identityStatus={identityStatus}
-              canSubmitScore={isVerifiedForSubmission}
-              onNewGame={handleNewGame}
-              onSubmit={handleSubmit}
-              undoCredits={undoCredits}
-              onUndo={handleUndo}
-              undoPending={undoLocalPending || shopPending === "undo"}
-            />
+            </div>
+            <aside className="play-layout__side">
+              <LiveStanding state={state} active={phase === "active" && !!state && !gameEnded} />
+              <SubmitScoreCard state={state} ended={!!gameEnded}>
+                <GameControls {...controlProps} part="submit" />
+                {!(phase === "active" && gameEnded) && phase !== "submitting" && phase !== "finalizing" && (
+                  <button className="btn btn--primary btn--block" disabled>Submit Run</button>
+                )}
+              </SubmitScoreCard>
+            </aside>
+            <div className="play-layout__wide">
+              <PodiumTeaser onViewAll={() => router.replace("/?tab=leaderboard", { scroll: false })} />
+            </div>
           </div>
         )}
 
         {/* ── Leaderboard screen ────────────────────────────────────────── */}
         {view === "leaderboard" && (
-          <div className="screen">
-            <h2 className="screen__title">
-              <TrophyIcon size={26} /> Leaderboard
-            </h2>
-            <UsernameEditor />
-            <Leaderboard />
+          <div className="page">
+            <header className="page__hero">
+              <h1 className="page__title">Leaderboard</h1>
+              <p className="page__lede">The arena of high-speed sliding. Compete with sliding masters globally.</p>
+            </header>
+            <div className="lb-layout">
+              <div className="lb-layout__main">
+                <div className="seg-tabs" role="tablist" aria-label="Leaderboard period">
+                  <button className="seg-tabs__tab" role="tab" aria-selected="false" disabled title="Daily rankings aren't available yet">Daily</button>
+                  <button className="seg-tabs__tab" role="tab" aria-selected="false" disabled title="Weekly rankings aren't available yet">Weekly</button>
+                  <button className="seg-tabs__tab seg-tabs__tab--active" role="tab" aria-selected="true">All Time</button>
+                </div>
+                <p className="lb-layout__note">Ranked by total XP. Daily and weekly rankings aren&apos;t available yet.</p>
+                <Leaderboard />
+              </div>
+              <aside className="lb-layout__side">
+                <YourStats />
+                <ReadyToClimb onPlay={() => router.replace("/?tab=game", { scroll: false })} />
+                <UsernameEditor />
+              </aside>
+            </div>
           </div>
         )}
 
         {/* ── Shop screen ───────────────────────────────────────────────── */}
         {view === "shop" && (
-          <div className="screen">
-            <h2 className="screen__title">
-              <CartIcon size={26} /> Shop
-            </h2>
+          <div className="page">
             <Shop />
           </div>
         )}
@@ -466,7 +491,7 @@ function FeatureNotificationRenderer({
       <FeatureNotification
         type="undoStep"
         title="✨ Undo Step"
-        message="Made a mistake? The new Undo Step feature in the shop lets you take back your last move once per game. Perfect for those tricky situations!"
+        message="Made a mistake? Buy Undo Step credits in the shop, then tap Undo under the board to take back your last move. Each undo uses one credit."
         actionLabel="Check it out"
         onAction={() => {
           // Could navigate to shop here if needed
