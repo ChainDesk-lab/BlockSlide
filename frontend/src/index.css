@@ -5471,3 +5471,86 @@ html.light-mode .shop-card__media--art { background: #07080B; } /* the artwork c
 .shop-card__art--contain { object-fit: contain; }
 .shop-card__media--contain, html.light-mode .shop-card__media--contain { background: #000; }
 @media (prefers-color-scheme: light) { :root:not(.dark-mode) .shop-card__media--contain { background: #000; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Light mode (reference frames: cool grey page, white chrome, grey cards).
+   Light-only: every rule below is scoped to html.light-mode, or to a system
+   light preference with no dark-mode class, so dark mode is untouched.
+   Text colours are chosen for at least 4.5:1 on every light surface.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.light-mode {
+  --bg: #F9FAFB; --surface: #FFFFFF; --surface-2: #E5E7EB; --board: #E5E7EB; --cell: #F3F4F6;
+  --text: #101827; --text-muted: #5B6473; --border: #D1D5DB; --line-strong: #8D9BB0; --line-row: #B9BDC1;
+  --brand: #6650F4; --brand-rgb: 102, 80, 244; --accent: #6650F4; --brand-400: #5A43E8;
+  --accent-green: #047857; --accent-cyan: #01616E; --green: #047857; --success: #047857; --danger-text: #C81E4A;
+  --chrome: #FFFFFF; --card: #F3F4F6; --card-2: #F3F4F6; --cell-well: #E5E7EB;
+  --t2: #6C4EFF; --t2-fg: #FFFFFF; --t4: #C3B6FD; --t4-fg: #1E1B4B; --t8: #1D40AE; --t8-fg: #FFFFFF;
+  --t16: #3E55D6; --t16-fg: #FFFFFF; --t32: #7058F2; --t32-fg: #FFFFFF; --t64: #FFEB3B; --t64-fg: #101827;
+  --t128: #F5C542; --t128-fg: #101827; --t256: #0E7490; --t256-fg: #FFFFFF; --t512: #047857; --t512-fg: #FFFFFF;
+  --t1024: #5B21B6; --t1024-fg: #FFFFFF; --t2048: #FFEB3B; --t2048-fg: #101827;
+}
+/* No-JS fallback: the same palette for a system light preference. Keep in step with the block above. */
+@media (prefers-color-scheme: light) {
+  :root:not(.dark-mode) {
+    --bg: #F9FAFB; --surface: #FFFFFF; --surface-2: #E5E7EB; --board: #E5E7EB; --cell: #F3F4F6;
+    --text: #101827; --text-muted: #5B6473; --border: #D1D5DB; --line-strong: #8D9BB0; --line-row: #B9BDC1;
+    --brand: #6650F4; --brand-rgb: 102, 80, 244; --accent: #6650F4; --brand-400: #5A43E8;
+    --accent-green: #047857; --accent-cyan: #01616E; --green: #047857; --success: #047857; --danger-text: #C81E4A;
+    --chrome: #FFFFFF; --card: #F3F4F6; --card-2: #F3F4F6; --cell-well: #E5E7EB;
+    --t2: #6C4EFF; --t2-fg: #FFFFFF; --t4: #C3B6FD; --t4-fg: #1E1B4B; --t8: #1D40AE; --t8-fg: #FFFFFF;
+    --t16: #3E55D6; --t16-fg: #FFFFFF; --t32: #7058F2; --t32-fg: #FFFFFF; --t64: #FFEB3B; --t64-fg: #101827;
+    --t128: #F5C542; --t128-fg: #101827; --t256: #0E7490; --t256-fg: #FFFFFF; --t512: #047857; --t512-fg: #FFFFFF;
+    --t1024: #5B21B6; --t1024-fg: #FFFFFF; --t2048: #FFEB3B; --t2048-fg: #101827;
+  }
+}
+
+/* Chrome: white header and footer, outlined like the frames. */
+html.light-mode .app .header { border-bottom-color: var(--line-strong); }
+html.light-mode .site-footer { border-top-color: #E5E7EB; }
+html.light-mode .header__actions > .btn { border-color: rgba(0, 0, 0, 0.16); }
+
+/* Cards: grey with a clear outline. Stats, Bounties and How to Play keep white cards (their own tokens). */
+html.light-mode .card,
+html.light-mode .submit-card,
+html.light-mode .climb-card,
+html.light-mode .shop-card,
+html.light-mode .podium-card { border: 1px solid var(--line-strong); }
+html.light-mode .climb-card { background: transparent; }
+html.light-mode .board-card .board { box-shadow: 0 0 0 1px var(--line-strong); }
+html.light-mode .board-card .tile--64, html.light-mode .board-card .tile--128, html.light-mode .board-card .tile--2048 { text-shadow: none; }
+html.light-mode .run-stats__item--center { border-color: var(--line-row); }
+html.light-mode .state-note--error { color: var(--danger-text); background: rgba(200, 30, 74, 0.06); border-color: rgba(200, 30, 74, 0.3); }
+html.light-mode .app .btn--primary { box-shadow: 0 6px 16px rgba(102, 80, 244, 0.22); }
+html.light-mode .app .btn--primary:disabled { opacity: 0.55; }
+
+/* Tabs: white chips with a grey outline; the active tab stays brand. */
+html.light-mode .seg-tabs__tab { background: #FFFFFF; color: var(--text); border-color: var(--border); }
+html.light-mode .seg-tabs__tab--active { background: var(--brand-500); color: #FFFFFF; border-color: var(--brand-500); }
+
+/* Leaderboard table: grey rows, darker dividers, medal rows fading into the row colour. */
+html.light-mode .lb-layout .leaderboard__cols { border-color: var(--line-strong); border-bottom-color: var(--line-row); }
+html.light-mode .lb-layout .leaderboard__list { border-color: var(--line-strong); }
+html.light-mode .lb-layout .leaderboard__entry { border-bottom-color: var(--line-row); }
+html.light-mode .lb-layout .leaderboard__entry--rank-1 { background: linear-gradient(90deg, #FAD54A 0%, #FAD54A 14%, rgba(250, 213, 74, 0.45) 40%, var(--card) 62%); }
+html.light-mode .lb-layout .leaderboard__entry--rank-2 { background: linear-gradient(90deg, #D08A4C 0%, #D08A4C 14%, rgba(208, 138, 76, 0.4) 40%, var(--card) 62%); }
+html.light-mode .lb-layout .leaderboard__entry--rank-3 { background: linear-gradient(90deg, #C9CDD4 0%, #C9CDD4 14%, rgba(201, 205, 212, 0.5) 40%, var(--card) 62%); }
+html.light-mode .lb-layout .leaderboard__entry--top .leaderboard__rank { color: #101827; }
+html.light-mode .lb-layout .leaderboard__entry--top .leaderboard__name { color: #0F5964; }
+html.light-mode .lb-layout .leaderboard__entry--rank-1 .leaderboard__score { color: #A16207; }
+html.light-mode .lb-layout .leaderboard__entry--rank-2 .leaderboard__score { color: #B45309; }
+
+/* Profile */
+html.light-mode .profile2__runs-title { border-bottom-color: var(--line-row); }
+html.light-mode .profile2__table th, html.light-mode .profile2__table td { border-bottom-color: var(--line-row); }
+html.light-mode .profile2__more .stat-card { border: 1px solid var(--line-strong); }
+html.light-mode .profile2__verified { background: rgba(4, 120, 87, 0.08); border-color: rgba(4, 120, 87, 0.3); }
+html.light-mode .profile2__link { background: #FFFFFF; }
+html.light-mode .profile2__link-copy { background: #FFFFFF; }
+
+/* Shop */
+html.light-mode .shop-card--sm { background: var(--card); }
+html.light-mode .shop2__chip { background: #FFFFFF; }
+html.light-mode .shop-card__qty input { background: #FFFFFF; border-color: var(--border); }
+
+/* Stats and How to Play: white cards (as in their frames); their inner panels keep the grey card colour. */
+html.light-mode .stats2 .card, html.light-mode .stats2 .stats-chart, html.light-mode .htp2 .card { background: #FFFFFF; }

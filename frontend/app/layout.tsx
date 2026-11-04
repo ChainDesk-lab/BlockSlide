@@ -6,6 +6,7 @@ import "./globals.css";
 import "../src/index.css";
 import PwaRegister from "./components/PwaRegister";
 import ClientLayout from "./ClientLayout";
+import { THEME_INIT_SCRIPT } from "../src/lib/themeInit";
 
 export const metadata: Metadata = {
   title: "BlockSlide - Web3 2048 Puzzle Game with G$ Rewards on Celo",
@@ -50,8 +51,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // The theme script below sets a class on <html> before React hydrates.
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
