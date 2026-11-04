@@ -11,11 +11,11 @@ const read = (p: string) => readFileSync(join(__dirname, p), "utf8");
 describe("Redis URL guard", () => {
   it("recognises only this machine as local", () => {
     for (const u of ["redis://127.0.0.1:6390/1", "redis://localhost:6379", "redis://[::1]:6390", "rediss://localhost:6390"]) expect(isLocalRedisUrl(u), u).toBe(true);
-    for (const u of ["redis://default:pw@redis-12345.cloud.redislabs.com:12345", "rediss://x.upstash.io:6379", "redis://10.0.0.5:6379", "redis://127.0.0.1.evil.com:6379", "http://localhost:6379", "not a url"]) expect(isLocalRedisUrl(u), u).toBe(false);
+    for (const u of ["redis://default:NOT_A_REAL_PASSWORD@redis-12345.cloud.redislabs.com:12345", "rediss://x.upstash.io:6379", "redis://10.0.0.5:6379", "redis://127.0.0.1.evil.com:6379", "http://localhost:6379", "not a url"]) expect(isLocalRedisUrl(u), u).toBe(false);
   });
 
   it("under next dev, a remote (production) REDIS_URL is refused; a local one is used", () => {
-    expect(allowedRedisUrl({ NODE_ENV: "development", REDIS_URL: "rediss://default:secret@prod.upstash.io:6379" })).toBeNull();
+    expect(allowedRedisUrl({ NODE_ENV: "development", REDIS_URL: "rediss://default:NOT_A_REAL_PASSWORD@prod.upstash.io:6379" })).toBeNull();
     expect(allowedRedisUrl({ NODE_ENV: "development", REDIS_URL: "redis://127.0.0.1:6390/1" })).toBe("redis://127.0.0.1:6390/1");
     expect(() => requireAllowedRedisUrl({ NODE_ENV: "development", REDIS_URL: "rediss://prod.upstash.io:6379" })).toThrow();
   });

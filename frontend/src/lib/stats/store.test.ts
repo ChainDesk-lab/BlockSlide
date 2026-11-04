@@ -63,7 +63,7 @@ describe("stats store connection", () => {
   });
 
   it("under next dev, a non-local REDIS_URL is never connected to", async () => {
-    const store = await freshStore({ REDIS_URL: "rediss://default:secret@prod.upstash.io:6379", NODE_ENV: "development" });
+    const store = await freshStore({ REDIS_URL: "rediss://default:NOT_A_REAL_PASSWORD@prod.upstash.io:6379", NODE_ENV: "development" });
     expect(await store.getClient()).toBeNull();
     expect(store.isConfigured()).toBe(false);
     expect(created).toHaveLength(0);
