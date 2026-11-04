@@ -9,6 +9,15 @@ export const GAME2048_ADDRESS = getAddress("0xD551317265B9c4D1D453d399D8b8fa0b98
 export const CONTRACT_DEPLOYED =
   GAME2048_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
+// Undo Step operator switch. OFF unless a build sets NEXT_PUBLIC_UNDO_ENABLED=true.
+// It is one of TWO keys (see lib/undoAvailability.ts): Undo also needs the live contract to
+// report supportsUndoAtSubmit(), i.e. the upgraded implementation whose consumeUndo is restricted
+// to the player. The deployed contract's consumeUndo(address player) has no caller check, so
+// anyone can burn anyone's credits; the app never calls consumeUndo, and on that contract Undo is
+// unavailable whatever this switch says. Keep this off in production until the contract
+// remediation has been independently reviewed, verified and upgraded.
+export const UNDO_ENABLED = process.env.NEXT_PUBLIC_UNDO_ENABLED === "true";
+
 // GoodDollar contracts on Celo mainnet — G$ token (used by the shop) and the
 // identity registry. Addresses must use proper EIP-55 checksum for viem validation.
 export const G_DOLLAR_ADDRESS = getAddress("0x62b8b11039fcfe5ab0c56e502b1c372a3d2a9c7a");
@@ -17,3 +26,6 @@ export const IDENTITY_ADDRESS = getAddress("0xc361a6e67822a0edc17d899227dd9fc50b
 // Treasury/funding wallet used to auto-fund new Magic.link wallets with CELO for gas.
 // The private key for this wallet is stored in FUNDING_WALLET_PRIVATE_KEY env var.
 export const FUNDING_WALLET_ADDRESS = getAddress("0xcb6f72152db12546b21ef0dd5f614ca532531838");
+
+// GoodDollar faucet contract on Celo mainnet (Tier 1 gas sponsorship)
+export const GOODDOLLAR_FAUCET_ADDRESS = getAddress("0x4F93Fa058b03953C851eFaA2e4FC5C34afDFAb84");

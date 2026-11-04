@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createPublicClient, fallback, http, parseAbi } from "viem";
+import { celo } from "viem/chains";
 import { getRedis } from "../_lib/redis";
+import { GAME2048_ADDRESS } from "../../../src/lib/constants";
 
 /**
  * Player registry API.
@@ -13,6 +16,13 @@ import { getRedis } from "../_lib/redis";
  *
  * Storage: a single Redis hash `players:registry`, field = lowercase address,
  * value = JSON PlayerProfile.
+ *
+ * Usernames are verified, not trusted: a submitted name is stored only if it
+ * matches the contract's `usernames(address)`. Anyone can POST any address, so
+ * an unverified name would let one wallet label another on the leaderboard.
+ * The app only ever sends the name it just read from the contract, so this
+ * doesn't change legitimate registrations. Address registration itself is
+ * still open (no signature), by design: it must work before any wallet prompt.
  */
 
 export const runtime = "nodejs";
@@ -26,6 +36,37 @@ interface PlayerProfile {
 
 const REGISTRY_KEY = "players:registry";
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+
+const RPC_URLS = (process.env.CELO_RPC_URLS ?? "https://forno.celo.org")
+  .split(",")
+  .map((u) => u.trim())
+  .filter(Boolean);
+const USERNAMES_ABI = parseAbi(["function usernames(address) view returns (string)"]);
+
+/**
+ * The wallet's on-chain username ("" when unset), or undefined when it
+ * couldn't be read — in which case no submitted name is accepted.
+ */
+async function readOnChainUsername(address: `0x${string}`): Promise<string | undefined> {
+  try {
+    const client = createPublicClient({
+      chain: celo,
+      transport: fallback(
+        RPC_URLS.map((u) => http(u, { timeout: 5_000, fetchOptions: { cache: "no-store" } }))
+      ),
+    });
+    const name = await client.readContract({
+      address: GAME2048_ADDRESS,
+      abi: USERNAMES_ABI,
+      functionName: "usernames",
+      args: [address],
+    });
+    return (name as string).trim();
+  } catch (e) {
+    console.warn("[Players API] on-chain username read failed:", e instanceof Error ? e.message : e);
+    return undefined;
+  }
+}
 
 function isValidAddress(a: unknown): a is string {
   return typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a);
@@ -57,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     const address = body.address.toLowerCase();
-    const username = normalizeUsername(body.username);
+    const claimed = normalizeUsername(body.username);
 
     const client = await getRedis();
     if (!client) {
@@ -74,10 +115,23 @@ export async function POST(request: NextRequest) {
       ? (JSON.parse(existingRaw) as PlayerProfile)
       : null;
 
+    // A submitted name counts only if the contract agrees. When it was checked,
+    // the contract's value wins (a stale or spoofed registry name is replaced);
+    // when the check couldn't run, nothing submitted is accepted.
+    let username: string | null = existing?.username ?? null;
+    if (claimed) {
+      const onChain = await readOnChainUsername(address as `0x${string}`);
+      if (onChain !== undefined) {
+        username = onChain || null;
+        if (onChain !== claimed) {
+          console.warn(`[Players API] ignored username for ${address.slice(0, 8)}…: does not match on-chain name`);
+        }
+      }
+    }
+
     const profile: PlayerProfile = {
       address,
-      // Never clobber a known username with null; accept a newer valid name.
-      username: username ?? existing?.username ?? null,
+      username,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
