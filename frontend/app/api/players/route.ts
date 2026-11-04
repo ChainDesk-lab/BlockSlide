@@ -37,10 +37,13 @@ interface PlayerProfile {
 const REGISTRY_KEY = "players:registry";
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
-const RPC_URLS = (process.env.CELO_RPC_URLS ?? "https://forno.celo.org")
+// CELO_RPC_URLS is a comma-separated list. Unset, empty or blank (e.g. copied
+// from .env.example) falls back to forno, so the list is never empty.
+const CONFIGURED_RPC_URLS = (process.env.CELO_RPC_URLS || "")
   .split(",")
   .map((u) => u.trim())
   .filter(Boolean);
+const RPC_URLS = CONFIGURED_RPC_URLS.length > 0 ? CONFIGURED_RPC_URLS : ["https://forno.celo.org"];
 const USERNAMES_ABI = parseAbi(["function usernames(address) view returns (string)"]);
 
 /**

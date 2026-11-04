@@ -2,7 +2,7 @@
  * Input validation on /api/game/seed and /api/players. Redis and the RPC are
  * mocked; no network, no real data.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { keccak256 } from "viem";
 
 // ── shared fakes ─────────────────────────────────────────────────────────────
@@ -22,8 +22,14 @@ vi.mock("redis", () => ({ createClient: () => fakeRedis }));
 vi.mock("../../app/api/_lib/redis", () => ({ getRedis: async () => fakeRedis }));
 
 let onChainName: string | Error = "";
+/** Every RPC URL a route hands to viem's http() transport, in order. */
+const httpUrls: (string | undefined)[] = [];
 vi.mock("viem", async (orig) => ({
   ...(await orig<typeof import("viem")>()),
+  http: (url?: string) => {
+    httpUrls.push(url);
+    return ({}) as unknown;
+  },
   createPublicClient: () => ({
     readContract: async () => {
       if (onChainName instanceof Error) throw onChainName;
@@ -120,5 +126,44 @@ describe("POST /api/players", () => {
     const res = await POST(post({ address: ADDR, username: "attacker" }) as any);
     const body = await res.json();
     expect(body.profile.username).toBe("known");
+  });
+});
+
+// The RPC list is read once, when the route module loads, so each case loads it afresh.
+describe("POST /api/players: CELO_RPC_URLS", () => {
+  const saved = process.env.CELO_RPC_URLS;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.CELO_RPC_URLS;
+    else process.env.CELO_RPC_URLS = saved;
+  });
+
+  /** The RPC URLs the route uses for its on-chain username check under `value`. */
+  async function rpcUrlsFor(value: string | undefined): Promise<(string | undefined)[]> {
+    if (value === undefined) delete process.env.CELO_RPC_URLS;
+    else process.env.CELO_RPC_URLS = value;
+    vi.resetModules();
+    const { POST } = await import("../../app/api/players/route");
+    httpUrls.length = 0;
+    onChainName = "alice_1";
+    const res = await POST(post({ address: ADDR, username: "alice_1" }) as any);
+    expect((await res.json()).profile.username).toBe("alice_1"); // the lookup still works
+    return [...httpUrls];
+  }
+
+  it("an empty value falls back to forno instead of leaving no RPC at all", async () => {
+    expect(await rpcUrlsFor("")).toEqual(["https://forno.celo.org"]);
+  });
+
+  it("blank or separator-only values fall back to forno too", async () => {
+    expect(await rpcUrlsFor("   ")).toEqual(["https://forno.celo.org"]);
+    expect(await rpcUrlsFor(" , ,")).toEqual(["https://forno.celo.org"]);
+  });
+
+  it("unset falls back to forno (unchanged)", async () => {
+    expect(await rpcUrlsFor(undefined)).toEqual(["https://forno.celo.org"]);
+  });
+
+  it("configured URLs are used as given, trimmed and in order (unchanged)", async () => {
+    expect(await rpcUrlsFor(" https://rpc-a.example , https://rpc-b.example,")).toEqual(["https://rpc-a.example", "https://rpc-b.example"]);
   });
 });
