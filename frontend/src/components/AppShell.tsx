@@ -3,26 +3,16 @@
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { useAccount, useChainId, useConnections } from "wagmi";
+import { useAccount, useConnections } from "wagmi";
+import { useWalletChainId } from "../hooks/useWalletChainId";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
 import { useIdentity } from "../hooks/useIdentity";
 import BlockSlideMark from "./BlockSlideMark";
 import WalletButton from "./WalletButton";
 import ThemeToggle from "./ThemeToggle";
-import {
-  SoundOnIcon,
-  SoundOffIcon,
-  HomeIcon,
-  GamepadIcon,
-  TrophyIcon,
-  CartIcon,
-  HelpIcon,
-  VerifiedIcon,
-  UserIcon,
-  BountyIcon,
-  StatsIcon,
-} from "./icons";
+import { SoundOnIcon, SoundOffIcon, VerifiedIcon } from "./icons";
+import { DIAGNOSTICS_STORAGE_KEY, diagnosticsEnabled, diagnosticsPreference } from "../lib/diagnostics";
 
 interface AppShellProps {
   children: ReactNode;
@@ -32,11 +22,13 @@ export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { address } = useAuth();
+  const { address, isConnected } = useAuth();
   const { username } = useUsername();
   const { status: identityStatus } = useIdentity();
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [tab, setTab] = useState<string>("home");
+  // Read straight from the URL: held in state, the first render always said "home", so the
+  // wrong link was highlighted until an effect caught up.
+  const tab = searchParams.get("tab") || "home";
 
   // Handle "My Profile" click: always navigate to the CURRENT address, live
   const handleMyProfileClick = useCallback(
@@ -51,13 +43,12 @@ export default function AppShell({ children }: AppShellProps) {
   );
 
   useEffect(() => {
-    // Hydration: read tab from search params and sound preference from localStorage
+    // Sound preference lives in localStorage, so it can only be read after mount.
     try {
-      setTab(searchParams.get("tab") || "home");
       const stored = localStorage.getItem("sound-enabled");
       if (stored !== null) setSoundEnabled(stored === "true");
     } catch {}
-  }, [searchParams]);
+  }, []);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -73,99 +64,52 @@ export default function AppShell({ children }: AppShellProps) {
   const isBounty = pathname === "/bounty";
   const isProfile = pathname.startsWith("/profile");
   const isHowToPlay = pathname === "/how-to-play";
-  const isStats = pathname === "/stats";
+  const isStats = pathname === "/analytics" || pathname === "/stats";
 
   return (
     <div className="app">
       {/* Persistent header */}
       <header className="header">
-        <div
-          className="header__left"
-          role="button"
-          tabIndex={0}
-          title="Home"
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") window.location.href = "/"; }}
-        >
-          <Link href="/">
-            <div className="header__logo">
-              <BlockSlideMark size={36} variant="color" />
-              <span className="header__logo-text">BlockSlide</span>
-            </div>
-          </Link>
-        </div>
-        <div className="header__right">
-          <span className="tooltip" data-tip="Home">
-            <Link href="/">
-              <button className={`icon-btn ${isHome ? "icon-btn--active" : ""}`} aria-label="Home">
-                <HomeIcon />
-              </button>
+        <Link href="/" className="header__brand" aria-label="BlockSlide home">
+          <BlockSlideMark size={30} variant="color" />
+          <span className="header__wordmark">BlockSlide</span>
+        </Link>
+        <nav className="header__nav" aria-label="Main">
+          {([
+            ["Home", "/", isHome],
+            ["Play", "/?tab=game", isGame],
+            ["Leaderboard", "/?tab=leaderboard", isLeaderboard],
+            ["Bounties", "/bounty", isBounty],
+            ["Shop", "/?tab=shop", isShop],
+            ["Stats", "/stats", isStats],
+            ["How to Play", "/how-to-play", isHowToPlay],
+          ] as const).map(([label, href, active]) => (
+            <Link key={label} href={href} className={`nav-link ${active ? "nav-link--active" : ""}`} aria-current={active ? "page" : undefined}>
+              {label}
             </Link>
-          </span>
-          <span className="tooltip" data-tip="Play">
-            <Link href="/?tab=game">
-              <button className={`icon-btn ${isGame ? "icon-btn--active" : ""}`} aria-label="Play">
-                <GamepadIcon />
-              </button>
-            </Link>
-          </span>
-          <span className="tooltip" data-tip="Leaderboard">
-            <Link href="/?tab=leaderboard">
-              <button className={`icon-btn ${isLeaderboard ? "icon-btn--active" : ""}`} aria-label="Leaderboard">
-                <TrophyIcon />
-              </button>
-            </Link>
-          </span>
-          <span className="tooltip" data-tip="Profile">
-            <button
-              className={`icon-btn ${isProfile ? "icon-btn--active" : ""}`}
-              aria-label="Profile"
-              onClick={handleMyProfileClick}
-              disabled={!address}
-              title={address ? "View your profile" : "Connect wallet to view profile"}
-            >
-              <UserIcon />
-            </button>
-          </span>
-          <span className="tooltip" data-tip="Bounties">
-            <Link href="/bounty" aria-label="Bounties">
-              <button className={`icon-btn ${isBounty ? "icon-btn--active" : ""}`} aria-label="Bounties">
-                <BountyIcon />
-              </button>
-            </Link>
-          </span>
-          <span className="tooltip" data-tip="Shop">
-            <Link href="/?tab=shop">
-              <button className={`icon-btn ${isShop ? "icon-btn--active" : ""}`} aria-label="Shop">
-                <CartIcon />
-              </button>
-            </Link>
-          </span>
-          <span className="tooltip" data-tip="Stats">
-            <Link href="/stats" aria-label="Stats">
-              <button className={`icon-btn ${isStats ? "icon-btn--active" : ""}`} aria-label="Stats">
-                <StatsIcon />
-              </button>
-            </Link>
-          </span>
-          <span className="tooltip" data-tip="How to play">
-            <Link href="/how-to-play" aria-label="How to play">
-              <button className={`icon-btn ${isHowToPlay ? "icon-btn--active" : ""}`} aria-label="How to play">
-                <HelpIcon />
-              </button>
-            </Link>
-          </span>
-          <span className="tooltip" data-tip={soundEnabled ? "Sound on" : "Sound off"}>
-            <button
-              className="icon-btn"
-              onClick={toggleSound}
-              aria-label={soundEnabled ? "Mute sounds" : "Enable sounds"}
-            >
-              {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
-            </button>
-          </span>
+          ))}
+          <button
+            className={`nav-link ${isProfile ? "nav-link--active" : ""}`}
+            onClick={handleMyProfileClick}
+            disabled={!address}
+            aria-current={isProfile ? "page" : undefined}
+            title={address ? "View your profile" : "Connect wallet to view profile"}
+          >
+            Profile
+          </button>
+        </nav>
+        <div className="header__actions">
           <ThemeToggle />
+          <button
+            className="icon-btn icon-btn--ghost"
+            onClick={toggleSound}
+            aria-label={soundEnabled ? "Mute sounds" : "Enable sounds"}
+            title={soundEnabled ? "Sound on" : "Sound off"}
+          >
+            {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
+          </button>
           {username ? (
-            <span className="header__username" title="Your username">
+            <span className="header__username" title={`Your username: ${username}`}>
               <span className="header__username-name">{username}</span>
               {identityStatus === "verified" && (
                 <VerifiedIcon size={15} className="header__verified" />
@@ -177,11 +121,25 @@ export default function AppShell({ children }: AppShellProps) {
             </span>
           ) : null}
           <WalletButton />
+          {/* Signed out: the way in, as designed. It opens the existing sign-in screen; while a
+              sign-in is completing (connected, address pending) nothing is shown, so it can't re-trigger it. */}
+          {!isConnected && !address && (
+            <Link href="/?tab=game" className="header__connect">Connect Wallet</Link>
+          )}
         </div>
       </header>
 
       {/* Route content */}
       {children}
+
+      <footer className="site-footer">
+        <span>© {new Date().getFullYear()} BlockSlide. All rights reserved.</span>
+        <nav className="site-footer__links" aria-label="Footer">
+          <Link href="/how-to-play">How to Play</Link>
+          <Link href="/stats">Stats</Link>
+          <a href="https://t.me/blockslide_xyz" target="_blank" rel="noopener noreferrer">Telegram</a>
+        </nav>
+      </footer>
 
       {/* Diagnostic footer for support/debugging */}
       <DiagnosticFooter />
@@ -196,7 +154,9 @@ function DiagnosticFooter() {
   // "connected"), not wagmi's, or Magic users always show as disconnected here.
   const { address: wagmiAddress } = useAccount();
   const { address: authAddress, authType } = useAuth();
-  const chainId = useChainId();
+  // The wallet's real chain, not wagmi's config chain — otherwise this debug
+  // readout claims 42220 even while the wallet sits on Ethereum.
+  const chainId = useWalletChainId();
   const connections = useConnections();
   const address = authAddress ?? wagmiAddress;
 
@@ -205,7 +165,19 @@ function DiagnosticFooter() {
   // first client render identical to the server render and avoid a
   // hydration mismatch, then swap in the real values right after.
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // Development always; production only on request (?debug=1, remembered on this device).
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    let stored: string | null = null;
+    try {
+      const pref = diagnosticsPreference(window.location.search);
+      if (pref === "1") localStorage.setItem(DIAGNOSTICS_STORAGE_KEY, "1");
+      if (pref === "0") localStorage.removeItem(DIAGNOSTICS_STORAGE_KEY);
+      stored = localStorage.getItem(DIAGNOSTICS_STORAGE_KEY);
+    } catch { /* no storage: fall back to the URL and build mode */ }
+    setEnabled(diagnosticsEnabled(process.env.NODE_ENV, window.location.search, stored));
+  }, []);
 
   // Get the currently active connector name
   const activeConnector = connections.find(c => c.accounts.length > 0);
@@ -215,6 +187,8 @@ function DiagnosticFooter() {
   const displayAddress = mounted && address
     ? `${address.slice(0, 6)}…${address.slice(-4)}`
     : "not connected";
+
+  if (!enabled) return null;
 
   return (
     <div style={{
