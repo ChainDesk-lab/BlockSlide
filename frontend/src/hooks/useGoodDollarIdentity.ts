@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { useChainId, useSwitchChain } from "wagmi";
+import { useSwitchChain } from "wagmi";
 import { IdentitySDK } from "@goodsdks/citizen-sdk";
 import { TARGET_CHAIN } from "../lib/constants";
 import { useAuth } from "../auth/AuthContext";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
 import { useSigner } from "./useSigner";
+import { useWalletChainId } from "./useWalletChainId";
 
 interface UseGoodDollarIdentityResult {
   isVerified: boolean;
@@ -34,9 +35,10 @@ export function useGoodDollarIdentity(): UseGoodDollarIdentityResult {
   const { authType } = useAuth();
   const contractPublicClient = useContractPublicClient();
   const { signer, error: signerError } = useSigner();
-  const chainId = useChainId();
+  const chainId = useWalletChainId();
   const { switchChain, isPending: chainSwitchPending } = useSwitchChain();
-  const isWrongChain = authType !== "magic" && chainId !== TARGET_CHAIN.id;
+  const isWrongChain =
+    authType !== "magic" && chainId !== undefined && chainId !== TARGET_CHAIN.id;
 
   const [isVerified, setIsVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);

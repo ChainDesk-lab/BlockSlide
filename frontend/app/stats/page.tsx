@@ -1,207 +1,187 @@
 "use client";
 
 /**
- * Public, self-updating stats page — the in-app answer to "what is happening on
- * BlockSlide". Every figure comes from Celo mainnet event logs for the game
- * contract, aggregated server-side and refreshed incrementally, so nobody has
- * to run a script to get current numbers.
+ * Public stats (Figma frame 5). Every figure comes from Celo mainnet event logs for the game
+ * contract, aggregated server-side (/api/stats, Redis) and refreshed incrementally.
  *
- * Deliberately NOT sourced from the leaderboard subgraph: the deployed subgraph
- * reports 613 players against 676 on chain (25 Sep 2026), because the live build
- * predates the handleSessionStarted mapping added on 17 Sep. Chain logs are the
- * defensible source and stay correct whether or not the subgraph is redeployed.
+ * Deliberately NOT sourced from the leaderboard subgraph: the deployed subgraph undercounts
+ * players (its build predates handleSessionStarted). Chain logs stay correct either way.
+ *
+ * Integrity rules for this page: XP is never shown as G$; wallets are never called people;
+ * event counts are stated by whole UTC days because that is what the aggregate stores; and a
+ * snapshot that couldn't reach the chain head says so.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BarChart, LineChart, HBarChart } from "../../src/components/stats/Charts";
+import { BarChart, LineChart } from "../../src/components/stats/Charts";
+import { CatchingUpNotice, CloserLook, Funnel, StatTile } from "../../src/components/stats/StatsPanels";
+import { catchingUp, shortWeek, utcDayEvents, weekRangeLabel } from "../../src/lib/stats/statsView";
 import "../../src/styles/stats.css";
 
 const fmt = new Intl.NumberFormat("en-US");
+const REFRESH_MS = 120_000;
+/** The route may scan up to 12 chunks (maxDuration 60 s) before answering. */
+const FETCH_TIMEOUT_MS = 75_000;
 
-interface Snapshot {
+/** The subset of /api/stats this page reads (older aggregates may lack the newer fields). */
+interface StatsFeed {
   updatedAt: string;
   checkpointBlock: number;
-  firstBlockTime: string;
   spanDays: number;
   playerWallets: number;
-  totals: { logs: number; sessionsStarted: number; gamesCompleted: number; usernamesSet: number; rewardsPaid: number };
+  totals: { sessionsStarted: number; rewardsPaid: number };
   funnel: Array<{ label: string; count: number; share: number }>;
-  weekly: Array<{ week: string; newWallets: number; activeWallets: number; events: number; cumulative: number; perWallet: number }>;
-  recent: { events24h: number; events7d: number; events30d: number; active7d: number; active30d: number; new7d: number; new30d: number };
-  retention: { oneEventOnly: number; multiWeek: number; span7d: number; span30d: number };
+  weekly: Array<{ week: string; newWallets: number; activeWallets: number; events: number; cumulative: number }>;
+  daily: Array<{ day: string; events: number }>;
+  recent: { active7d: number; new7d: number };
+  retention: { oneEventOnly: number; multiWeek: number; span30d: number };
   engagement: Array<{ bucket: string; wallets: number }>;
   medianGames: number;
   totalGames: number;
   gDollarPaid: number;
+  scan?: { chunks: number; caughtUp: boolean } | null;
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="stats-tile">
-      <span className="stats-tile__label">{label}</span>
-      <strong className="stats-tile__value">{value}</strong>
-      {sub && <span className="stats-tile__sub">{sub}</span>}
-    </div>
+    <main className="main">
+      <div className="page stats stats2">
+        <header className="stats2__hero">
+          <p className="kicker kicker--green">Global on-chain analytics</p>
+          <h1 className="page__title">BlockSlide Stats</h1>
+          <p className="page__lede page__lede--wide">
+            Live from Celo mainnet. Every number below is read from the game contract&apos;s own event logs, not from an analytics service.
+          </p>
+        </header>
+        {children}
+      </div>
+    </main>
   );
 }
 
-const shortWeek = (iso: string) =>
-  new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-
 export default function StatsPage() {
-  const [data, setData] = useState<Snapshot | null>(null);
+  const [data, setData] = useState<StatsFeed | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       try {
-        const res = await fetch("/api/stats", { cache: "no-store" });
+        // A stalled server must end in the unavailable state, not an endless "Reading the chain…".
+        const res = await fetch("/api/stats", { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
         const json = await res.json();
         if (!alive) return;
+        setNow(Date.now());
         if (!res.ok) { setError(json.message ?? json.error ?? "Could not load stats"); return; }
         setData(json);
         setError(null);
       } catch (err) {
-        if (alive) setError((err as Error).message);
+        if (alive) setError((err as Error).name === "TimeoutError" ? "the stats service didn't answer in time" : (err as Error).message);
       }
     };
     load();
-    // Refresh while the tab stays open; the API only re-scans when stale.
-    const timer = setInterval(load, 120_000);
+    // Refresh while the tab stays open; the API only re-scans when its aggregate is stale.
+    const timer = setInterval(load, REFRESH_MS);
     return () => { alive = false; clearInterval(timer); };
   }, []);
 
-  if (error) {
-    return (
-      <div className="stats">
-        <header className="stats__header">
-          <h1 className="stats__title">BlockSlide Stats</h1>
-        </header>
-        <p className="stats__error">{error}</p>
-        <Link href="/" className="stats__back">Back to the game</Link>
-      </div>
-    );
-  }
-
   if (!data) {
     return (
-      <div className="stats">
-        <header className="stats__header"><h1 className="stats__title">BlockSlide Stats</h1></header>
-        <p className="stats__loading">Reading the chain…</p>
-      </div>
+      <Shell>
+        {error
+          ? <p className="state-note state-note--error" role="alert">Stats are unavailable right now: {error.replace(/\.\s*$/, "")}. Nothing is shown rather than guessed.</p>
+          : <p className="state-note" role="status">Reading the chain…</p>}
+        <div className="stats2__footer"><span /><Link href="/" className="stats2__back">Back to the game</Link></div>
+      </Shell>
     );
   }
 
   const weekly = data.weekly;
+  const range = weekRangeLabel(weekly.map((w) => w.week));
+  const weeklySub = range ? `Weekly · ${range}` : "Weekly";
   const played = data.engagement.reduce((s, b) => s + b.wallets, 0);
   const updated = new Date(data.updatedAt);
+  const days = utcDayEvents(data.daily ?? [], data.checkpointBlock);
+  const behind = catchingUp({ updatedAt: data.updatedAt, scan: data.scan, now });
+  const wk = (w: { week: string }) => shortWeek(w.week);
 
   return (
-    <div className="stats">
-      <header className="stats__header">
-        <h1 className="stats__title">BlockSlide Stats</h1>
-        <p className="stats__subtitle">
-          Live from Celo mainnet — every number below is read from the game contract&apos;s own event
-          logs, not from an analytics service.
-        </p>
-        <p className="stats__meta">
-          Updated {updated.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · block{" "}
-          {fmt.format(data.checkpointBlock)} · {data.spanDays} days since launch
-        </p>
-      </header>
-
-      <section className="stats__section" aria-label="Headline numbers">
-        <div className="stats__tiles">
-          <Stat label="Player wallets" value={fmt.format(data.playerWallets)} sub="all time" />
-          <Stat label="Games completed" value={fmt.format(data.totalGames)} sub={`by ${fmt.format(played)} players`} />
-          <Stat label="Sessions started" value={fmt.format(data.totals.sessionsStarted)} />
-          <Stat label="G$ paid to players" value={fmt.format(data.gDollarPaid)} sub={`${data.totals.rewardsPaid} payouts`} />
-        </div>
-      </section>
-
-      <section className="stats__section" aria-label="Recent activity">
-        <h2 className="stats__h2">Right now</h2>
-        <div className="stats__tiles">
-          <Stat label="Events, last 24h" value={fmt.format(data.recent.events24h)} />
-          <Stat label="Events, last 7d" value={fmt.format(data.recent.events7d)} />
-          <Stat label="Wallets active, 7d" value={fmt.format(data.recent.active7d)} />
-          <Stat label="New wallets, 7d" value={fmt.format(data.recent.new7d)} />
-        </div>
-      </section>
-
-      <section className="stats__section" aria-label="Growth">
-        <h2 className="stats__h2">Growth</h2>
-        <div className="stats__grid">
-          <LineChart
-            title="Total player wallets"
-            note="Cumulative distinct wallets that have interacted with the contract."
-            valueLabel="wallets"
-            data={weekly.map((w) => ({ label: shortWeek(w.week), value: w.cumulative }))}
-          />
-          <BarChart
-            title="New wallets per week"
-            note="First-ever contract interaction, by ISO week. The final bar is the current week and is still filling."
-            valueLabel="wallets"
-            highlightLast
-            data={weekly.map((w) => ({ label: shortWeek(w.week), value: w.newWallets }))}
-          />
-        </div>
-      </section>
-
-      <section className="stats__section" aria-label="Activity">
-        <h2 className="stats__h2">Activity</h2>
-        <div className="stats__grid">
-          <BarChart
-            title="Contract events per week"
-            note="Every log the game contract emitted. The final bar is the current week."
-            valueLabel="events"
-            highlightLast
-            data={weekly.map((w) => ({ label: shortWeek(w.week), value: w.events }))}
-          />
-          <BarChart
-            title="Wallets active per week"
-            note="Distinct wallets that did something on chain that week."
-            valueLabel="wallets"
-            highlightLast
-            series={2}
-            data={weekly.map((w) => ({ label: shortWeek(w.week), value: w.activeWallets }))}
-          />
-        </div>
-      </section>
-
-      <section className="stats__section" aria-label="Conversion and depth">
-        <h2 className="stats__h2">Who gets how far</h2>
-        <div className="stats__grid">
-          <HBarChart
-            title="From first touch to reward"
-            note="Overlapping stages, not a strict funnel — some wallets play without ever setting a username."
-            valueLabel="wallets"
-            showShare
-            data={data.funnel.map((f) => ({ label: f.label, value: f.count, share: f.share }))}
-          />
-          <HBarChart
-            title="Players by games completed"
-            note={`Only the ${fmt.format(played)} wallets that finished at least one game. Median is ${data.medianGames}.`}
-            valueLabel="players"
-            data={data.engagement.map((e) => ({ label: e.bucket, value: e.wallets }))}
-          />
-        </div>
-        <p className="stats__aside">
-          Of {fmt.format(data.playerWallets)} wallets, {fmt.format(data.retention.oneEventOnly)} did exactly one
-          thing on chain and {fmt.format(data.retention.multiWeek)} came back in a second week.{" "}
-          {fmt.format(data.retention.span30d)} have been active across more than 30 days.
-        </p>
-      </section>
-
-      <footer className="stats__footer">
+    <Shell>
+      <div className="stats2__meta">
         <p>
-          Contract <code>0xD551…ceB6</code> on Celo. Counts are distinct wallet addresses, which is not
-          the same as distinct people — one person can hold several wallets. Verified player identity is
-          gated separately by GoodDollar face verification.
+          Updated {updated.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · block {fmt.format(data.checkpointBlock)} ·{" "}
+          {data.spanDays} days since launch
         </p>
-        <Link href="/" className="stats__back">Back to the game</Link>
-      </footer>
-    </div>
+        <p>Auto-refreshes every {REFRESH_MS / 1000} seconds{error ? " · last refresh failed, showing the previous snapshot" : ""}</p>
+      </div>
+      {behind && <CatchingUpNotice />}
+
+      <section aria-label="Headline numbers" className="stats2__tiles">
+        <StatTile label="Player wallets" value={fmt.format(data.playerWallets)} sub="All time" />
+        <StatTile label="Games completed" value={fmt.format(data.totalGames)} sub={`By ${fmt.format(played)} wallets`} />
+        <StatTile label="Sessions started" value={fmt.format(data.totals.sessionsStarted)} sub="All time" />
+        <StatTile label="G$ paid to players" value={`${fmt.format(data.gDollarPaid)} G$`} sub={`${fmt.format(data.totals.rewardsPaid)} milestone payouts`} tone="green" />
+        <StatTile label="Events today" value={fmt.format(days.today)} sub="Since 00:00 UTC" />
+        <StatTile label="Events, last 7 days" value={fmt.format(days.last7)} sub="UTC days, today included" />
+        <StatTile label="Wallets active, 7 days" value={fmt.format(data.recent.active7d)} sub="Distinct wallets, last 7 × 24 h" />
+        <StatTile label="New wallets, 7 days" value={fmt.format(data.recent.new7d)} sub="First on-chain activity, last 7 × 24 h" />
+      </section>
+
+      <section aria-labelledby="stats-growth">
+        <div className="stats2__section-head"><h2 id="stats-growth" className="section-title">Growth</h2><p>Player wallets over time</p></div>
+        <div className="stats2__grid">
+          <LineChart title="Total player wallets" subtitle={weeklySub} valueLabel="wallets" xLabels="spread"
+            note="Cumulative distinct wallets that have interacted with the game contract."
+            data={weekly.map((w) => ({ label: wk(w), value: w.cumulative }))} />
+          <BarChart title="New wallets per week" subtitle={weeklySub} valueLabel="wallets" xLabels="spread" highlightLast
+            note="A wallet's first contract interaction, by ISO week (Monday start). The last bar is the current week, still filling."
+            data={weekly.map((w) => ({ label: wk(w), value: w.newWallets }))} />
+        </div>
+      </section>
+
+      <section aria-labelledby="stats-activity">
+        <div className="stats2__section-head"><h2 id="stats-activity" className="section-title">Activity</h2><p>Interactions with the game contract</p></div>
+        <div className="stats2__grid">
+          <BarChart title="Contract events per week" subtitle={weeklySub} valueLabel="events" xLabels="spread" highlightLast
+            note="Every log the game contract emitted. The last bar is the current week."
+            data={weekly.map((w) => ({ label: wk(w), value: w.events }))} />
+          <BarChart title="Wallets active per week" subtitle={weeklySub} valueLabel="wallets" xLabels="spread" highlightLast
+            note="Distinct wallets that did anything on chain that week."
+            data={weekly.map((w) => ({ label: wk(w), value: w.activeWallets }))} />
+        </div>
+      </section>
+
+      <section aria-labelledby="stats-depth">
+        <div className="stats2__section-head"><h2 id="stats-depth" className="section-title">Who gets how far</h2><p>Participation and completed games</p></div>
+        <div className="stats2__grid">
+          <figure className="stats-chart">
+            <figcaption className="stats-chart__head">
+              <h3 className="stats-chart__title">From first touch to reward</h3>
+              <p className="stats-chart__subtitle">Overlapping stages, not a strict funnel. Share of all {fmt.format(data.playerWallets)} player wallets.</p>
+            </figcaption>
+            <Funnel stages={data.funnel} />
+          </figure>
+          <BarChart title="Players by games completed" valueLabel="wallets" periodLabel="Games completed" xLabels="all" showValues series={1}
+            subtitle={`${fmt.format(played)} wallets with at least one completed game · median ${fmt.format(data.medianGames)}`}
+            data={data.engagement.map((e) => ({ label: e.bucket.replace("-", "–"), value: e.wallets }))} />
+        </div>
+      </section>
+
+      <CloserLook rows={[
+        ["Median games completed (per wallet that played)", data.medianGames],
+        ["Wallets active in more than one week", data.retention.multiWeek],
+        ["Wallets that did exactly one thing on chain", data.retention.oneEventOnly],
+        ["Wallets active across more than 30 days", data.retention.span30d],
+      ]} />
+
+      <div className="stats2__footer">
+        <p>
+          Contract <code>0xD551…ceB6</code> on Celo. Counts are distinct wallet addresses, not distinct people: one person can hold
+          several wallets. GoodDollar identity verification is separate from the wallet activity shown here.
+        </p>
+        <Link href="/" className="stats2__back">Back to the game</Link>
+      </div>
+    </Shell>
   );
 }

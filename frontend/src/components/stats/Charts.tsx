@@ -11,18 +11,28 @@
  * charts on a shared x, never as a dual-axis overlay.
  */
 import { useId, useState } from "react";
+import { tickIndices } from "../../lib/stats/statsView";
 
 const PAD = { top: 14, right: 12, bottom: 26, left: 44 };
 const W = 720;
 const H = 240;
 
 const fmt = new Intl.NumberFormat("en-US");
-const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : fmt.format(n));
+/** Axis label: 2500 -> "2.5k", 2000 -> "2k" (no trailing ".0"). */
+export const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "")}k` : fmt.format(n));
 
-function niceMax(v: number): number {
+/** A round gridline step (1, 2, 2.5 or 5 × 10^n) giving about four intervals up to `v`. */
+export function niceStep(v: number): number {
   if (v <= 0) return 1;
-  const mag = 10 ** Math.floor(Math.log10(v));
-  return Math.ceil(v / mag) * mag;
+  const raw = v / 4, mag = 10 ** Math.floor(Math.log10(raw)), f = raw / mag;
+  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;
+  return Math.max(1, step); // counts are whole numbers: never a fractional gridline
+}
+/** The axis top: the data maximum rounded up to a whole number of round steps. */
+export function niceMax(v: number): number {
+  if (v <= 0) return 1;
+  const step = niceStep(v);
+  return Math.ceil(v / step) * step;
 }
 
 function useTooltip() {
@@ -67,8 +77,9 @@ function DataTable({ head, rows }: { head: string[]; rows: Array<Array<string | 
   );
 }
 
-function Grid({ max, ticks = 4 }: { max: number; ticks?: number }) {
-  const lines = Array.from({ length: ticks + 1 }, (_, i) => (max / ticks) * i);
+function Grid({ max }: { max: number }) {
+  const step = niceStep(max);
+  const lines = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => step * i);
   return (
     <g aria-hidden="true">
       {lines.map((v) => {
@@ -84,14 +95,57 @@ function Grid({ max, ticks = 4 }: { max: number; ticks?: number }) {
   );
 }
 
+/** Title, optional subtitle (e.g. "Weekly · 8 Jun – 2 Nov 2026") and optional note. */
+function Head({ title, subtitle, note }: { title: string; subtitle?: string; note?: string }) {
+  return (
+    <figcaption className="stats-chart__head">
+      <h3 className="stats-chart__title">{title}</h3>
+      {subtitle && <p className="stats-chart__subtitle">{subtitle}</p>}
+      {note && <p className="stats-chart__note">{note}</p>}
+    </figcaption>
+  );
+}
+
+/** "ends": first and last label (default). "spread": up to five evenly spaced. "all": every label (categories). */
+export type XLabels = "ends" | "spread" | "all";
+
+function XAxis({ data, mode, centred }: { data: Series[]; mode: XLabels; centred: boolean }) {
+  if (mode === "ends") {
+    return <div className="stats-chart__xaxis"><span>{data[0]?.label}</span><span>{data[data.length - 1]?.label}</span></div>;
+  }
+  const idx = mode === "all" ? data.map((_, i) => i) : tickIndices(data.length);
+  const n = data.length;
+  // Positions follow the plot area so a label sits under its own bar or point.
+  const left = PAD.left / W, plot = (W - PAD.left - PAD.right) / W;
+  const at = (i: number) => (centred ? left + ((i + 0.5) / n) * plot : left + (n === 1 ? 0.5 : i / (n - 1)) * plot) * 100;
+  return (
+    <div className="stats-chart__xaxis stats-chart__xaxis--ticks" aria-hidden="true">
+      {idx.map((i) => <span key={i} style={{ left: `${at(i)}%` }}>{data[i].label}</span>)}
+    </div>
+  );
+}
+
+function Empty({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <figure className="stats-chart stats-chart--empty">
+      <Head title={title} subtitle={subtitle} />
+      <p className="stats-chart__empty">No data recorded for this period yet.</p>
+    </figure>
+  );
+}
+
 export interface Series { label: string; value: number }
 
 /** Vertical bars. Rounded data-ends, 2px surface gap, hover tooltip. */
 export function BarChart({
-  data, title, note, valueLabel, highlightLast, series = 1,
-}: { data: Series[]; title: string; note?: string; valueLabel: string; highlightLast?: boolean; series?: 1 | 2 }) {
+  data, title, subtitle, note, valueLabel, highlightLast, series = 1, xLabels = "ends", showValues = false, periodLabel = "Period",
+}: {
+  data: Series[]; title: string; subtitle?: string; note?: string; valueLabel: string; highlightLast?: boolean; series?: 1 | 2;
+  xLabels?: XLabels; showValues?: boolean; periodLabel?: string;
+}) {
   const { tip, setTip } = useTooltip();
   const id = useId();
+  if (!data.length) return <Empty title={title} subtitle={subtitle} />;
   const max = niceMax(Math.max(...data.map((d) => d.value), 1));
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
@@ -100,10 +154,7 @@ export function BarChart({
 
   return (
     <figure className="stats-chart">
-      <figcaption className="stats-chart__head">
-        <h3 className="stats-chart__title">{title}</h3>
-        {note && <p className="stats-chart__note">{note}</p>}
-      </figcaption>
+      <Head title={title} subtitle={subtitle} note={note} />
       <div className="stats-chart__plot">
         <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={id} preserveAspectRatio="none">
           <title id={id}>{title}</title>
@@ -120,6 +171,9 @@ export function BarChart({
                   rx={Math.min(4, barW / 2)}
                   className={`stats-chart__bar${isLast ? " stats-chart__bar--alt" : ""}${series === 2 ? " stats-chart__bar--s2" : ""}`}
                 />
+                {showValues && (
+                  <text x={x + barW / 2} y={Math.max(y - 6, PAD.top + 10)} textAnchor="middle" className="stats-chart__value">{fmt.format(d.value)}</text>
+                )}
                 <rect
                   x={x} y={PAD.top} width={barW} height={plotH} fill="transparent"
                   onMouseEnter={() => setTip({ x: x + barW / 2, y, label: d.label, value: `${fmt.format(d.value)} ${valueLabel}` })}
@@ -132,21 +186,19 @@ export function BarChart({
         </svg>
         <Tooltip tip={tip} />
       </div>
-      <div className="stats-chart__xaxis">
-        <span>{data[0]?.label}</span>
-        <span>{data[data.length - 1]?.label}</span>
-      </div>
-      <DataTable head={["Period", valueLabel]} rows={data.map((d) => [d.label, d.value])} />
+      <XAxis data={data} mode={xLabels} centred />
+      <DataTable head={[periodLabel, valueLabel]} rows={data.map((d) => [d.label, d.value])} />
     </figure>
   );
 }
 
 /** Single line with a crosshair. Used for cumulative totals. */
 export function LineChart({
-  data, title, note, valueLabel,
-}: { data: Series[]; title: string; note?: string; valueLabel: string }) {
+  data, title, subtitle, note, valueLabel, xLabels = "ends",
+}: { data: Series[]; title: string; subtitle?: string; note?: string; valueLabel: string; xLabels?: XLabels }) {
   const { tip, setTip } = useTooltip();
   const id = useId();
+  if (!data.length) return <Empty title={title} subtitle={subtitle} />;
   const max = niceMax(Math.max(...data.map((d) => d.value), 1));
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
@@ -158,10 +210,7 @@ export function LineChart({
 
   return (
     <figure className="stats-chart">
-      <figcaption className="stats-chart__head">
-        <h3 className="stats-chart__title">{title}</h3>
-        {note && <p className="stats-chart__note">{note}</p>}
-      </figcaption>
+      <Head title={title} subtitle={subtitle} note={note} />
       <div className="stats-chart__plot">
         <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={id} preserveAspectRatio="none">
           <title id={id}>{title}</title>
@@ -187,10 +236,7 @@ export function LineChart({
         </svg>
         <Tooltip tip={tip} />
       </div>
-      <div className="stats-chart__xaxis">
-        <span>{data[0]?.label}</span>
-        <span>{data[data.length - 1]?.label}</span>
-      </div>
+      <XAxis data={data} mode={xLabels} centred={false} />
       <DataTable head={["Period", valueLabel]} rows={data.map((d) => [d.label, d.value])} />
     </figure>
   );

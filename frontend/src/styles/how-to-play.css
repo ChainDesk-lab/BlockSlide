@@ -1,208 +1,132 @@
-.how-to-play {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-  color: var(--text);
+/* How to Play (Figma frame 6). Uses the shared redesign tokens from index.css. */
+.htp2 { display: flex; flex-direction: column; gap: 32px; }
+.htp2__hero .kicker { margin: 0 0 10px; }
+.htp2__hero .page__title { margin: 0; }
+
+.htp2__layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 28px; align-items: start; }
+.htp2__aside { position: sticky; top: 100px; }
+.htp2__nav { padding: 18px 14px; }
+.htp2__nav-title { margin: 0 0 10px 8px; }
+.htp2__nav ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.htp2__nav-link {
+  display: flex; gap: 12px; align-items: baseline; padding: 8px 10px; border-radius: 8px; text-decoration: none;
+  color: var(--text-muted); font-size: 0.86rem; line-height: 1.3; border-left: 2px solid transparent;
+}
+.htp2__nav-link:hover { color: var(--text); background: rgba(127, 127, 127, 0.08); }
+.htp2__nav-link:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 2px; }
+.htp2__nav-link--active { color: var(--text); background: rgba(var(--brand-rgb, 102, 80, 244), 0.14); border-left-color: var(--brand-400); }
+.htp2__nav-num { font-family: var(--font-display); font-size: 0.7rem; font-weight: 700; color: var(--brand-400); min-width: 18px; }
+
+.htp2__content { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.htp2__section { padding: 26px 28px; scroll-margin-top: 110px; }
+.htp2__section-title {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 16px;
+  font-family: var(--font-display); font-size: 1.3rem; font-weight: 800;
+}
+.htp2__num {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px;
+  font-size: 0.72rem; font-weight: 800; color: var(--brand-400); background: rgba(var(--brand-rgb, 102, 80, 244), 0.14);
+}
+.htp2__lede { color: var(--text-muted); line-height: 1.6; margin: 0 0 16px; font-size: 0.93rem; }
+.htp2__lede strong { color: var(--text); }
+.htp2__lede--small { font-size: 0.86rem; margin-top: 14px; }
+
+.htp2__grid { display: grid; gap: 14px; }
+.htp2__grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.htp2__grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.htp2__grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.htp2__fact { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.htp2__fact .kicker { margin: 0; }
+.htp2__fact-value { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; margin: 6px 0 6px; overflow-wrap: anywhere; }
+.htp2__fact-value--brand { color: var(--brand-400); }
+.htp2__fact-value--green { color: var(--accent-green); font-size: 1.6rem; }
+.htp2__grid--4 .htp2__fact { text-align: center; }
+.htp2__fact-note { color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; margin: 0; }
+.htp2__fact--highlight { background: rgba(var(--brand-rgb, 102, 80, 244), 0.12); border-color: rgba(var(--brand-rgb, 102, 80, 244), 0.35); }
+.htp2__card-title { font-family: var(--font-display); font-weight: 700; margin: 0 0 6px; }
+.htp2__fact--link { text-decoration: none; color: inherit; transition: border-color 0.15s; }
+.htp2__fact--link:hover { border-color: var(--brand-400); }
+.htp2__fact--link:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 2px; }
+.htp2__link-value { margin: 6px 0 0; font-weight: 600; color: var(--accent-cyan); overflow-wrap: anywhere; }
+
+.htp2__note {
+  display: flex; gap: 10px; align-items: flex-start; margin: 16px 0 0; padding: 12px 14px; border-radius: 10px;
+  background: rgba(var(--brand-rgb, 102, 80, 244), 0.1); color: var(--text-muted); font-size: 0.82rem; line-height: 1.5;
+}
+.htp2__note svg { flex: none; margin-top: 2px; color: var(--brand-400); }
+.htp2__inline-link { color: var(--brand-400); font-weight: 600; }
+
+/* How to Play: keys, example board, merge strip */
+.htp2__split { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; }
+.htp2__keys { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; }
+.htp2__key {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 32px; padding: 0 8px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--card-2); font-family: inherit; font-size: 0.95rem;
+  color: var(--text); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+}
+.htp2__keys-note { color: var(--text-muted); font-size: 0.8rem; margin-left: 4px; }
+.htp2__board-fig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.htp2__board-fig figcaption { color: var(--text-muted); font-size: 0.72rem; }
+.htp2__board {
+  display: grid; grid-template-columns: repeat(4, 40px); gap: 6px; padding: 8px; border-radius: 12px; background: var(--board);
+}
+.htp2__cell {
+  width: 40px; height: 40px; border-radius: 7px; background: var(--cell-well);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.htp2__cell--tile { font-family: var(--font-display); font-weight: 800; font-size: 0.95rem; }
+.htp2__merge {
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin-top: 18px; padding: 16px 18px; border-radius: 12px;
+  background: var(--bg); border: 1px solid var(--border);
+}
+.htp2__merge-tiles { display: flex; align-items: center; gap: 12px; }
+.htp2__merge-tiles .htp2__cell { width: 52px; height: 52px; font-size: 1.15rem; }
+.htp2__op { color: var(--text-muted); font-weight: 700; }
+.htp2__merge-title { font-family: var(--font-display); font-weight: 700; margin: 0 0 4px; }
+
+/* XP headline, formula, chips, CTA */
+.htp2__headline { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; margin-bottom: 18px; }
+.htp2__big { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.4rem, 3vw, 1.9rem); color: var(--brand-400); margin: 0; }
+.htp2__formula {
+  display: flex; align-items: center; gap: 12px; margin: 16px 0 12px; padding: 16px 20px; border-radius: 12px;
+  background: rgba(var(--brand-rgb, 102, 80, 244), 0.14); font-family: var(--font-display); font-weight: 800; font-size: 1.15rem;
+}
+.htp2__formula span { color: var(--brand-400); }
+.htp2__chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.htp2__chip { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); font-size: 0.82rem; }
+.htp2__chip span { color: var(--accent-green); margin-right: 4px; }
+.htp2__cta-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.htp2__btn {
+  display: inline-flex; align-items: center; padding: 11px 20px; border-radius: 8px; background: var(--brand-500); color: #fff;
+  font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; text-decoration: none;
+}
+.htp2__btn:hover { background: var(--brand-400); }
+.htp2__btn:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 3px; }
+
+html.light-mode .htp2__fact, html.light-mode .htp2__merge, html.light-mode .htp2__chip { background: var(--surface-2); }
+@media (prefers-color-scheme: light) {
+  :root:not(.dark-mode) .htp2__fact, :root:not(.dark-mode) .htp2__merge, :root:not(.dark-mode) .htp2__chip { background: var(--surface-2); }
 }
 
-.how-to-play__header {
-  margin-bottom: 3rem;
-  text-align: center;
+/* Tablet: the navigation becomes a compact two-column list above the guide. */
+@media (max-width: 1024px) {
+  .htp2__layout { grid-template-columns: minmax(0, 1fr); }
+  .htp2__aside { position: static; }
+  .htp2__nav ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .htp2__grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-
-.how-to-play__title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  margin: 0 0 0.5rem;
-  letter-spacing: -0.02em;
-  color: var(--text);
+@media (max-width: 720px) {
+  .htp2__grid--2, .htp2__grid--3 { grid-template-columns: minmax(0, 1fr); }
+  .htp2__split { grid-template-columns: minmax(0, 1fr); }
+  .htp2__board-fig { align-items: flex-start; }
+  .htp2__headline { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 }
-
-.how-to-play__subtitle {
-  font-size: 1.1rem;
-  color: var(--text-muted);
-  margin: 0;
-  font-weight: 500;
+@media (max-width: 560px) {
+  .htp2__section { padding: 20px 16px; }
+  .htp2__nav ol { grid-template-columns: minmax(0, 1fr); }
+  .htp2__section-title { font-size: 1.12rem; }
+  .htp2__formula { font-size: 1rem; padding: 14px; }
+  .htp2__merge { gap: 14px; }
+  .htp2__merge-tiles .htp2__cell { width: 44px; height: 44px; }
 }
-
-/* Table of contents card — uses same styling as stat-card for consistency */
-.how-to-play__toc {
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  margin-bottom: 2.5rem;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-
-.how-to-play__toc-title {
-  font-size: 1rem;
-  font-weight: 700;
-  margin: 0 0 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text);
-}
-
-.how-to-play__toc-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.75rem;
-}
-
-.how-to-play__toc-item {
-  margin: 0;
-}
-
-.how-to-play__toc-link {
-  display: block;
-  padding: 0.5rem 0.75rem;
-  text-decoration: none;
-  color: var(--accent);
-  border-radius: 6px;
-  transition: background-color 0.2s ease, color 0.2s ease;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-
-.how-to-play__toc-link:hover {
-  background-color: var(--surface-2);
-  color: var(--accent);
-  text-decoration: underline;
-}
-
-/* Main content */
-.how-to-play__content {
-  display: flex;
-  flex-direction: column;
-  gap: 2.5rem;
-}
-
-.how-to-play__section {
-  scroll-margin-top: 2rem;
-}
-
-.how-to-play__section-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 0 0 1rem;
-  color: var(--text);
-  border-bottom: 2px solid var(--accent);
-  padding-bottom: 0.75rem;
-}
-
-.how-to-play__section-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.how-to-play__text {
-  margin: 0;
-  line-height: 1.6;
-  font-size: 1rem;
-  color: var(--text);
-}
-
-.how-to-play__text strong {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.how-to-play__text code {
-  background: var(--surface-2);
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  font-family: "Monaco", "Courier New", monospace;
-  font-size: 0.9rem;
-  color: var(--brand);
-}
-
-/* List styling within sections */
-.how-to-play__text ul,
-.how-to-play__text ol {
-  margin: 0.5rem 0 0.5rem 1.5rem;
-  padding: 0;
-  color: var(--text);
-}
-
-.how-to-play__text li {
-  margin: 0.4rem 0;
-  line-height: 1.6;
-  color: var(--text);
-}
-
-/* CTA Section — uses same card styling as TOC */
-.how-to-play__cta {
-  margin-top: 3rem;
-  padding: 2rem;
-  background: var(--surface);
-  border-radius: var(--radius);
-  text-align: center;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-
-.how-to-play__cta-link {
-  display: inline-block;
-  padding: 1rem 2rem;
-  background: var(--accent);
-  color: white;
-  text-decoration: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 1.05rem;
-  transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
-}
-
-.how-to-play__cta-link:hover {
-  opacity: 0.9;
-  transform: translateY(-2px);
-}
-
-.how-to-play__cta-link:active {
-  transform: translateY(0);
-}
-
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .how-to-play {
-    padding: 1rem 0.75rem;
-  }
-
-  .how-to-play__title {
-    font-size: 1.75rem;
-  }
-
-  .how-to-play__subtitle {
-    font-size: 1rem;
-  }
-
-  .how-to-play__toc {
-    padding: 1rem;
-  }
-
-  .how-to-play__toc-list {
-    grid-template-columns: 1fr;
-  }
-
-  .how-to-play__section-title {
-    font-size: 1.25rem;
-  }
-
-  .how-to-play__text {
-    font-size: 0.95rem;
-  }
-
-  .how-to-play__cta {
-    padding: 1.5rem;
-  }
-
-  .how-to-play__cta-link {
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-  }
-}
+.htp2__sub { margin: 0 0 12px; }

@@ -10,6 +10,7 @@
  * happens client-side via the GoodDollar SDK.
  */
 import { createClient } from "redis";
+import { requireAllowedRedisUrl } from "./redisUrl";
 
 const REDIS_KEY_PREFIX = "gas:faucet:";
 const FAUCET_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -20,7 +21,7 @@ async function getRedisClient() {
   if (redisClient) return redisClient;
 
   try {
-    redisClient = createClient({ url: process.env.REDIS_URL });
+    redisClient = createClient({ url: requireAllowedRedisUrl() });
 
     redisClient.on("error", (err: Error) => {
       console.error("[Gas Tier1] Redis error:", err);

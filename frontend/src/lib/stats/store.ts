@@ -3,26 +3,47 @@
  * as app/api/game/seed/route.ts so there is one connection per lambda.
  */
 import { createClient } from "redis";
+import { allowedRedisUrl } from "../redisUrl";
 import { emptyState, type StatsState, STATE_VERSION } from "./state";
 
 const STATE_KEY = "stats:v1:state";
 const LOCK_KEY = "stats:v1:lock";
 
-let client: ReturnType<typeof createClient> | null = null;
+type Client = ReturnType<typeof createClient>;
+let client: Client | null = null;
+/** Concurrent callers during a connect share one attempt (two page loads at once must not race). */
+let connecting: Promise<Client | null> | null = null;
 
-async function getClient() {
-  if (!process.env.REDIS_URL) return null;
-  if (client?.isOpen) return client;
-  try {
-    client = createClient({ url: process.env.REDIS_URL });
-    client.on("error", (err: Error) => console.error("[stats] redis error:", err.message));
-    await client.connect();
-    return client;
-  } catch (err) {
-    console.error("[stats] redis connect failed:", (err as Error).message);
-    client = null;
-    return null;
-  }
+/** Shared with other aggregates (e.g. rewards) so a lambda holds one connection. */
+export async function getClient(): Promise<Client | null> {
+  const url = allowedRedisUrl();
+  if (!url) return null;
+  // isReady, not isOpen: isOpen is already true while a connect is still in progress or retrying.
+  if (client?.isReady) return client;
+  if (connecting) return connecting;
+  connecting = (async () => {
+    try {
+      // Fail fast when Redis is down: a short connect timeout, a couple of retries, and commands
+      // rejected immediately while disconnected (instead of queued until it returns), so the stats
+      // route answers "unavailable" in seconds rather than hanging the request.
+      const c = createClient({
+        url,
+        disableOfflineQueue: true,
+        socket: { connectTimeout: 3000, reconnectStrategy: (retries) => (retries > 2 ? false : Math.min(retries * 200, 800)) },
+      });
+      c.on("error", (err: Error) => console.error("[stats] redis error:", err.message));
+      await c.connect();
+      client = c;
+      return c;
+    } catch (err) {
+      console.error("[stats] redis connect failed:", (err as Error).message);
+      client = null;
+      return null;
+    } finally {
+      connecting = null;
+    }
+  })();
+  return connecting;
 }
 
 export async function loadState(): Promise<StatsState> {
@@ -73,4 +94,9 @@ export async function releaseLock(): Promise<void> {
   try { await c.del(LOCK_KEY); } catch { /* lock expires on its own */ }
 }
 
-export const isConfigured = () => Boolean(process.env.REDIS_URL);
+export const isConfigured = () => Boolean(allowedRedisUrl());
+
+/** Whether the store can be reached right now (configured AND connected). */
+export async function isReachable(): Promise<boolean> {
+  return (await getClient()) !== null;
+}
