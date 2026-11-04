@@ -481,6 +481,8 @@ html.dark-mode {
 .home {
   width: 100%;
   max-width: 720px;
+  /* Centred by its own margins: .app .main stretches its children rather than centring them. */
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: 40px;
@@ -557,7 +559,13 @@ html.dark-mode {
 }
 
 .hero__spacer {
-  height: 40px;
+  height: clamp(0px, 4vw - 8px, 40px);
+}
+
+/* Small phones: the two calls to action stack at the same full width. */
+@media (max-width: 480px) {
+  .hero__cta { flex-direction: column; align-self: stretch; }
+  .hero__cta .btn { width: 100%; }
 }
 
 .btn--ghost {
@@ -612,10 +620,14 @@ html.dark-mode {
   text-align: center;
 }
 
+/* One column until all three cards fit side by side, so a card is never left alone on a row. */
 .features__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: 1fr;
   gap: 20px;
+}
+@media (min-width: 768px) {
+  .features__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 .feature-card {
@@ -721,10 +733,6 @@ html.dark-mode {
 @media (max-width: 480px) {
   .daily-claim { justify-content: center; }
   .daily-claim .btn { width: 100%; }
-}
-
-@media (max-width: 420px) {
-  .features { grid-template-columns: 1fr; }
 }
 
 /* ─── Contract not deployed notice ──────────────────────────────────────── */
@@ -3215,7 +3223,7 @@ html.dark-mode {
   .icon-btn { width: 40px; height: 40px; font-size: 1.1rem; }
   .main { padding: 40px 40px 64px; gap: 32px; }
   .home { max-width: 960px; gap: 56px; }
-  .features { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .features { gap: 20px; }
   .hero__title { font-size: clamp(3.5rem, 5vw, 5rem); }
   .hero__tagline { max-width: 640px; font-size: 1.15rem; }
   .btn { padding: 14px 44px; min-width: 190px; font-size: 1.05rem; }
