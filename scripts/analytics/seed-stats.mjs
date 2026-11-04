@@ -10,9 +10,19 @@
  * Run once to bootstrap. After that /api/stats keeps itself current
  * incrementally, and this only needs re-running to rebuild from scratch.
  *
+ * Blockscout's newest blocks can still be filling in. Seeding to the newest log it returns and
+ * checkpointing there left a permanent hole once (25 Sep 2026: 196 logs never counted, found by
+ * a full RPC re-scan on 3 Nov 2026), because the incremental scan only ever reads ABOVE the
+ * checkpoint. So the seed stops SAFETY_MARGIN blocks below the newest log Blockscout returns and
+ * leaves the rest to /api/stats, which re-reads that stretch from RPC.
+ *
  * Usage:
- *   REDIS_URL=... node scripts/analytics/seed-stats.mjs
+ *   REDIS_URL=redis://127.0.0.1:6390/1 node scripts/analytics/seed-stats.mjs
  *   REDIS_URL=... node scripts/analytics/seed-stats.mjs --dry-run
+ *
+ * Only a Redis on this machine is written to by default. Writing anywhere else (for example
+ * reseeding production) needs --allow-remote, so a stray production REDIS_URL in the shell
+ * can't be overwritten by accident.
  */
 import { getAddress, toEventSelector } from "viem";
 
@@ -23,6 +33,8 @@ const ANCHOR_TIME = Date.parse("2026-09-24T21:23:50Z") / 1000;
 const MONDAY_EPOCH = 345_600;
 const WEEK = 604_800;
 const STATE_KEY = "stats:v1:state";
+/** ~14 hours of Celo blocks; logs above (newest log - margin) are left to the incremental scan. */
+const SAFETY_MARGIN = 50_000;
 const DRY = process.argv.includes("--dry-run");
 
 const blockToUnix = (b) => ANCHOR_TIME + (b - ANCHOR_BLOCK);
@@ -66,6 +78,7 @@ const setBit = (hex, bit) => (BigInt("0x" + (hex || "0")) | (1n << BigInt(bit)))
 
 const BASE = `https://celo.blockscout.com/api/v2/addresses/${GAME}/logs`;
 let params = null, pages = 0, maxBlock = 0;
+const collected = [];
 
 console.log(`seeding from Blockscout archive index: ${GAME}`);
 while (true) {
@@ -82,10 +95,22 @@ while (true) {
     }
   }
   for (const log of json.items ?? []) {
+    if (log.block_number > maxBlock) maxBlock = log.block_number;
+    collected.push(log);
+  }
+  pages += 1;
+  if (pages % 25 === 0) process.stdout.write(`\r  ${pages} pages, ${collected.length} logs`);
+  if (!json.next_page_params) break;
+  params = json.next_page_params;
+}
+
+const cutoff = maxBlock - SAFETY_MARGIN;
+for (const log of collected) {
+  {
     const t0 = log.topics?.[0];
     if (!t0) continue;
     const block = log.block_number;
-    if (block > maxBlock) maxBlock = block;
+    if (block > cutoff) continue; // re-read by the incremental RPC scan
     state.totalLogs += 1;
 
     const unix = blockToUnix(block);
@@ -119,13 +144,9 @@ while (true) {
       row[5] = setBit(row[5], week);
     }
   }
-  pages += 1;
-  if (pages % 25 === 0) process.stdout.write(`\r  ${pages} pages, ${state.totalLogs} logs`);
-  if (!json.next_page_params) break;
-  params = json.next_page_params;
 }
 
-state.checkpointBlock = maxBlock;
+state.checkpointBlock = cutoff;
 state.updatedAt = new Date().toISOString();
 
 const distinct = (name) => {
@@ -134,7 +155,8 @@ const distinct = (name) => {
 };
 console.log(`\n\npages              : ${pages}`);
 console.log(`total logs         : ${state.totalLogs}`);
-console.log(`checkpoint block   : ${state.checkpointBlock}`);
+console.log(`newest log seen    : ${maxBlock}`);
+console.log(`checkpoint block   : ${state.checkpointBlock} (newest - ${SAFETY_MARGIN}; the rest is re-read from RPC)`);
 console.log(`player wallets     : ${Object.keys(state.addrs).length}`);
 console.log(`  set a username   : ${distinct("UsernameSet")}`);
 console.log(`  started session  : ${distinct("SessionStarted")}`);
@@ -146,6 +168,15 @@ console.log(`payload size       : ${(JSON.stringify(state).length / 1024).toFixe
 
 if (DRY) { console.log("\n--dry-run: nothing written"); process.exit(0); }
 if (!process.env.REDIS_URL) { console.error("\nREDIS_URL not set — refusing to write"); process.exit(1); }
+{
+  let host = "";
+  try { host = new URL(process.env.REDIS_URL).hostname; } catch { /* unparseable: treated as remote */ }
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
+  if (!local && !process.argv.includes("--allow-remote")) {
+    console.error(`\nREDIS_URL points at "${host || "an unparseable host"}", not this machine — refusing to write. Pass --allow-remote only if that is really intended.`);
+    process.exit(1);
+  }
+}
 
 // `redis` is a frontend dependency; resolve it from there so this script can
 // run from the repo root without a duplicate install.

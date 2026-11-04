@@ -28,7 +28,77 @@ export interface StatsState {
   dailyEvents: Record<string, number>;
   /** Total G$ paid to players, in wei, as a decimal string (JSON has no BigInt). */
   rewardPaidWei: string;
+  /**
+   * Optional per-day detail, added after launch. An aggregate saved before it
+   * existed simply lacks these fields; they fill in from `detailSinceBlock`
+   * onward, so days before that block are unknown, not zero.
+   */
+  detailSinceBlock?: number;
+  /** YYYY-MM-DD (UTC) -> sessions started, games completed, distinct active wallets */
+  dailyDetail?: Record<string, DayDetail>;
+  /** Newest last, capped at RECENT_EVENTS_MAX. Same coverage as dailyDetail. */
+  recentEvents?: RecentEvent[];
+  /**
+   * Optional per-wallet XP inside a configured rewards season window, from
+   * XpEarned. Raw and unreviewed: it feeds the "estimate" shown to players,
+   * never a payout. Reset whenever the configured window changes; complete
+   * only if `sinceBlock <= startBlock`.
+   */
+  seasonTally?: SeasonTally;
 }
+
+export interface SeasonWindow { startBlock: number; endBlock: number | null }
+
+export interface SeasonTally {
+  key: string;
+  startBlock: number;
+  endBlock: number | null;
+  /** First block this tally observed. */
+  sinceBlock: number;
+  /** lowercase wallet -> XP (decimal string) */
+  xp: Record<string, string>;
+}
+
+const windowKey = (w: SeasonWindow) => `${w.startBlock}:${w.endBlock ?? ""}`;
+
+/** A wallet's raw season XP from the tally, and whether the tally covers the whole window. */
+export function seasonXpOf(state: StatsState, window: SeasonWindow, wallet: string): { xp: bigint; complete: boolean } | null {
+  const t = state.seasonTally;
+  if (!t || t.key !== windowKey(window)) return null;
+  return { xp: BigInt(t.xp[wallet.toLowerCase()] ?? "0"), complete: t.sinceBlock <= t.startBlock };
+}
+
+export interface DayDetail { sessions: number; games: number; active: number }
+
+export type RecentEventType =
+  | "SessionStarted" | "ScoreSubmitted" | "RewardPaid"
+  | "ShieldPurchased" | "XpBoostPurchased" | "UndoPurchased" | "CosmeticPurchased";
+
+export interface RecentEvent {
+  block: number;
+  tx: string | null;
+  type: RecentEventType;
+  player: string;
+  /** ScoreSubmitted: score and highest tile. RewardPaid: milestone tile. */
+  score?: number;
+  tile?: number;
+  /** RewardPaid: G$ amount in wei, as a decimal string. */
+  amountWei?: string;
+}
+
+export const RECENT_EVENTS_MAX = 30;
+const RECENT_TYPES = new Set<string>([
+  "SessionStarted", "ScoreSubmitted", "RewardPaid",
+  "ShieldPurchased", "XpBoostPurchased", "UndoPurchased", "CosmeticPurchased",
+]);
+
+/** The Nth 32-byte word of ABI-encoded log data, or null if it isn't there. */
+function dataWord(data: string | undefined, n: number): bigint | null {
+  if (!data || data.length < 2 + 64 * (n + 1)) return null;
+  return BigInt("0x" + data.slice(2 + 64 * n, 2 + 64 * (n + 1)));
+}
+
+const dayOf = (block: number) => new Date(blockToUnix(block) * 1000).toISOString().slice(0, 10);
 
 export function emptyState(): StatsState {
   return {
@@ -54,13 +124,27 @@ function hasBit(hex: string, bit: number): boolean {
   return ((BigInt("0x" + (hex || "0")) >> BigInt(bit)) & 1n) === 1n;
 }
 
-export interface RawLog { blockNumber: number; topics: string[]; data?: string }
+export interface RawLog { blockNumber: number; topics: string[]; data?: string; transactionHash?: string }
 
 /**
  * Fold new logs into the state. Caller guarantees every log sits above
  * state.checkpointBlock; it then advances the checkpoint.
  */
-export function applyLogs(state: StatsState, logs: RawLog[], newCheckpoint: number): StatsState {
+export function applyLogs(state: StatsState, logs: RawLog[], newCheckpoint: number, season: SeasonWindow | null = null): StatsState {
+  // Detail tracking starts at the first block this code ever scans.
+  if (state.detailSinceBlock === undefined) state.detailSinceBlock = state.checkpointBlock + 1;
+  if (season === null) {
+    delete state.seasonTally;
+  } else if (state.seasonTally?.key !== windowKey(season)) {
+    state.seasonTally = {
+      key: windowKey(season), startBlock: season.startBlock, endBlock: season.endBlock,
+      sinceBlock: state.checkpointBlock + 1, xp: {},
+    };
+  }
+  const tally = state.seasonTally;
+  const detail = (state.dailyDetail ??= {});
+  const recent = (state.recentEvents ??= []);
+
   for (const log of logs) {
     const meta = TOPIC_TO_EVENT[log.topics?.[0] ?? ""];
     state.totalLogs += 1;
@@ -76,6 +160,45 @@ export function applyLogs(state: StatsState, logs: RawLog[], newCheckpoint: numb
     if (!t1 || !ADDRESS_TOPIC.test(t1)) continue;
     const addr = ("0x" + t1.slice(26)).toLowerCase();
     const week = weekIndexOf(unix) - BASE_WEEK;
+
+    const d = (detail[day] ??= { sessions: 0, games: 0, active: 0 });
+    if (meta.name === "SessionStarted") d.sessions += 1;
+    if (meta.name === "ScoreSubmitted") d.games += 1;
+    // Logs arrive in block order, so a wallet is new to this day exactly when
+    // its previous event fell on an earlier day (or it has none).
+    const prev = state.addrs[addr];
+    if (!prev || dayOf(prev[1]) !== day) d.active += 1;
+
+    if (RECENT_TYPES.has(meta.name)) {
+      const ev: RecentEvent = {
+        block: log.blockNumber,
+        tx: log.transactionHash ?? null,
+        type: meta.name as RecentEventType,
+        player: addr,
+      };
+      if (meta.name === "ScoreSubmitted") {
+        // data words: [0] score, [1] highestTile
+        const score = dataWord(log.data, 0), tile = dataWord(log.data, 1);
+        if (score !== null) ev.score = Number(score);
+        if (tile !== null) ev.tile = Number(tile);
+      } else if (meta.name === "RewardPaid") {
+        // data words: [0] milestone, [1] amount
+        const milestone = dataWord(log.data, 0), amount = dataWord(log.data, 1);
+        if (milestone !== null) ev.tile = Number(milestone);
+        if (amount !== null) ev.amountWei = amount.toString();
+      }
+      recent.push(ev);
+      if (recent.length > RECENT_EVENTS_MAX) recent.splice(0, recent.length - RECENT_EVENTS_MAX);
+    }
+
+    if (
+      tally && meta.name === "XpEarned" && log.blockNumber >= tally.startBlock &&
+      (tally.endBlock === null || log.blockNumber <= tally.endBlock)
+    ) {
+      // data words: [0] amount, [1] total
+      const amount = dataWord(log.data, 0);
+      if (amount !== null) tally.xp[addr] = (BigInt(tally.xp[addr] ?? "0") + amount).toString();
+    }
 
     if (meta.name === "RewardPaid" && log.data && log.data.length >= 2 + 128) {
       // data words: [0] milestone, [1] amount
@@ -121,6 +244,21 @@ export interface StatsSnapshot {
   medianGames: number;
   totalGames: number;
   gDollarPaid: number;
+  /**
+   * Per-day sessions, games and active wallets, known only from `sinceDay`
+   * (null when this aggregate has no detail yet). Windowed totals are null
+   * when the window reaches back before coverage began.
+   */
+  detail: {
+    sinceBlock: number | null;
+    sinceDay: string | null;
+    days: Array<{ day: string } & DayDetail>;
+    window: Record<"7d" | "30d", { sessions: number; games: number } | null>;
+  };
+  /** Newest first. */
+  recentEvents: RecentEvent[];
+  /** Purchase counts from the shop's own events (legacy and V6 shapes). */
+  shop: { shields: number; boosts: number; undoCredits: number; cosmetics: number };
 }
 
 const distinctFor = (state: StatsState, name: string): number => {
@@ -234,6 +372,22 @@ export function derive(state: StatsState): StatsSnapshot {
   const medianGames = played.length ? played[Math.floor(played.length / 2)] : 0;
   const totalGames = rows.reduce((s, r) => s + r[3], 0);
 
+  const sinceBlock = state.detailSinceBlock ?? null;
+  const sinceDay = sinceBlock !== null && state.dailyDetail ? dayOf(sinceBlock) : null;
+  const detailDays = Object.entries(state.dailyDetail ?? {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, d]) => ({ day, ...d }));
+  const headDay = dayOf(head);
+  const windowTotals = (days: number) => {
+    // The window's first day must be fully covered: coverage starts at the
+    // beginning of a day only if sinceDay is before the window's first day.
+    const first = new Date((blockToUnix(head) - (days - 1) * 86_400) * 1000).toISOString().slice(0, 10);
+    if (sinceDay === null || sinceDay >= first) return null;
+    const inWin = detailDays.filter((d) => d.day >= first && d.day <= headDay);
+    return { sessions: inWin.reduce((a, d) => a + d.sessions, 0), games: inWin.reduce((a, d) => a + d.games, 0) };
+  };
+  const ec = state.eventCounts;
+
   const firstUnix = blockToUnix(state.genesisBlock);
   return {
     updatedAt: state.updatedAt,
@@ -251,5 +405,13 @@ export function derive(state: StatsState): StatsSnapshot {
     },
     funnel, weekly, daily, recent, retention, engagement, medianGames, totalGames,
     gDollarPaid: Number(BigInt(state.rewardPaidWei || "0") / 10n ** 16n) / 100,
+    detail: { sinceBlock, sinceDay, days: detailDays, window: { "7d": windowTotals(7), "30d": windowTotals(30) } },
+    recentEvents: [...(state.recentEvents ?? [])].reverse(),
+    shop: {
+      shields: ec.ShieldPurchased ?? 0,
+      boosts: ec.XpBoostPurchased ?? 0,
+      undoCredits: ec.UndoPurchased ?? 0,
+      cosmetics: ec.CosmeticPurchased ?? 0,
+    },
   };
 }

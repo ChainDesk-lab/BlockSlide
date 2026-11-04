@@ -9,7 +9,7 @@
  */
 import { NextResponse } from "next/server";
 import { derive } from "../../../src/lib/stats/state";
-import { loadState, saveState, acquireLock, releaseLock, isConfigured } from "../../../src/lib/stats/store";
+import { loadState, saveState, acquireLock, releaseLock, isConfigured, isReachable } from "../../../src/lib/stats/store";
 import { getHeadBlock, scanForward } from "../../../src/lib/stats/scan";
 
 export const runtime = "nodejs";
@@ -27,6 +27,14 @@ export async function GET() {
     return NextResponse.json(
       { error: "stats_unconfigured", message: "REDIS_URL is not set, so the stats aggregate has nowhere to live." },
       { status: 503 }
+    );
+  }
+
+  // Configured but unreachable is an outage, not "never seeded": say so, and don't scan.
+  if (!(await isReachable())) {
+    return NextResponse.json(
+      { error: "stats_unavailable", message: "The stats store can't be reached right now" },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }
 

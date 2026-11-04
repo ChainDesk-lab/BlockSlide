@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { allowedRedisUrl } from "../../../src/lib/redisUrl";
 
 /**
  * Shared Redis accessor for the API routes.
@@ -20,13 +21,14 @@ let connecting: Promise<RedisClient | null> | null = null;
 
 export async function getRedis(): Promise<RedisClient | null> {
   if (client?.isOpen) return client;
-  if (!process.env.REDIS_URL) return null;
+  const url = allowedRedisUrl();
+  if (!url) return null;
   if (connecting) return connecting;
 
   connecting = (async () => {
     try {
       const c = createClient({
-        url: process.env.REDIS_URL,
+        url,
         socket: {
           connectTimeout: 3000,
           // Applies to the initial connect too: give up after 2 retries so a
