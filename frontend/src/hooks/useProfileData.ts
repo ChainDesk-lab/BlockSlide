@@ -3,6 +3,7 @@ import { useReadContract } from "wagmi";
 import { GAME2048_ADDRESS } from "../lib/constants";
 import { GAME2048_ABI } from "../lib/abi";
 import { useGDollarStats } from "./useGDollarStats";
+import { fetchUbiTotals, type UbiTotals } from "../lib/ubiProfile";
 
 interface PlayerProfile {
   id: string;
@@ -23,6 +24,8 @@ interface ProfileData {
   coreLoading: boolean; // true while core query (CORE QUERY) is in flight
   streakLoading: boolean; // true while contract streak read is in flight
   gdollarLoading: boolean; // true while optional G$ query is in flight
+  /** Lifetime UBI contribution totals; null while loading. A failure is reported as such, never as zero. */
+  ubi: UbiTotals | null;
   error: string | null; // only set if CORE query fails or identifier not found
 }
 
@@ -105,6 +108,19 @@ export function useProfileData(
     },
   });
 
+  // UBI QUERY: this wallet's lifetime UBI contribution, separate from the G$ query above because
+  // its failure must show as an error (that one is swallowed), and a subgraph without the fields
+  // must show as "not yet available". Only affects the UBI card.
+  const { data: ubiTotals } = useQuery({
+    queryKey: ["profile-player-ubi", address?.toLowerCase()],
+    enabled: !!address && !!subgraphUrl && !!player,
+    staleTime: 60_000,
+    queryFn: () => fetchUbiTotals(subgraphUrl, address as string),
+  });
+  const ubi: UbiTotals | null = !subgraphUrl
+    ? { kind: "error", message: "No subgraph configured" }
+    : ubiTotals ?? null;
+
   // FALLBACK QUERY: fetch G$ stats from contract events if subgraph doesn't have them
   const { totalEarned, totalSpent, loading: gdollarEventLoading } = useGDollarStats(
     address,
@@ -171,6 +187,7 @@ export function useProfileData(
     coreLoading,
     streakLoading,
     gdollarLoading,
+    ubi,
     error,
   };
 }
