@@ -5260,9 +5260,17 @@ html.light-mode .lb-layout .leaderboard__entry--rank-3 { --row-end: var(--surfac
 .shop2__chips { display: flex; gap: 10px; }
 .shop2__chip { font-size: 0.8rem; color: var(--text-muted); background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; }
 .shop2__chip strong { color: var(--text); font-family: var(--font-display); margin-left: 4px; }
-.shop2__grid { display: grid; gap: 24px; }
-.shop2__grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.shop2__grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Cards wrap in centred rows of --cols, so a short last row sits in the middle instead of leaving a
+   card stranded on the left. Column counts follow the item counts: Power-ups (--3) has 4 cards,
+   Cosmetics (--4) has 5. */
+.shop2__grid { --gap: 24px; --cols: 1; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--gap); }
+.shop2__grid > * { flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols)); }
+.shop2__grid--3 { --cols: 4; }
+.shop2__grid--4 { --cols: 5; }
+.shop__wallet-note {
+  margin: 0 0 20px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--card);
+  color: var(--text-muted); font-size: 0.88rem; line-height: 1.5;
+}
 .shop2 .shop__ubi-note, .shop2 .shop__ubi-confirmed, .shop2 .shop__error { margin: 0 0 20px; }
 .shop2 .shop__ubi-confirmed, .shop2 .shop__error { margin: 20px 0 0; }
 
@@ -5304,10 +5312,10 @@ html.light-mode .shop-card__media { background: radial-gradient(120% 90% at 50% 
 .shop-card__qty { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; }
 .shop-card__qty input { width: 52px; padding: 9px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-align: center; }
 
-@media (max-width: 1100px) { .shop2__grid--4 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 900px) { .shop2__grid--3, .shop2__grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1279px) { .shop2__grid--3 { --cols: 2; } .shop2__grid--4 { --cols: 3; } }
+@media (max-width: 900px) { .shop2__grid--4 { --cols: 2; } }
 @media (max-width: 560px) {
-  .shop2__grid--3, .shop2__grid--4 { grid-template-columns: 1fr; gap: 16px; }
+  .shop2__grid--3, .shop2__grid--4 { --cols: 1; --gap: 16px; }
   .shop2__hero { flex-direction: column; gap: 16px; }
   .shop-card__media { height: 140px; }
 }
