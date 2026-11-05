@@ -13,7 +13,7 @@ import IdentityGate from "./components/IdentityGate";
 import Leaderboard from "./components/Leaderboard";
 import SignInModal from "./components/SignInModal";
 import Shop from "./components/Shop";
-import { LiveStanding, PodiumTeaser, ReadyToClimb, RunStatsBar, SubmitScoreCard, YourStats, useRunTimer } from "./components/PlayPanels";
+import { ComboMeter, LiveStanding, PodiumTeaser, ReadyToClimb, RunStatsBar, SubmitScoreCard, YourStats, useRunTimer } from "./components/PlayPanels";
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
 import FeatureNotification from "./components/FeatureNotification";
@@ -89,6 +89,20 @@ export default function App() {
   };
   const boardWrapperRef = useRef<HTMLDivElement>(null);
   const { state, seed, startNewGame, clearGame, isInitialized, lastDirection, canUndo, undoLastMove, undosUsed } = useGame(address, view === "game", boardWrapperRef);
+
+  // A phone held sideways has no room for the header and the board together (the header stops
+  // being sticky there, see index.css), so bring the whole board into view. Must match the CSS query.
+  const hasBoard = !!state;
+  useEffect(() => {
+    if (view !== "game" || !hasBoard) return;
+    const mq = window.matchMedia("(orientation: landscape) and (max-height: 500px) and (max-width: 960px)");
+    const bringBoardIntoView = () => {
+      if (mq.matches) boardWrapperRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    };
+    bringBoardIntoView();
+    mq.addEventListener("change", bringBoardIntoView);
+    return () => mq.removeEventListener("change", bringBoardIntoView);
+  }, [view, hasBoard]);
   const {
     phase,
     isPending,
@@ -393,6 +407,7 @@ export default function App() {
                     </div>
                   ) : null}
                 </div>
+                {state && <ComboMeter currentCombo={state.currentCombo} maxCombo={state.maxCombo} />}
                 {error && (
                   <div className="error-banner" role="alert">
                     {error}
