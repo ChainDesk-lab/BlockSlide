@@ -409,9 +409,10 @@ html.dark-mode {
 
 .username-card--editing { flex-direction: column; align-items: stretch; gap: 10px; }
 
-.username-card__display { display: flex; flex-direction: column; gap: 2px; }
+.username-card__display { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .username-card__label { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.username-card__name  { font-size: 1.05rem; font-weight: 800; }
+.username-card__name  { font-size: 1.05rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.username-card > .btn { flex-shrink: 0; }
 .username-card__unset { color: var(--text-muted); font-weight: 600; font-style: italic; }
 
 .username-card__form { display: flex; gap: 8px; align-items: center; }
@@ -1150,7 +1151,9 @@ html.dark-mode {
 }
 .btn--disabled:hover { transform: none; box-shadow: none; }
 
-.btn--xs {
+/* .btn.btn--xs, not .btn--xs: the responsive .btn rules further down set a large padding and
+   min-width with the same specificity, and would otherwise turn every small button into a big one. */
+.btn.btn--xs {
   padding: 5px 14px;
   min-width: auto;
   font-size: 0.8rem;
@@ -5160,7 +5163,8 @@ html.light-mode .header__actions .wallet-button-container > button { border-colo
 /* ── Pages (leaderboard and friends) ────────────────────────────────────── */
 .page { width: 100%; max-width: 1280px; margin: 0 auto; }
 .page__hero { margin-bottom: 36px; }
-.page__title { font-family: var(--font-display); font-size: clamp(2.2rem, 5vw, 3.2rem); font-weight: 900; text-transform: uppercase; letter-spacing: 0.005em; line-height: 1; }
+/* 9vw keeps one-word titles such as LEADERBOARD on screen down to 280px; from ~390px up it is 2.2rem+. */
+.page__title { font-family: var(--font-display); font-size: clamp(1.5rem, min(9vw, max(2.2rem, 5vw)), 3.2rem); overflow-wrap: anywhere; font-weight: 900; text-transform: uppercase; letter-spacing: 0.005em; line-height: 1; }
 .page__lede { color: var(--text-muted); margin-top: 14px; max-width: 360px; line-height: 1.5; }
 .lb-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 40px; align-items: start; }
 .lb-layout__side { display: flex; flex-direction: column; gap: 24px; }
@@ -5195,10 +5199,13 @@ html.light-mode .header__actions .wallet-button-container > button { border-colo
 .lb-layout .leaderboard__score { font-family: var(--font-display); font-weight: 700; text-align: right; min-width: 108px; font-variant-numeric: tabular-nums; }
 .lb-layout .leaderboard__addr { display: none; }
 .lb-layout .leaderboard__entry--top .leaderboard__rank { font-weight: 800; color: #111; }
-.lb-layout .leaderboard__entry--top .leaderboard__name { font-weight: 700; color: #2E7D8C; }
-.lb-layout .leaderboard__entry--rank-1 { background: linear-gradient(90deg, #FAD54A 0%, #FAD54A 14%, rgba(250, 213, 74, 0.55) 40%, rgba(42, 47, 62, 1) 62%); }
-.lb-layout .leaderboard__entry--rank-2 { background: linear-gradient(90deg, #D08A4C 0%, #D08A4C 14%, rgba(208, 138, 76, 0.55) 40%, rgba(42, 47, 62, 1) 62%); }
-.lb-layout .leaderboard__entry--rank-3 { background: linear-gradient(90deg, #C9CDD4 0%, #C9CDD4 14%, rgba(201, 205, 212, 0.55) 40%, rgba(42, 47, 62, 1) 62%); }
+.lb-layout .leaderboard__entry--top .leaderboard__name { font-weight: 700; }
+/* The medal colour fills only the rank cell (--band = row padding + rank column); the rest of the
+   row gets a faint tint, so names keep the normal text colour and stay readable at any length. */
+.lb-layout .leaderboard__entry--top { --band: 96px; }
+.lb-layout .leaderboard__entry--rank-1 { background: linear-gradient(90deg, #FAD54A var(--band), rgba(250, 213, 74, 0.12) var(--band)); }
+.lb-layout .leaderboard__entry--rank-2 { background: linear-gradient(90deg, #D08A4C var(--band), rgba(208, 138, 76, 0.12) var(--band)); }
+.lb-layout .leaderboard__entry--rank-3 { background: linear-gradient(90deg, #C9CDD4 var(--band), rgba(201, 205, 212, 0.1) var(--band)); }
 .lb-layout .leaderboard__entry--rank-1 .leaderboard__score { color: var(--gold); }
 .lb-layout .leaderboard__entry--rank-2 .leaderboard__score { color: #F0A35E; }
 .lb-layout .leaderboard__entry--current-user { box-shadow: inset 3px 0 0 var(--brand-500); }
@@ -5208,13 +5215,25 @@ html.light-mode .lb-layout .leaderboard__entry--rank-2,
 html.light-mode .lb-layout .leaderboard__entry--rank-3 { --row-end: var(--surface); }
 
 @media (max-width: 960px) {
-  .lb-layout { grid-template-columns: 1fr; gap: 24px; }
+  /* minmax(0, 1fr), not 1fr: a plain 1fr column won't shrink below its widest row. */
+  .lb-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
 }
 @media (max-width: 560px) {
   .lb-layout .leaderboard__cols { grid-template-columns: 44px minmax(0, 1fr) 80px; padding: 12px 14px; }
   .lb-layout .leaderboard__entry { grid-template-columns: 44px 32px minmax(0, 1fr) auto; padding: 12px 14px; gap: 8px; }
   .lb-layout .leaderboard__actions { display: none; }
   .lb-layout .leaderboard__score { min-width: 0; }
+  .lb-layout .leaderboard__entry--top { --band: 58px; }
+}
+/* Narrowest phones (down to 280px, e.g. a folded Galaxy Z Fold): drop the avatar to give the name room. */
+@media (max-width: 380px) {
+  .lb-layout .leaderboard__cols { grid-template-columns: 34px minmax(0, 1fr) auto; padding: 10px; gap: 6px; }
+  .lb-layout .leaderboard__entry { grid-template-columns: 34px minmax(0, 1fr) auto; padding: 10px; gap: 6px; }
+  .lb-layout .leaderboard__entry--top { --band: 44px; }
+  .lb-layout .leaderboard__avatar-sm { display: none; }
+  .lb-layout .leaderboard__score { font-size: 0.82rem; }
+  .seg-tabs { gap: 8px; }
+  .seg-tabs__tab { padding: 8px 12px; }
 }
 
 /* ── Shop, bounty and legacy screens inside the stretched main ─────────── */
@@ -5525,11 +5544,10 @@ html.light-mode .seg-tabs__tab--active { background: var(--brand-500); color: #F
 html.light-mode .lb-layout .leaderboard__cols { border-color: var(--line-strong); border-bottom-color: var(--line-row); }
 html.light-mode .lb-layout .leaderboard__list { border-color: var(--line-strong); }
 html.light-mode .lb-layout .leaderboard__entry { border-bottom-color: var(--line-row); }
-html.light-mode .lb-layout .leaderboard__entry--rank-1 { background: linear-gradient(90deg, #FAD54A 0%, #FAD54A 14%, rgba(250, 213, 74, 0.45) 40%, var(--card) 62%); }
-html.light-mode .lb-layout .leaderboard__entry--rank-2 { background: linear-gradient(90deg, #D08A4C 0%, #D08A4C 14%, rgba(208, 138, 76, 0.4) 40%, var(--card) 62%); }
-html.light-mode .lb-layout .leaderboard__entry--rank-3 { background: linear-gradient(90deg, #C9CDD4 0%, #C9CDD4 14%, rgba(201, 205, 212, 0.5) 40%, var(--card) 62%); }
+html.light-mode .lb-layout .leaderboard__entry--rank-1 { background: linear-gradient(90deg, #FAD54A var(--band), rgba(250, 213, 74, 0.16) var(--band)); }
+html.light-mode .lb-layout .leaderboard__entry--rank-2 { background: linear-gradient(90deg, #D08A4C var(--band), rgba(208, 138, 76, 0.14) var(--band)); }
+html.light-mode .lb-layout .leaderboard__entry--rank-3 { background: linear-gradient(90deg, #C9CDD4 var(--band), rgba(201, 205, 212, 0.22) var(--band)); }
 html.light-mode .lb-layout .leaderboard__entry--top .leaderboard__rank { color: #101827; }
-html.light-mode .lb-layout .leaderboard__entry--top .leaderboard__name { color: #0F5964; }
 html.light-mode .lb-layout .leaderboard__entry--rank-1 .leaderboard__score { color: #A16207; }
 html.light-mode .lb-layout .leaderboard__entry--rank-2 .leaderboard__score { color: #B45309; }
 
