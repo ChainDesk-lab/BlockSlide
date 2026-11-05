@@ -92,7 +92,7 @@ describe("light mode CSS layer", () => {
 
   it("gives text at least 4.5:1 on the page, white surfaces and grey cards", () => {
     const t = tokens(light, "html.light-mode {");
-    for (const fg of ["--text", "--text-muted", "--accent-green", "--accent-cyan", "--danger-text", "--brand"]) {
+    for (const fg of ["--text", "--text-muted", "--accent-green", "--accent-cyan", "--danger-text", "--error", "--brand"]) {
       for (const bg of ["--bg", "--surface", "--card"]) {
         expect(contrast(t[fg], t[bg]), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
       }
@@ -106,3 +106,47 @@ describe("light mode CSS layer", () => {
     }
   });
 });
+
+/** The bodies of every `@media (prefers-color-scheme: dark)` block in `src`, braces balanced. */
+function systemDarkBlocks(src: string): string[] {
+  const out: string[] = [];
+  const re = /@media \(prefers-color-scheme: dark\)\s*\{/g;
+  for (let m; (m = re.exec(src)); ) {
+    let depth = 1, i = m.index + m[0].length;
+    for (; depth > 0 && i < src.length; i++) depth += src[i] === "{" ? 1 : src[i] === "}" ? -1 : 0;
+    out.push(src.slice(m.index + m[0].length, i - 1));
+  }
+  return out;
+}
+
+describe("sign-in popup in light mode", () => {
+  it("a device dark preference never overrides a chosen light theme", () => {
+    // Inside system-dark blocks, only the base :root token block may be unguarded: html.light-mode
+    // redefines those tokens with higher specificity. Anything else must exclude .light-mode.
+    const selectors = systemDarkBlocks(css.replace(/\/\*[\s\S]*?\*\//g, ""))
+      .flatMap((body) => [...body.matchAll(/([^{}]+)\{[^{}]*\}/g)].flatMap((m) => m[1].split(",").map((x) => x.trim())));
+    expect(selectors).toContain(":root:not(.light-mode) .signin-modal-card");
+    for (const sel of selectors) expect(sel === ":root" || sel.startsWith(":root:not(.light-mode)"), sel).toBe(true);
+  });
+
+  it("keeps the dark sign-in card colour for dark mode on a dark device", () => {
+    expect(css).toMatch(/@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\.light-mode\) \.signin-modal-card \{\s*background: #1a1a1a;\s*\}\s*\}/);
+  });
+
+  it("shows the email icon in light mode at 3:1 or better on the field, idle and focused", () => {
+    expect(light).toMatch(/html\.light-mode \.signin-input-icon \{ color: var\(--text-muted\); \}/);
+    const t = tokens(light, "html.light-mode {");
+    expect(contrast(t["--text-muted"], t["--surface-2"])).toBeGreaterThanOrEqual(3); // idle field
+    expect(contrast(t["--text-muted"], t["--surface"])).toBeGreaterThanOrEqual(3); // focused field
+  });
+
+  it("uses an error red of at least 4.5:1 on white in light mode only", () => {
+    const t = tokens(light, "html.light-mode {");
+    expect(t["--error"]).toBe("#C81E4A");
+    expect(contrast(t["--error"], "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
+    // Dark mode keeps its own error colour, explicit and system.
+    expect(tokens(css, "html.dark-mode {")["--error"]).toBe("#F87171");
+    expect(tokens(css, "@media (prefers-color-scheme: dark) {\n  :root {")["--error"]).toBe("#F87171");
+  });
+});
+

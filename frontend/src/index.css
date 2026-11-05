@@ -3929,9 +3929,9 @@ html.dark-mode {
   }
 }
 
-/* Dark mode adjustments */
+/* Dark mode adjustments: the device preference applies only when the user hasn't picked light mode. */
 @media (prefers-color-scheme: dark) {
-  .signin-modal-card {
+  :root:not(.light-mode) .signin-modal-card {
     background: #1a1a1a;
   }
 }
@@ -5482,7 +5482,7 @@ html.light-mode {
   --bg: #F9FAFB; --surface: #FFFFFF; --surface-2: #E5E7EB; --board: #E5E7EB; --cell: #F3F4F6;
   --text: #101827; --text-muted: #5B6473; --border: #D1D5DB; --line-strong: #8D9BB0; --line-row: #B9BDC1;
   --brand: #6650F4; --brand-rgb: 102, 80, 244; --accent: #6650F4; --brand-400: #5A43E8;
-  --accent-green: #047857; --accent-cyan: #01616E; --green: #047857; --success: #047857; --danger-text: #C81E4A;
+  --accent-green: #047857; --accent-cyan: #01616E; --green: #047857; --success: #047857; --danger-text: #C81E4A; --error: #C81E4A;
   --chrome: #FFFFFF; --card: #F3F4F6; --card-2: #F3F4F6; --cell-well: #E5E7EB;
   --t2: #6C4EFF; --t2-fg: #FFFFFF; --t4: #C3B6FD; --t4-fg: #1E1B4B; --t8: #1D40AE; --t8-fg: #FFFFFF;
   --t16: #3E55D6; --t16-fg: #FFFFFF; --t32: #7058F2; --t32-fg: #FFFFFF; --t64: #FFEB3B; --t64-fg: #101827;
@@ -5495,7 +5495,7 @@ html.light-mode {
     --bg: #F9FAFB; --surface: #FFFFFF; --surface-2: #E5E7EB; --board: #E5E7EB; --cell: #F3F4F6;
     --text: #101827; --text-muted: #5B6473; --border: #D1D5DB; --line-strong: #8D9BB0; --line-row: #B9BDC1;
     --brand: #6650F4; --brand-rgb: 102, 80, 244; --accent: #6650F4; --brand-400: #5A43E8;
-    --accent-green: #047857; --accent-cyan: #01616E; --green: #047857; --success: #047857; --danger-text: #C81E4A;
+    --accent-green: #047857; --accent-cyan: #01616E; --green: #047857; --success: #047857; --danger-text: #C81E4A; --error: #C81E4A;
     --chrome: #FFFFFF; --card: #F3F4F6; --card-2: #F3F4F6; --cell-well: #E5E7EB;
     --t2: #6C4EFF; --t2-fg: #FFFFFF; --t4: #C3B6FD; --t4-fg: #1E1B4B; --t8: #1D40AE; --t8-fg: #FFFFFF;
     --t16: #3E55D6; --t16-fg: #FFFFFF; --t32: #7058F2; --t32-fg: #FFFFFF; --t64: #FFEB3B; --t64-fg: #101827;
@@ -5519,6 +5519,7 @@ html.light-mode .climb-card { background: transparent; }
 html.light-mode .board-card .board { box-shadow: 0 0 0 1px var(--line-strong); }
 html.light-mode .board-card .tile--64, html.light-mode .board-card .tile--128, html.light-mode .board-card .tile--2048 { text-shadow: none; }
 html.light-mode .run-stats__item--center { border-color: var(--line-row); }
+html.light-mode .signin-input-icon { color: var(--text-muted); }
 html.light-mode .state-note--error { color: var(--danger-text); background: rgba(200, 30, 74, 0.06); border-color: rgba(200, 30, 74, 0.3); }
 html.light-mode .app .btn--primary { box-shadow: 0 6px 16px rgba(102, 80, 244, 0.22); }
 html.light-mode .app .btn--primary:disabled { opacity: 0.55; }
