@@ -17,6 +17,8 @@ import { ComboMeter, LiveStanding, PodiumTeaser, ReadyToClimb, RunStatsBar, Subm
 import UsernameEditor from "./components/UsernameEditor";
 import UsernameModal from "./components/UsernameModal";
 import FeatureNotification from "./components/FeatureNotification";
+import Notice from "./components/Notice";
+import { BoltIcon, TrophyIcon } from "./components/icons";
 import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
@@ -295,7 +297,7 @@ export default function App() {
           aria-label="Setting up wallet"
         >
           <div className="htp-modal">
-            <p className="htp-label">⚡ Setting up</p>
+            <p className="htp-label"><BoltIcon size={14} className="htp-label__icon" /> Setting up</p>
             <h2 className="username-modal__title">Preparing your wallet</h2>
             <p className="username-modal__desc">
               We're auto-funding your new wallet with a small amount of CELO for gas so you can save your username and play right away.
@@ -331,16 +333,22 @@ export default function App() {
 
         {/* Wrong-chain only — this actually blocks onchain play */}
         {isWrongChain && (
-          <div className="chain-banner" role="alert">
-            <span>⚠ Wrong network — switch to Celo to submit scores on-chain.</span>
-            <button
-              className="btn btn--xs"
-              onClick={switchToTargetChain}
-              disabled={isSwitchPending}
-            >
-              {isSwitchPending ? "Switching…" : "Switch"}
-            </button>
-          </div>
+          <Notice
+            tone="warning"
+            className="chain-banner"
+            role="alert"
+            actions={
+              <button
+                className="btn btn--sm btn--primary"
+                onClick={switchToTargetChain}
+                disabled={isSwitchPending}
+              >
+                {isSwitchPending ? "Switching…" : "Switch"}
+              </button>
+            }
+          >
+            <span>Wrong network — switch to Celo to submit scores on-chain.</span>
+          </Notice>
         )}
 
         {/* ── Home screen ───────────────────────────────────────────────── */}
@@ -365,7 +373,7 @@ export default function App() {
                         <div className="game-overlay">
                           <div className="game-overlay__content">
                             <p className="game-overlay__title">
-                              {state.won ? "🎉 You reached 2048!" : "Game Over"}
+                              {state.won ? <><TrophyIcon size={22} className="game-overlay__icon" /> You reached 2048!</> : "Game Over"}
                             </p>
                             <p className="game-overlay__score">Score: {state.score.toLocaleString()}</p>
                           </div>
@@ -505,7 +513,7 @@ function FeatureNotificationRenderer({
     return (
       <FeatureNotification
         type="undoStep"
-        title="✨ Undo Step"
+        title="Undo Step"
         message="Made a mistake? Buy Undo Step credits in the shop, then tap Undo under the board to take back your last move. Each undo uses one credit."
         actionLabel="Check it out"
         onAction={() => {
@@ -521,7 +529,7 @@ function FeatureNotificationRenderer({
     return (
       <FeatureNotification
         type="cosmetics"
-        title="🎨 Customize Your Look"
+        title="Customize Your Look"
         message="Did you know? You can personalize your game with cosmetics — tile skins, avatars, leaderboard flair, and more from the shop. Make BlockSlide uniquely yours!"
         actionLabel="Browse cosmetics"
         onAction={() => {
@@ -536,7 +544,7 @@ function FeatureNotificationRenderer({
     return (
       <FeatureNotification
         type="flowStateVoting"
-        title="🗳️ Vote for BlockSlide"
+        title="Vote for BlockSlide"
         message={
           <>
             Support BlockSlide by voting on{" "}
@@ -562,7 +570,7 @@ function FeatureNotificationRenderer({
     return (
       <FeatureNotification
         type="bountyWinner"
-        title="🎉 Bounty Winner!"
+        title="Bounty Winner!"
         message={`Congrats! You placed #${placement} in the Week ${week} Bounty and won $${prizeAmount}. Check Telegram/DM us to claim your reward.`}
         actionLabel="Got it"
         onAction={onDismiss}

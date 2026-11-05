@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useShop } from "../hooks/useShop";
 import { useContractAddress } from "../hooks/useContractData";
 import { ShopIcon } from "./ShopIcon";
+import Notice from "./Notice";
 import ShopCard, { CoinMark, type ShopArt, type ShopBadge } from "./ShopCard";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
 import { GAME2048_V6_FUNCTIONS } from "../lib/abiV6";
@@ -126,12 +127,12 @@ export default function Shop() {
 
   // Only what the confirmed receipt's UbiContribution event says.
   const ubiConfirmed = lastUbiContribution ? (
-    <p className="shop__ubi-confirmed">
-      ✓ {fmtGExact(lastUbiContribution.amount)} of this purchase went to GoodDollar UBI ·{" "}
+    <Notice tone="success" className="shop__ubi-confirmed">
+      {fmtGExact(lastUbiContribution.amount)} of this purchase went to GoodDollar UBI ·{" "}
       <a href={`${CELOSCAN}/tx/${lastUbiContribution.txHash}`} target="_blank" rel="noopener noreferrer">
         View transaction ↗
       </a>
-    </p>
+    </Notice>
   ) : null;
 
   /** "incl. 1.25 G$ for UBI" from the on-chain price, or nothing if unknown. */
@@ -270,7 +271,7 @@ export default function Shop() {
       )}
 
       {ubiConfirmed}
-      {error && <p className="shop__error" role="alert">{error}</p>}
+      {error && <Notice tone="error" className="shop__error" role="alert">{error}</Notice>}
     </section>
   );
 }

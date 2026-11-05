@@ -1,3 +1,5 @@
+import { VoteIcon } from "./icons";
+
 interface Props {
   onClose: () => void;
   onDismissWeek: () => void;
@@ -28,7 +30,7 @@ export default function FlowstateVotingModal({ onClose, onDismissWeek, voteUrl }
           ✕
         </button>
 
-        <p className="htp-label">🗳️ Help us grow</p>
+        <p className="htp-label"><VoteIcon size={14} className="htp-label__icon" /> Help us grow</p>
         <h2 className="username-modal__title">Vote for BlockSlide</h2>
         <p className="username-modal__desc">
           Enjoying BlockSlide? Help us win this week's Flowstate voting round! Your vote

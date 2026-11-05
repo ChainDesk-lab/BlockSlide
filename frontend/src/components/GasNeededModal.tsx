@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { FuelIcon } from "./icons";
 import { fetchGasStatus, topUpConfirmMessage } from "../lib/gasTopUp";
 
 interface Props {
@@ -69,7 +70,7 @@ export default function GasNeededModal({ onClose, requiredWei }: Props) {
           ✕
         </button>
 
-        <p className="htp-label">⛽ Gas needed</p>
+        <p className="htp-label"><FuelIcon size={14} className="htp-label__icon" /> Gas needed</p>
         <h2 className="username-modal__title">Add a little CELO</h2>
 
         <p className="gas-modal__addr-label">Your wallet address</p>

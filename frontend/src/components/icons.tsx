@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 interface IconProps {
   className?: string;
   size?: number;
@@ -235,5 +237,103 @@ export function BountyIcon({ className, size = 20 }: IconProps) {
       <path d="M6 9h12M6 9l1-5h10l1 5M6 9v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9" />
       <circle cx="12" cy="16" r="1" fill="currentColor" />
     </svg>
+  );
+}
+
+/* ── Notification and status icons: same 24px line style as the icons above ── */
+
+function LineIcon({ className, size, children }: IconProps & { size: number; children: ReactNode }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className={className} aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+export function CheckCircleIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8.5 12 2.5 2.5 4.5-5" />
+    </LineIcon>
+  );
+}
+
+/** Errors: a circle with a cross. */
+export function ErrorIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15 9-6 6M9 9l6 6" />
+    </LineIcon>
+  );
+}
+
+/** Warnings: a triangle with an exclamation mark. */
+export function WarningIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </LineIcon>
+  );
+}
+
+export function InfoIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 16v-4M12 8h.01" />
+    </LineIcon>
+  );
+}
+
+export function CloseIcon({ className, size = 16 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </LineIcon>
+  );
+}
+
+export function UndoIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <path d="M3 7v6h6" />
+      <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
+    </LineIcon>
+  );
+}
+
+export function PaletteIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7H17a4 4 0 0 0 4-4c0-4.6-4-8.4-9-8.4z" />
+      <circle cx="7.5" cy="11.5" r="1" fill="currentColor" />
+      <circle cx="10.5" cy="7.5" r="1" fill="currentColor" />
+      <circle cx="15.5" cy="8.5" r="1" fill="currentColor" />
+    </LineIcon>
+  );
+}
+
+/** Voting: a ticked ballot box. */
+export function VoteIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <path d="m9 11 3 3L21 5" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </LineIcon>
+  );
+}
+
+/** Gas: a fuel pump. */
+export function FuelIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10" />
+      <path d="M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V8.5L18.5 6" />
+    </LineIcon>
   );
 }

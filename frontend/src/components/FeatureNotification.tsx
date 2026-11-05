@@ -1,6 +1,15 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import Notice, { type NoticeTone } from "./Notice";
+import { PaletteIcon, TrophyIcon, UndoIcon, VoteIcon } from "./icons";
+
+const LOOK: Record<FeatureNotificationProps["type"], { tone: NoticeTone; icon: ReactNode }> = {
+  undoStep: { tone: "feature", icon: <UndoIcon /> },
+  cosmetics: { tone: "feature", icon: <PaletteIcon /> },
+  flowStateVoting: { tone: "feature", icon: <VoteIcon /> },
+  bountyWinner: { tone: "success", icon: <TrophyIcon /> },
+};
 
 export interface FeatureNotificationProps {
   type: "undoStep" | "cosmetics" | "flowStateVoting" | "bountyWinner";
@@ -47,36 +56,31 @@ export default function FeatureNotification({
   if (!isVisible) return null;
 
   return (
-    <div
+    <Notice
+      tone={LOOK[type].tone}
+      icon={LOOK[type].icon}
+      title={title}
+      titleAs="h3"
       className={`feature-notification feature-notification--${type}`}
       role="status"
       aria-live="polite"
-      aria-atomic="true"
+      aria-atomic
+      floating
+      onDismiss={handleDismiss}
+      dismissLabel="Dismiss notification"
+      actions={actionLabel && (
+        <button
+          className="feature-notification__action btn btn--sm btn--primary"
+          onClick={() => {
+            onAction?.();
+            handleDismiss();
+          }}
+        >
+          {actionLabel}
+        </button>
+      )}
     >
-      <div className="feature-notification__content">
-        <div className="feature-notification__header">
-          <h3 className="feature-notification__title">{title}</h3>
-          <button
-            className="feature-notification__close"
-            onClick={handleDismiss}
-            aria-label="Dismiss notification"
-          >
-            ✕
-          </button>
-        </div>
-        <p className="feature-notification__message">{message}</p>
-        {actionLabel && (
-          <button
-            className="feature-notification__action btn btn--sm btn--primary"
-            onClick={() => {
-              onAction?.();
-              handleDismiss();
-            }}
-          >
-            {actionLabel}
-          </button>
-        )}
-      </div>
-    </div>
+      <p className="feature-notification__message">{message}</p>
+    </Notice>
   );
 }
