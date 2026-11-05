@@ -69,6 +69,33 @@ export function RunStatsBar({ state, elapsedMs }: { state: GameState | null; ela
   );
 }
 
+// ── Combo meter ──────────────────────────────────────────────────────────
+// Sits below the board, never on it. The contract multiplies a game's XP by 5 when its longest
+// run of consecutive merging moves (maxCombo) reaches COMBO_THRESHOLD, so once that happens the
+// bonus is earned for the whole game, whatever the current streak does afterwards.
+
+export const COMBO_THRESHOLD = 5;
+
+export function ComboMeter({ currentCombo = 0, maxCombo = 0 }: { currentCombo?: number; maxCombo?: number }) {
+  const earned = maxCombo >= COMBO_THRESHOLD;
+  const filled = earned ? COMBO_THRESHOLD : Math.min(currentCombo, COMBO_THRESHOLD);
+  const text = earned
+    ? "5× XP earned this game"
+    : currentCombo >= 2
+      ? `Combo ${currentCombo} · ${COMBO_THRESHOLD - currentCombo} more for 5× XP`
+      : `${COMBO_THRESHOLD} merges in a row = 5× XP`;
+  return (
+    <div className={`combo-meter${earned ? " combo-meter--earned" : currentCombo >= 2 ? " combo-meter--building" : ""}`}>
+      <span className="combo-meter__pips" aria-hidden="true">
+        {Array.from({ length: COMBO_THRESHOLD }, (_, i) => (
+          <span key={i} className={`combo-meter__pip${i < filled ? " combo-meter__pip--on" : ""}`} />
+        ))}
+      </span>
+      <span className="combo-meter__text">{text}</span>
+    </div>
+  );
+}
+
 // ── Live standing ────────────────────────────────────────────────────────
 
 export function LiveStanding({ state, active }: { state: GameState | null; active: boolean }) {
