@@ -97,6 +97,9 @@ export default function BountyPage() {
   return (
     <div className="bounty-page">
       <h1 className="bounty-page__title">Bounties</h1>
+      {status === "ended" && (
+        <p className="bounty-page__note">No bounty is running right now. The latest results are below.</p>
+      )}
 
       {/* Featured bounty */}
       <div className={`bounty-card bounty-card--${status}`}>
