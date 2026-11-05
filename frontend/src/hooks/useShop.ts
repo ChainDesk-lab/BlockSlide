@@ -127,7 +127,9 @@ export function useShop() {
   };
 
   // ── Actions ────────────────────────────────────────────────────────────────
-  const run = async (action: ShopAction, fn: () => Promise<`0x${string}`>) => {
+  // Resolves true only when the transaction was mined successfully, so a caller can chain a
+  // purchase after an approval and stop if the approval was rejected, reverted or is still pending.
+  const run = async (action: ShopAction, fn: () => Promise<`0x${string}`>): Promise<boolean> => {
     setError(null);
     setLastUbiContribution(null);
     setPendingAction(action);
@@ -138,14 +140,14 @@ export function useShop() {
       // Wait for receipt to confirm transaction is mined and successful
       if (!publicClient) {
         setError("Network unavailable — could not verify transaction");
-        return;
+        return false;
       }
 
       try {
         const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
         if (receipt.status === "reverted") {
           setError("Transaction failed — please check your balance and try again.");
-          return;
+          return false;
         }
         // Only report a contribution the receipt actually contains.
         if (address) {
@@ -165,12 +167,13 @@ export function useShop() {
         } else {
           setError(`Transaction confirmation failed: ${(receiptErr as Error).message}`);
         }
-        return;
+        return false;
       }
 
       // Transaction succeeded — refetch all state and notify other components
       refetchAll();
       window.dispatchEvent(new Event("gdBalanceChanged"));
+      return true;
     } catch (e: any) {
       if (isInsufficientGasError(e)) {
         triggerNoGas();
@@ -181,6 +184,7 @@ export function useShop() {
           setError(msg.slice(0, 120));
         }
       }
+      return false;
     } finally {
       setPendingAction(null);
     }
@@ -219,7 +223,7 @@ export function useShop() {
   const buyUndoMove = (quantity: number) => {
     if (!undo.available) {
       setError(undoUnavailableMessage(undo.reason));
-      return Promise.resolve();
+      return Promise.resolve(false);
     }
     return run("undo", () =>
       writeContractAsync({

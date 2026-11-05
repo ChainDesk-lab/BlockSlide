@@ -12,6 +12,8 @@ import { undoUnavailableMessage } from "../lib/undoAvailability";
 import { priceLabel, priceBlockReason, type PriceRead } from "../lib/shopPrice";
 import { buyButtonState, formatG, shopCategoryFromParam, type ShopCategory } from "../lib/shopState";
 import { useUbiContribution } from "../hooks/useUbiContribution";
+import { useToast } from "../contexts/ToastContext";
+import type { BuyButtonState } from "../lib/shopState";
 import { formatBps, ubiContributionFor } from "../lib/ubiContribution";
 
 const CELOSCAN = "https://celoscan.io";
@@ -57,7 +59,10 @@ const COSMETIC_DESC: Record<string, string> = {
 };
 
 export default function Shop() {
-  const { isConnected } = useAccount();
+  // Purchases are sent through wagmi, so they need a connected browser wallet. An email (Magic)
+  // sign-in has no wagmi connection: it can see the shop and its prices but not buy yet.
+  const { isConnected: walletConnected } = useAccount();
+  const { showToast } = useToast();
   const searchParams = useSearchParams();
   const [activeCategory, setActiveCategory] = useState<ShopCategory>(() => shopCategoryFromParam(searchParams.get("category")));
   const [undoQuantity, setUndoQuantity] = useState(1);
@@ -111,8 +116,6 @@ export default function Shop() {
     prevPending.current = pendingAction;
   }, [pendingAction, ownedRead]);
 
-  if (!isConnected) return null;
-
   // Shown only when the contract reports its rate (i.e. after the UBI
   // contribution upgrade). Before that, nothing is claimed.
   const ubiNote = ubi.status === "ready" ? (
@@ -140,8 +143,11 @@ export default function Shop() {
       <span className="shop-card__ubi">incl. {fmtGExact(ubiContributionFor(price, ubi.bps))} for UBI</span>
     ) : null;
 
+  const walletNeeded: BuyButtonState = { label: "Browser wallet needed", variant: "disabled", disabled: true, action: null, busy: false };
+
   /** The existing purchase rules, now as a card button state (see lib/shopState). */
-  const button = (priceRead: PriceRead, pendingKey: NonNullable<typeof pendingAction>, o: { quantity?: bigint; listed?: boolean; owned?: boolean } = {}) => {
+  const button = (priceRead: PriceRead, pendingKey: NonNullable<typeof pendingAction>, o: { quantity?: bigint; listed?: boolean; owned?: boolean } = {}): BuyButtonState => {
+    if (!walletConnected && !o.owned) return walletNeeded;
     const blocked = priceBlockReason(priceRead, o.listed ?? true);
     const total = blocked ? 0n : (priceRead.value as bigint) * (o.quantity ?? 1n);
     return buyButtonState({
@@ -149,7 +155,13 @@ export default function Shop() {
       pending: pendingAction === pendingKey, approvePending: pendingAction === "approve", anyPending: !!pendingAction,
     });
   };
-  const act = (buy: () => void) => (a: "approve" | "buy") => (a === "approve" ? approve() : buy());
+  // "Buy Now" always buys. When G$ spending isn't approved yet, the one click sends the approval
+  // and then the purchase (two wallet prompts); a rejected or failed approval stops there.
+  const act = (buy: () => Promise<boolean>) => async (a: "approve" | "buy") => {
+    if (a === "buy") { await buy(); return; }
+    showToast("Step 1 of 2: approve G$ spending in your wallet. The purchase request follows.", "info", 6000);
+    if (await approve()) await buy();
+  };
   const countBadge = (n: bigint, one: string, many: string): ShopBadge | null =>
     n > 0n ? { label: `${Number(n)} ${n === 1n ? one : many}`, tone: "info" } : null;
 
@@ -183,6 +195,11 @@ export default function Shop() {
         )}
       </div>
 
+      {!walletConnected && (
+        <p className="shop__wallet-note" role="note">
+          Purchases need a browser wallet such as MetaMask. You can browse the shop with your email sign-in, but buying isn&apos;t available for it yet.
+        </p>
+      )}
       {ubiNote}
 
       {activeCategory === "power-ups" ? (
