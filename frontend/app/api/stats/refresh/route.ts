@@ -10,8 +10,8 @@
  */
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { loadState, saveState, acquireLock, releaseLock, isConfigured } from "../../../../src/lib/stats/store";
-import { getHeadBlock, scanForward } from "../../../../src/lib/stats/scan";
+import { acquireLock, releaseLock, isConfigured } from "../../../../src/lib/stats/store";
+import { refreshAggregate } from "../../../../src/lib/stats/refresh";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,15 +49,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: "locked" });
   }
   try {
-    const state = await loadState();
-    const head = await getHeadBlock();
-    const result = await scanForward(state, head);
-    if (result.chunks > 0) await saveState(state);
+    const refresh = await refreshAggregate();
+    // No usable aggregate (missing, unreadable, garbled, wrong version): report it, scan nothing.
+    if (refresh.status === "not_loaded") {
+      const error = refresh.load.status === "missing" ? "stats_unseeded" : `stats_${refresh.load.status}`;
+      return NextResponse.json({ error }, { status: 503 });
+    }
+    if (refresh.status === "failed") {
+      return NextResponse.json({ error: refresh.error }, { status: 500 });
+    }
+    const { head, result, save, state } = refresh;
     return NextResponse.json({
       head,
       checkpointBlock: state.checkpointBlock,
       blocksBehind: head - state.checkpointBlock,
       ...result,
+      save,
     });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
