@@ -4,10 +4,11 @@
  */
 import { createClient } from "redis";
 import { allowedRedisUrl } from "../redisUrl";
-import { emptyState, type StatsState, STATE_VERSION } from "./state";
+import { type StatsState, STATE_VERSION } from "./state";
+import { GENESIS_BLOCK } from "./config";
 
-const STATE_KEY = "stats:v1:state";
-const LOCK_KEY = "stats:v1:lock";
+export const STATE_KEY = "stats:v1:state";
+export const LOCK_KEY = "stats:v1:lock";
 
 type Client = ReturnType<typeof createClient>;
 let client: Client | null = null;
@@ -46,30 +47,86 @@ export async function getClient(): Promise<Client | null> {
   return connecting;
 }
 
-export async function loadState(): Promise<StatsState> {
-  const c = await getClient();
-  if (!c) return emptyState();
+/**
+ * What a read of the stored aggregate found. Only "ok" carries a state, and only a state that
+ * came from "ok" can be saved (saveState needs its raw value), so a failed, garbled or
+ * wrong-version read can never be mistaken for "no aggregate yet" and scanned over from genesis.
+ */
+export type LoadResult =
+  | { status: "ok"; state: StatsState; raw: string }
+  /** The key does not exist: never seeded, or deleted/evicted. Recovery: run the seed script. */
+  | { status: "missing" }
+  /** Redis could not be asked (not connected, or the read errored). Transient: retry later. */
+  | { status: "unavailable"; detail: string }
+  /** The key holds something that is not a usable aggregate. Left in place for inspection. */
+  | { status: "malformed"; detail: string }
+  /** A well-formed aggregate written by a different STATE_VERSION. Left in place. */
+  | { status: "unsupported_version"; detail: string };
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isInt = (v: unknown): v is number => Number.isInteger(v);
+
+/** Classifies a stored value. Pure, so the decision is testable without Redis. */
+export function parseStoredState(raw: string): Extract<LoadResult, { status: "ok" | "malformed" | "unsupported_version" }> {
+  let parsed: unknown;
   try {
-    const raw = await c.get(STATE_KEY);
-    if (!raw) return emptyState();
-    const parsed = JSON.parse(raw) as StatsState;
-    if (parsed.version !== STATE_VERSION) return emptyState();
-    return parsed;
+    parsed = JSON.parse(raw);
   } catch (err) {
-    console.error("[stats] loadState failed:", (err as Error).message);
-    return emptyState();
+    return { status: "malformed", detail: `not JSON (${(err as Error).message})` };
   }
+  if (!isObj(parsed)) return { status: "malformed", detail: "not an object" };
+  if (parsed.version !== STATE_VERSION) {
+    return { status: "unsupported_version", detail: `stored version ${JSON.stringify(parsed.version)}, this code reads ${STATE_VERSION}` };
+  }
+  if (parsed.genesisBlock !== GENESIS_BLOCK) return { status: "malformed", detail: `genesisBlock ${JSON.stringify(parsed.genesisBlock)}, expected ${GENESIS_BLOCK}` };
+  if (!isInt(parsed.checkpointBlock) || parsed.checkpointBlock < GENESIS_BLOCK - 1) return { status: "malformed", detail: "bad checkpointBlock" };
+  if (typeof parsed.updatedAt !== "string" || !isInt(parsed.totalLogs) || typeof parsed.rewardPaidWei !== "string") {
+    return { status: "malformed", detail: "bad updatedAt, totalLogs or rewardPaidWei" };
+  }
+  if (!isObj(parsed.eventCounts) || !isObj(parsed.addrs) || !isObj(parsed.dailyEvents)) {
+    return { status: "malformed", detail: "bad eventCounts, addrs or dailyEvents" };
+  }
+  return { status: "ok", state: parsed as unknown as StatsState, raw };
 }
 
-export async function saveState(state: StatsState): Promise<boolean> {
+export async function loadState(): Promise<LoadResult> {
   const c = await getClient();
-  if (!c) return false;
+  if (!c) return { status: "unavailable", detail: "not connected" };
+  let raw: string | null;
   try {
+    raw = await c.get(STATE_KEY);
+  } catch (err) {
+    console.error("[stats] loadState failed:", (err as Error).message);
+    return { status: "unavailable", detail: (err as Error).message };
+  }
+  if (raw === null) return { status: "missing" };
+  const result = parseStoredState(raw);
+  if (result.status !== "ok") console.error(`[stats] stored aggregate is ${result.status}: ${result.detail}`);
+  return result;
+}
+
+export type SaveResult = "saved" | "conflict" | "unavailable";
+
+/**
+ * Writes `state` only if the stored value is still exactly `expectedRaw`, the value it was loaded
+ * from. Anything else (another writer got there first, the key was deleted or reseeded, or the
+ * check itself failed) leaves the stored aggregate untouched. The check and the write are two
+ * commands, so this narrows the race the lock already guards rather than closing it outright.
+ */
+export async function saveState(state: StatsState, expectedRaw: string): Promise<SaveResult> {
+  const c = await getClient();
+  if (!c) return "unavailable";
+  try {
+    const current = await c.get(STATE_KEY);
+    if (current !== expectedRaw) {
+      console.warn("[stats] saveState skipped: the stored aggregate changed since it was loaded");
+      return "conflict";
+    }
     await c.set(STATE_KEY, JSON.stringify(state));
-    return true;
+    return "saved";
   } catch (err) {
     console.error("[stats] saveState failed:", (err as Error).message);
-    return false;
+    return "unavailable";
   }
 }
 

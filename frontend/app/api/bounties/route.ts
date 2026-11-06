@@ -28,6 +28,8 @@ const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? process.env.SUBGRAP
 const RPC = (process.env.CELO_RPC_URLS ?? "https://forno.celo.org").split(",")[0].trim();
 const LIVE_CACHE_MS = 30_000;
 const PAGE = 1000;
+/** A hung subgraph marks the standings "unavailable" instead of holding the request open (as /api/leaderboard). */
+const SUBGRAPH_TIMEOUT_MS = 10_000;
 
 let client: PublicClient | null = null;
 const rpc = () => (client ??= createPublicClient({ chain: celo, transport: http(RPC, { timeout: 15_000 }) }) as PublicClient);
@@ -39,7 +41,7 @@ async function verifiedPlayersAt(block: bigint | null): Promise<Map<string, Play
   let lastId = "0x";
   for (;;) {
     const query = `{ players(first: ${PAGE}, orderBy: id, where: { isVerified: true, id_gt: "${lastId}" }${blockClause}) { id xp username firstSeen } }`;
-    const res = await fetch(SUBGRAPH_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }), cache: "no-store" });
+    const res = await fetch(SUBGRAPH_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }), cache: "no-store", signal: AbortSignal.timeout(SUBGRAPH_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`subgraph ${res.status}`);
     const json = (await res.json()) as { data?: { players?: Array<{ id: string; xp: string; username: string | null; firstSeen: string }> }; errors?: unknown };
     if (json.errors || !json.data?.players) throw new Error("subgraph returned errors");

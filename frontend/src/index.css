@@ -763,21 +763,6 @@ html.dark-mode {
 
 
 /* ─── Wrong-chain banner ─────────────────────────────────────────────────── */
-.chain-banner {
-  width: 100%;
-  max-width: 480px;
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  color: #92400e;
-  border-radius: var(--radius-sm);
-  padding: 10px 16px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
 
 
 /* ─── Main layout ────────────────────────────────────────────────────────── */
@@ -1875,16 +1860,6 @@ html.dark-mode {
   color: var(--text);
   font-size: 0.85rem;
   text-align: center;
-}
-
-.shop__error {
-  margin-top: 10px;
-  font-size: 0.78rem;
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fca5a5;
-  border-radius: 6px;
-  padding: 8px 10px;
 }
 
 /* ─── Leaderboard ────────────────────────────────────────────────────────── */
@@ -3353,96 +3328,6 @@ html.dark-mode {
 }
 
 /* ─── Toast Notifications ──────────────────────────────────────────────────── */
-.toast-container {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 400px;
-  pointer-events: none;
-}
-
-.toast {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  box-shadow: var(--shadow-lg);
-  pointer-events: auto;
-  animation: slideIn 300ms ease-out;
-}
-
-.toast--success {
-  border-color: var(--green);
-  background: color-mix(in srgb, var(--green) 12%, var(--surface));
-}
-
-.toast--success .toast__message {
-  color: var(--green);
-  font-weight: 600;
-}
-
-.toast--error {
-  border-color: #f44336;
-  background: color-mix(in srgb, #f44336 12%, var(--surface));
-}
-
-.toast--error .toast__message {
-  color: #f44336;
-  font-weight: 600;
-}
-
-.toast--info {
-  border-color: #2196f3;
-  background: color-mix(in srgb, #2196f3 12%, var(--surface));
-}
-
-.toast--info .toast__message {
-  color: #2196f3;
-  font-weight: 600;
-}
-
-.toast--warning {
-  border-color: #ff9800;
-  background: color-mix(in srgb, #ff9800 12%, var(--surface));
-}
-
-.toast--warning .toast__message {
-  color: #ff9800;
-  font-weight: 600;
-}
-
-.toast__message {
-  flex: 1;
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-.toast__close {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.6;
-  transition: opacity 150ms ease;
-  flex-shrink: 0;
-}
-
-.toast__close:hover {
-  opacity: 1;
-}
 
 @keyframes slideIn {
   from {
@@ -3456,73 +3341,6 @@ html.dark-mode {
 }
 
 /* ── Network Guard Banner ─────────────────────────────────────────────────── */
-.network-guard-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  padding: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.network-guard-banner__content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  max-width: 1200px;
-  margin: 0 auto;
-  color: white;
-}
-
-.network-guard-banner__icon {
-  font-size: 24px;
-  flex-shrink: 0;
-}
-
-.network-guard-banner__text {
-  flex: 1;
-  min-width: 0;
-}
-
-.network-guard-banner__title {
-  margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-}
-
-.network-guard-banner__message {
-  margin: 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
-  word-break: break-word;
-}
-
-.network-guard-banner__button {
-  padding: 8px 16px;
-  background: white;
-  color: #dc2626;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 150ms ease;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.network-guard-banner__button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.network-guard-banner__button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
 
 /* ─── Sign In Modal ───────────────────────────────────────────────────────── */
 
@@ -3893,48 +3711,6 @@ html.dark-mode {
 
 /* ─── Error Box Styling ────────────────────────────────────────────────────── */
 
-.signin-error-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: var(--radius);
-  margin-bottom: 16px;
-  font-size: 0.85rem;
-  color: var(--error);
-  line-height: 1.4;
-}
-
-.signin-error-icon {
-  flex-shrink: 0;
-  font-size: 1rem;
-  line-height: 1.2;
-}
-
-.signin-error-text {
-  flex: 1;
-}
-
-.signin-error-close {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--error);
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0;
-  margin: -2px -8px -2px 0;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
-.signin-error-close:hover {
-  opacity: 1;
-}
-
 /* ─── Wallet List (New Design) ────────────────────────────────────────────── */
 
 .wallet-list-container {
@@ -4069,18 +3845,6 @@ html.dark-mode {
 .wallet-list-fallback:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.wallet-list-error {
-  padding: 12px 14px;
-  border: 1.5px solid rgba(220, 38, 38, 0.35);
-  background: rgba(220, 38, 38, 0.08);
-  border-radius: 12px;
-  font-family: "Inter", system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.45;
-  color: var(--text, #b91c1c);
 }
 
 .wallet-list-wcuri {
@@ -4787,99 +4551,6 @@ html.dark-mode {
 }
 
 /* ─── Feature Notifications ──────────────────────────────────────────────── */
-.feature-notification {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  max-width: 360px;
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow-lg);
-  z-index: 8000;
-  animation: slideInUp 300ms ease-out;
-}
-
-.feature-notification--undoStep {
-  border-color: #7c3aed;
-  background: color-mix(in srgb, #7c3aed 12%, var(--surface));
-}
-
-.feature-notification--cosmetics {
-  border-color: #ec4899;
-  background: color-mix(in srgb, #ec4899 12%, var(--surface));
-}
-
-.feature-notification--flowStateVoting {
-  border-color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
-}
-
-.feature-notification__content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.feature-notification__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.feature-notification__title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.feature-notification--undoStep .feature-notification__title {
-  color: #7c3aed;
-}
-
-.feature-notification--cosmetics .feature-notification__title {
-  color: #ec4899;
-}
-
-.feature-notification--flowStateVoting .feature-notification__title {
-  color: var(--brand);
-}
-
-.feature-notification__close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 18px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.6;
-  transition: opacity 150ms ease;
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-}
-
-.feature-notification__close:hover {
-  opacity: 1;
-}
-
-.feature-notification__message {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--text);
-}
-
-.feature-notification__action {
-  align-self: flex-start;
-  margin-top: 4px;
-}
 
 @keyframes slideInUp {
   from {
@@ -4893,13 +4564,6 @@ html.dark-mode {
 }
 
 @media (max-width: 768px) {
-  .feature-notification {
-    left: 12px;
-    right: 12px;
-    max-width: none;
-    bottom: 12px;
-  }
-
   .bounty-card {
     padding: 16px;
   }
@@ -4931,7 +4595,6 @@ html.dark-mode {
 /* GoodDollar UBI contribution (shop) */
 .shop__ubi-note { margin: 8px 0 16px; font-size: 0.85rem; color: var(--text-muted); text-align: center; }
 .shop__ubi-note a, .shop__ubi-confirmed a { color: var(--brand); font-weight: 600; text-decoration: none; }
-.shop__ubi-confirmed { margin: 12px 0 0; font-size: 0.85rem; text-align: center; color: var(--text, inherit); }
 .shop-item__ubi { display: block; font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
 
 /* Phase 4: the header tooltips are invisible until hover but still laid out,
@@ -5520,6 +5183,100 @@ html.light-mode .shop-card__media--art { background: #07080B; } /* the artwork c
   .combo-meter { justify-content: flex-start; border-radius: 14px; }
   .combo-meter__text { white-space: normal; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Notifications. One look for toasts, feature announcements, banners and inline
+   messages (src/components/Notice.tsx), built from the Season 5 tokens: card
+   surfaces, 12px radius, Outfit uppercase titles, 24px line icons.
+   The tone colours only the icon and title (at least 4.5:1 on the notice surface
+   in both themes); message text is always --text.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --tone-success: #047857; --tone-error: #C81E4A; --tone-warning: #B45309; --tone-info: #01616E; --tone-feature: #6650F4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode) {
+    --tone-success: #4ADE80; --tone-error: #F87171; --tone-warning: #FBBF24; --tone-info: #67E8F9; --tone-feature: #A78BFA;
+  }
+}
+html.dark-mode {
+  --tone-success: #4ADE80; --tone-error: #F87171; --tone-warning: #FBBF24; --tone-info: #67E8F9; --tone-feature: #A78BFA;
+}
+
+.notice {
+  --tone: var(--tone-info);
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--tone) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, var(--border));
+  color: var(--text); font-family: "Inter", system-ui, sans-serif; font-size: 0.875rem; line-height: 1.45; text-align: left;
+}
+.notice--success { --tone: var(--tone-success); }
+.notice--error   { --tone: var(--tone-error); }
+.notice--warning { --tone: var(--tone-warning); }
+.notice--info    { --tone: var(--tone-info); }
+.notice--feature { --tone: var(--tone-feature); }
+.notice--floating { background: var(--chrome); box-shadow: var(--shadow-lg); pointer-events: auto; }
+.notice__icon {
+  flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.notice__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
+.notice__title {
+  margin: 0; font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; line-height: 1.3;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--tone);
+}
+.notice__message { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.notice__message p { margin: 0; }
+.notice__message a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.notice__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.notice__actions .btn {
+  font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  padding: 7px 14px; min-width: auto; border: 0; border-radius: 8px; background: var(--brand-500); color: #FFFFFF; box-shadow: none;
+}
+.notice__actions .btn:hover:not(:disabled) { background: var(--brand-400); transform: none; box-shadow: none; }
+.notice__actions .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.notice__close {
+  flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; margin: 0 -6px 0 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.notice__close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.notice__close:focus-visible, .notice__actions .btn:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 2px; }
+@media (pointer: coarse) { .notice__close { width: 36px; height: 36px; margin: -4px -10px -4px 0; } }
+
+/* Where each notification sits. Positions, layers and entrance animations are the ones they had. */
+.toast-container {
+  position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  width: min(380px, calc(100vw - 32px)); pointer-events: none;
+}
+.toast-container > .notice { animation: slideIn 300ms ease-out; }
+.feature-notification {
+  position: fixed; bottom: 20px; left: 20px; z-index: 8000; width: min(360px, calc(100vw - 40px));
+  animation: slideInUp 300ms ease-out;
+}
+.network-guard-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; padding: 12px 16px; pointer-events: none; }
+.network-guard-banner__content { max-width: 720px; margin: 0 auto; }
+.chain-banner { width: 100%; max-width: 480px; }
+.signin-error-box { margin-bottom: 16px; }
+.wallet-list-error { margin-bottom: 12px; }
+.shop__ubi-confirmed, .shop__error { margin-top: 12px; }
+@media (max-width: 768px) {
+  .feature-notification { left: 12px; right: 12px; bottom: 12px; width: auto; }
+}
+@media (max-width: 480px) {
+  .toast-container { top: 12px; right: 12px; width: calc(100vw - 24px); }
+  .network-guard-banner { padding: 8px 12px; }
+}
+
+/* Error placeholders inside cards share the error tone (no icon: they are states, not messages). */
+.state-note--error {
+  color: var(--tone-error); background: color-mix(in srgb, var(--tone-error) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone-error) 35%, var(--border));
+}
+
+/* Line icons in place of emoji, in modal labels and the win overlay. */
+.htp-label__icon { vertical-align: -2px; margin-right: 4px; }
+.game-overlay__icon { vertical-align: -3px; margin-right: 6px; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Light mode (reference frames: cool grey page, white chrome, grey cards).
