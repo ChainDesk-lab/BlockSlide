@@ -19,11 +19,34 @@
  * Usage:
  *   REDIS_URL=redis://127.0.0.1:6390/1 node scripts/analytics/seed-stats.mjs
  *   REDIS_URL=... node scripts/analytics/seed-stats.mjs --dry-run
+ *   REDIS_URL=... node scripts/analytics/seed-stats.mjs --replace
  *
  * Only a Redis on this machine is written to by default. Writing anywhere else (for example
  * reseeding production) needs --allow-remote, so a stray production REDIS_URL in the shell
  * can't be overwritten by accident.
+ *
+ * An existing aggregate is never overwritten unless --replace is passed. With --replace, the
+ * existing value is first saved to a local file, stats-state-backup-<time>.json in the current
+ * directory (it holds only public on-chain data; don't commit it).
+ *
+ * Recovery. /api/stats never rebuilds the aggregate itself. If it answers:
+ *   stats_unavailable                   Redis can't be reached or the read failed. Transient:
+ *                                       fix Redis; do NOT reseed. The stored value is untouched.
+ *   stats_unseeded                      The key is missing (never seeded, deleted, or evicted).
+ *                                       Run this script.
+ *   stats_malformed /                   The key holds something this code can't use. It is left
+ *   stats_unsupported_version           in place. Find out why (e.g. a rollback across a
+ *                                       STATE_VERSION change: redeploying the matching code is
+ *                                       the fix, not a reseed). Otherwise reseed with --replace.
+ * Run with --dry-run first and check its counts against the page before writing.
+ *
+ * A reseed rebuilds the all-time totals, wallets, weekly charts and daily event counts. It does
+ * not rebuild the optional fields the live scan adds (per-day sessions/games/active wallets,
+ * the recent-events feed and the season XP tally): those restart from the new checkpoint, and
+ * the page shows earlier days' detail as unknown. The seeded checkpoint is SAFETY_MARGIN blocks
+ * behind, so the page catches up over the next few refreshes.
  */
+import { writeFileSync } from "node:fs";
 import { getAddress, toEventSelector } from "viem";
 
 const GAME = getAddress("0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6");
@@ -33,9 +56,13 @@ const ANCHOR_TIME = Date.parse("2026-09-24T21:23:50Z") / 1000;
 const MONDAY_EPOCH = 345_600;
 const WEEK = 604_800;
 const STATE_KEY = "stats:v1:state";
+const LOCK_KEY = "stats:v1:lock";
+/** Must equal STATE_VERSION in frontend/src/lib/stats/state.ts, or the app refuses the value. */
+const STATE_VERSION = 1;
 /** ~14 hours of Celo blocks; logs above (newest log - margin) are left to the incremental scan. */
 const SAFETY_MARGIN = 50_000;
 const DRY = process.argv.includes("--dry-run");
+const REPLACE = process.argv.includes("--replace");
 
 const blockToUnix = (b) => ANCHOR_TIME + (b - ANCHOR_BLOCK);
 const weekIndexOf = (u) => Math.floor((u - MONDAY_EPOCH) / WEEK);
@@ -63,7 +90,7 @@ PLAYER_EVENT_SIGS.forEach(([name, sigs], bit) => {
 const ADDRESS_TOPIC = /^0x0{24}[0-9a-fA-F]{40}$/;
 
 const state = {
-  version: 1,
+  version: STATE_VERSION,
   genesisBlock: GENESIS_BLOCK,
   checkpointBlock: GENESIS_BLOCK - 1,
   updatedAt: new Date().toISOString(),
@@ -189,6 +216,34 @@ try {
 const client = createClient({ url: process.env.REDIS_URL });
 client.on("error", (e) => console.error("redis:", e.message));
 await client.connect();
-await client.set(STATE_KEY, JSON.stringify(state));
-await client.quit();
-console.log(`\nwrote ${STATE_KEY}`);
+
+// Hold the refresh lock while checking and writing, so a scan in flight can't save between the
+// two. (A scan's save also refuses once the stored value has changed under it.)
+const lockToken = `seed-stats ${process.pid} ${Date.now()}`;
+if ((await client.set(LOCK_KEY, lockToken, { NX: true, EX: 120 })) !== "OK") {
+  console.error("\nA stats refresh holds the lock right now; nothing written. Try again in a couple of minutes.");
+  await client.quit();
+  process.exit(1);
+}
+try {
+  const existing = await client.get(STATE_KEY);
+  if (existing !== null) {
+    if (!REPLACE) {
+      console.error(`\n${STATE_KEY} already holds an aggregate (${(existing.length / 1024).toFixed(0)} KB); nothing written. Pass --replace to back it up and overwrite it.`);
+      process.exitCode = 1;
+    } else {
+      const backup = `stats-state-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      writeFileSync(backup, existing, { flag: "wx" }); // never overwrites an earlier backup
+      console.log(`\nbacked up the existing value to ${backup}`);
+    }
+  }
+  if (existing === null || REPLACE) {
+    const payload = JSON.stringify(state);
+    await client.set(STATE_KEY, payload);
+    if ((await client.get(STATE_KEY)) !== payload) throw new Error(`read-back of ${STATE_KEY} did not match what was written`);
+    console.log(`\nwrote ${STATE_KEY}`);
+  }
+} finally {
+  if ((await client.get(LOCK_KEY)) === lockToken) await client.del(LOCK_KEY);
+  await client.quit();
+}
