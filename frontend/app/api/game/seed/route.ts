@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { keccak256 } from "viem";
-import { createClient } from "redis";
-import { requireAllowedRedisUrl } from "../../../../src/lib/redisUrl";
+import { getRedis } from "../../_lib/redis";
 
 /**
  * Game session seed storage API.
@@ -26,31 +25,13 @@ const SESSION_TIMEOUT_SECONDS = Math.ceil(SESSION_TIMEOUT_MS / 1000);
 const REDIS_KEY_PREFIX = "game:seed:";
 const BYTES32_RE = /^0x[0-9a-fA-F]{64}$/;
 
-let redisClient: ReturnType<typeof createClient> | null = null;
-
 /**
- * Initialize Redis client (singleton pattern)
+ * The shared client (app/api/_lib/redis): fails fast when Redis is down and
+ * reconnects on a later request. This route used to keep its own client, which
+ * after one failed connect stayed broken for the life of the instance, and with
+ * no connect timeout could hold a request open while Redis was unreachable.
  */
-async function getRedisClient() {
-  if (redisClient) return redisClient;
-
-  try {
-    redisClient = createClient({
-      url: requireAllowedRedisUrl(),
-    });
-
-    redisClient.on("error", (err: Error) => {
-      console.error("[Seed API Redis] Client error:", err);
-    });
-
-    await redisClient.connect();
-    console.log("[Seed API Redis] Connected to Redis");
-    return redisClient;
-  } catch (err) {
-    console.error("[Seed API Redis] Failed to initialize client:", err);
-    return null;
-  }
-}
+const getRedisClient = getRedis;
 
 /**
  * Get a seed from Redis by key
