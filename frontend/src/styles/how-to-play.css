@@ -4,7 +4,18 @@
 .htp2__hero .page__title { margin: 0; }
 
 .htp2__layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 28px; align-items: start; }
-.htp2__aside { position: sticky; top: 100px; }
+/* --htp-header is the height of the sticky site header (AppShell) at each width: the sidebar
+   sticks below it and a section opened from the sidebar lands below it, not under it. */
+.htp2 { --htp-header: 125px; }
+@media (max-width: 767px) { .htp2 { --htp-header: 110px; } }
+@media (min-width: 1401px) { .htp2 { --htp-header: 75px; } }
+/* A sideways phone's header scrolls away with the page (index.css), so there is nothing to clear. */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 960px) { .htp2 { --htp-header: 0px; } }
+.htp2__aside {
+  position: sticky; top: calc(var(--htp-header) + 20px);
+  /* A window too short for the whole list scrolls the list rather than cutting it off. */
+  max-height: calc(100vh - var(--htp-header) - 36px); overflow-y: auto; scrollbar-width: thin;
+}
 .htp2__nav { padding: 18px 14px; }
 .htp2__nav-title { margin: 0 0 10px 8px; }
 .htp2__nav ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -18,7 +29,7 @@
 .htp2__nav-num { font-family: var(--font-display); font-size: 0.7rem; font-weight: 700; color: var(--brand-400); min-width: 18px; }
 
 .htp2__content { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-.htp2__section { padding: 26px 28px; scroll-margin-top: 110px; }
+.htp2__section { padding: 26px 28px; scroll-margin-top: calc(var(--htp-header) + 16px); }
 .htp2__section-title {
   display: flex; align-items: center; gap: 12px; margin: 0 0 16px;
   font-family: var(--font-display); font-size: 1.3rem; font-weight: 800;
@@ -80,6 +91,8 @@
   background: var(--bg); border: 1px solid var(--border);
 }
 .htp2__merge-tiles { display: flex; align-items: center; gap: 12px; }
+/* The explanation sits beside the tiles whenever 220px is left for it, and below them otherwise. */
+.htp2__merge > div:last-child { flex: 1 1 220px; min-width: 0; }
 .htp2__merge-tiles .htp2__cell { width: 52px; height: 52px; font-size: 1.15rem; }
 .htp2__op { color: var(--text-muted); font-weight: 700; }
 .htp2__merge-title { font-family: var(--font-display); font-weight: 700; margin: 0 0 4px; }
@@ -111,14 +124,14 @@ html.light-mode .htp2__fact, html.light-mode .htp2__merge, html.light-mode .htp2
 /* Tablet: the navigation becomes a compact two-column list above the guide. */
 @media (max-width: 1024px) {
   .htp2__layout { grid-template-columns: minmax(0, 1fr); }
-  .htp2__aside { position: static; }
+  .htp2__aside { position: static; max-height: none; overflow: visible; }
   .htp2__nav ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .htp2__grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   .htp2__grid--2, .htp2__grid--3 { grid-template-columns: minmax(0, 1fr); }
   .htp2__split { grid-template-columns: minmax(0, 1fr); }
-  .htp2__board-fig { align-items: flex-start; }
+  .htp2__board-fig { align-items: center; }
   .htp2__headline { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 }
 @media (max-width: 560px) {
