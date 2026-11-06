@@ -6,6 +6,7 @@ import { useCleanAuth } from "../hooks/useCleanAuth";
 import { useAccount } from "wagmi";
 import { authErrMessage } from "../auth/AuthContext";
 import WalletSelector from "./WalletSelector";
+import Notice from "./Notice";
 
 type SignInStep = "signin" | "wallet";
 
@@ -117,17 +118,14 @@ export default function SignInModal({ onClose }: { onClose?: () => void } = {}) 
           <p className="signin-modal-subtitle">Connect the wallet that holds your G$.</p>
 
           {emailError && (
-            <div className="signin-error-box">
-              <span className="signin-error-icon">⚠️</span>
+            <Notice
+              tone="error"
+              className="signin-error-box"
+              onDismiss={() => setEmailError(null)}
+              dismissLabel="Dismiss"
+            >
               <span className="signin-error-text">{emailError}</span>
-              <button
-                className="signin-error-close"
-                onClick={() => setEmailError(null)}
-                aria-label="Dismiss"
-              >
-                ✕
-              </button>
-            </div>
+            </Notice>
           )}
 
           <div className="signin-modal-wallet-list">
@@ -162,17 +160,14 @@ export default function SignInModal({ onClose }: { onClose?: () => void } = {}) 
 
         {/* Error message */}
         {emailError && (
-          <div className="signin-error-box">
-            <span className="signin-error-icon">⚠️</span>
+          <Notice
+            tone="error"
+            className="signin-error-box"
+            onDismiss={() => setEmailError(null)}
+            dismissLabel="Dismiss"
+          >
             <span className="signin-error-text">{emailError}</span>
-            <button
-              className="signin-error-close"
-              onClick={() => setEmailError(null)}
-              aria-label="Dismiss"
-            >
-              ✕
-            </button>
-          </div>
+          </Notice>
         )}
 
         {/* Primary action: Email login */}

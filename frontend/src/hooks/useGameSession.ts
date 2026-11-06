@@ -655,7 +655,7 @@ export function useGameSession() {
             // user only has localStorage/IndexedDB which can both fail.
             // Log prominently so we can track if this is happening.
             showToast(
-              "⚠️ Seed backup to server failed. Your session is less protected against browser storage loss.",
+              "Seed backup to server failed. Your session is less protected against browser storage loss.",
               "warning"
             );
           } else {
@@ -1117,7 +1117,7 @@ export function useGameSession() {
         });
 
         setPhase("done");
-        showToast("Score submitted! 🎉", "success");
+        showToast("Score submitted!", "success");
         window.dispatchEvent(
           new CustomEvent("scoreSubmitted", { detail: { txHash: hash, timestamp: Date.now() } }),
         );

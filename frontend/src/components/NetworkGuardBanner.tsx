@@ -1,4 +1,5 @@
 import { useNetworkGuard } from "../hooks/useNetworkGuard";
+import Notice from "./Notice";
 
 /**
  * Fallback for when the automatic Celo switch doesn't complete — almost always
@@ -18,23 +19,27 @@ export function NetworkGuardBanner() {
 
   return (
     <div className="network-guard-banner">
-      <div className="network-guard-banner__content">
-        <div className="network-guard-banner__icon">⚠️</div>
-        <div className="network-guard-banner__text">
-          <h3 className="network-guard-banner__title">Wrong Network</h3>
-          <p className="network-guard-banner__message">
-            {switchError ?? "Switch to Celo in your wallet to keep playing."}
-          </p>
-        </div>
-        <button
-          className="network-guard-banner__button"
-          onClick={retrySwitch}
-          disabled={switchPending}
-          type="button"
-        >
-          {switchPending ? "Switching..." : "Switch to Celo"}
-        </button>
-      </div>
+      <Notice
+        tone="warning"
+        title="Wrong Network"
+        titleAs="h3"
+        className="network-guard-banner__content"
+        floating
+        actions={
+          <button
+            className="network-guard-banner__button btn btn--sm btn--primary"
+            onClick={retrySwitch}
+            disabled={switchPending}
+            type="button"
+          >
+            {switchPending ? "Switching..." : "Switch to Celo"}
+          </button>
+        }
+      >
+        <p className="network-guard-banner__message">
+          {switchError ?? "Switch to Celo in your wallet to keep playing."}
+        </p>
+      </Notice>
     </div>
   );
 }

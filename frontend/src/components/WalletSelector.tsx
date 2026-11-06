@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConnect, useConnectors, useAccount, useDisconnect } from "wagmi";
+import Notice from "./Notice";
 
 interface WalletSelectorProps {
   onClose: () => void;
@@ -436,9 +437,9 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     return (
       <div className="wallet-list-container">
         {wcError && (
-          <div className="wallet-list-error" role="alert">
+          <Notice tone="error" className="wallet-list-error" role="alert">
             {wcError}
-          </div>
+          </Notice>
         )}
 
         <button
