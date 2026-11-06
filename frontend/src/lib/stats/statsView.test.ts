@@ -96,7 +96,7 @@ describe("Charts survive empty or tiny datasets", () => {
   });
   it("a single point and value labels render without NaN", () => {
     const html = renderToStaticMarkup(createElement(BarChart, { data: [{ label: "1 game", value: 78 }], title: "X", valueLabel: "wallets", showValues: true, xLabels: "all" }));
-    expect(html).toContain(">78</text>");
+    expect(html).toContain(">78</span>");
     expect(html).not.toMatch(/NaN|Infinity/);
     expect(renderToStaticMarkup(createElement(LineChart, { data: [{ label: "8 Jun", value: 3 }], title: "X", valueLabel: "wallets", xLabels: "spread" }))).not.toMatch(/NaN|Infinity/);
   });

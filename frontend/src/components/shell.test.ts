@@ -97,7 +97,7 @@ describe("Header consistency", () => {
 
   it("signed out, the header offers Connect Wallet into the existing sign-in; never while a sign-in is completing", () => {
     expect(shell).toContain('{!isConnected && !address && (');
-    expect(shell).toContain('<Link href="/?tab=game" className="header__connect">Connect Wallet</Link>');
+    expect(shell).toContain('<Link href="/?tab=game" className="header__connect" aria-label="Connect Wallet">Connect<span className="header__connect-more">&nbsp;Wallet</span></Link>');
     expect(shell).not.toMatch(/header__connect[\s\S]{0,200}onClick/); // a link, not a second login() caller
   });
 

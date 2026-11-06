@@ -5052,6 +5052,16 @@ html.light-mode .header__actions .wallet-button-container > button { border-colo
   .header__actions .wallet-button-container > button { padding: 8px 10px; font-size: 0.72rem; }
   .header__nav { margin: 0; }
 }
+/* Narrow phones: the brand and the controls can't both fit at full size, so the controls get
+   shorter first ("Connect"), then the wordmark gives way to the logo mark (the link keeps its
+   "BlockSlide home" label). */
+@media (max-width: 380px) {
+  .header__connect-more { display: none; }
+  .app .header { padding: 10px 12px; column-gap: 8px; }
+}
+@media (max-width: 340px) {
+  .header__wordmark { display: none; }
+}
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 .site-footer {
