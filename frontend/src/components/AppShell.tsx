@@ -124,7 +124,7 @@ export default function AppShell({ children }: AppShellProps) {
           {/* Signed out: the way in, as designed. It opens the existing sign-in screen; while a
               sign-in is completing (connected, address pending) nothing is shown, so it can't re-trigger it. */}
           {!isConnected && !address && (
-            <Link href="/?tab=game" className="header__connect">Connect Wallet</Link>
+            <Link href="/?tab=game" className="header__connect" aria-label="Connect Wallet">Connect<span className="header__connect-more">&nbsp;Wallet</span></Link>
           )}
         </div>
       </header>

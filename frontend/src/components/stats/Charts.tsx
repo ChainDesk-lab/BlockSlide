@@ -13,9 +13,19 @@
 import { useId, useState } from "react";
 import { tickIndices } from "../../lib/stats/statsView";
 
-const PAD = { top: 14, right: 12, bottom: 26, left: 44 };
+/**
+ * The SVG is drawn in a fixed W × H space and stretched to the plot box (preserveAspectRatio
+ * "none"), so it holds shapes only. Every piece of text, and the line chart's marker, is HTML
+ * placed over it by percentage, which keeps it at its real size and shape at any chart width.
+ * The y-axis labels sit in a fixed-width column (--axis-w) beside the plot, not inside it.
+ */
+const PAD = { top: 16, bottom: 4 };
 const W = 720;
 const H = 240;
+
+/** Horizontal position inside the plot box (which starts after the y-axis column). */
+const xPos = (x: number) => `calc(var(--axis-w) + (100% - var(--axis-w)) * ${(x / W).toFixed(4)})`;
+const yPos = (y: number) => `${((y / H) * 100).toFixed(2)}%`;
 
 const fmt = new Intl.NumberFormat("en-US");
 /** Axis label: 2500 -> "2.5k", 2000 -> "2k" (no trailing ".0"). */
@@ -42,12 +52,10 @@ function useTooltip() {
 
 function Tooltip({ tip }: { tip: { x: number; y: number; label: string; value: string } | null }) {
   if (!tip) return null;
+  // Near either end of the plot the tip opens inwards, so it stays inside the card.
+  const edge = tip.x < W * 0.2 ? " stats-chart__tip--start" : tip.x > W * 0.8 ? " stats-chart__tip--end" : "";
   return (
-    <div
-      className="stats-chart__tip"
-      style={{ left: `${(tip.x / W) * 100}%`, top: `${(tip.y / H) * 100}%` }}
-      role="status"
-    >
+    <div className={`stats-chart__tip${edge}`} style={{ left: xPos(tip.x), top: yPos(tip.y) }} role="status">
       <span className="stats-chart__tip-label">{tip.label}</span>
       <span className="stats-chart__tip-value">{tip.value}</span>
     </div>
@@ -77,21 +85,29 @@ function DataTable({ head, rows }: { head: string[]; rows: Array<Array<string | 
   );
 }
 
-function Grid({ max }: { max: number }) {
+function gridValues(max: number) {
   const step = niceStep(max);
-  const lines = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => step * i);
+  return Array.from({ length: Math.round(max / step) + 1 }, (_, i) => {
+    const v = step * i;
+    return { v, y: PAD.top + (1 - v / max) * (H - PAD.top - PAD.bottom) };
+  });
+}
+
+function Grid({ max }: { max: number }) {
   return (
     <g aria-hidden="true">
-      {lines.map((v) => {
-        const y = PAD.top + (1 - v / max) * (H - PAD.top - PAD.bottom);
-        return (
-          <g key={v}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} className="stats-chart__grid" />
-            <text x={PAD.left - 8} y={y + 4} textAnchor="end" className="stats-chart__axis">{short(v)}</text>
-          </g>
-        );
-      })}
+      {gridValues(max).map(({ v, y }) => (
+        <line key={v} x1={0} x2={W} y1={y} y2={y} className="stats-chart__grid" vectorEffect="non-scaling-stroke" />
+      ))}
     </g>
+  );
+}
+
+function YAxis({ max }: { max: number }) {
+  return (
+    <div className="stats-chart__yaxis" aria-hidden="true">
+      {gridValues(max).map(({ v, y }) => <span key={v} style={{ top: yPos(y) }}>{short(v)}</span>)}
+    </div>
   );
 }
 
@@ -113,14 +129,23 @@ function XAxis({ data, mode, centred }: { data: Series[]; mode: XLabels; centred
   if (mode === "ends") {
     return <div className="stats-chart__xaxis"><span>{data[0]?.label}</span><span>{data[data.length - 1]?.label}</span></div>;
   }
+  // Categories: one equal cell per bar, so each label is centred under its own bar and wraps
+  // inside its cell instead of running into the next one.
+  if (mode === "all" && centred) {
+    return (
+      <div className="stats-chart__xaxis stats-chart__xaxis--cats" aria-hidden="true">
+        {data.map((d) => <span key={d.label}>{d.label}</span>)}
+      </div>
+    );
+  }
   const idx = mode === "all" ? data.map((_, i) => i) : tickIndices(data.length);
   const n = data.length;
-  // Positions follow the plot area so a label sits under its own bar or point.
-  const left = PAD.left / W, plot = (W - PAD.left - PAD.right) / W;
-  const at = (i: number) => (centred ? left + ((i + 0.5) / n) * plot : left + (n === 1 ? 0.5 : i / (n - 1)) * plot) * 100;
+  const at = (i: number) => (centred ? (i + 0.5) / n : n === 1 ? 0.5 : i / (n - 1)) * 100;
+  // In a full five-tick row the 2nd and 4th are minor: a narrow chart hides them (stats.css).
+  const minor = (k: number) => idx.length === 5 && k % 2 === 1;
   return (
     <div className="stats-chart__xaxis stats-chart__xaxis--ticks" aria-hidden="true">
-      {idx.map((i) => <span key={i} style={{ left: `${at(i)}%` }}>{data[i].label}</span>)}
+      {idx.map((i, k) => <span key={i} className={minor(k) ? "is-minor" : undefined} style={{ left: `${at(i)}%` }}>{data[i].label}</span>)}
     </div>
   );
 }
@@ -147,9 +172,8 @@ export function BarChart({
   const id = useId();
   if (!data.length) return <Empty title={title} subtitle={subtitle} />;
   const max = niceMax(Math.max(...data.map((d) => d.value), 1));
-  const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
-  const step = plotW / data.length;
+  const step = W / data.length;
   const barW = Math.max(2, step - 2); // 2px surface gap between bars
 
   return (
@@ -161,7 +185,7 @@ export function BarChart({
           <Grid max={max} />
           {data.map((d, i) => {
             const h = (d.value / max) * plotH;
-            const x = PAD.left + i * step + 1;
+            const x = i * step + 1;
             const y = PAD.top + plotH - h;
             const isLast = highlightLast && i === data.length - 1;
             return (
@@ -171,9 +195,6 @@ export function BarChart({
                   rx={Math.min(4, barW / 2)}
                   className={`stats-chart__bar${isLast ? " stats-chart__bar--alt" : ""}${series === 2 ? " stats-chart__bar--s2" : ""}`}
                 />
-                {showValues && (
-                  <text x={x + barW / 2} y={Math.max(y - 6, PAD.top + 10)} textAnchor="middle" className="stats-chart__value">{fmt.format(d.value)}</text>
-                )}
                 <rect
                   x={x} y={PAD.top} width={barW} height={plotH} fill="transparent"
                   onMouseEnter={() => setTip({ x: x + barW / 2, y, label: d.label, value: `${fmt.format(d.value)} ${valueLabel}` })}
@@ -182,8 +203,15 @@ export function BarChart({
               </g>
             );
           })}
-          <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + plotH} y2={PAD.top + plotH} className="stats-chart__baseline" />
+          <line x1={0} x2={W} y1={PAD.top + plotH} y2={PAD.top + plotH} className="stats-chart__baseline" vectorEffect="non-scaling-stroke" />
         </svg>
+        <YAxis max={max} />
+        {showValues && data.map((d, i) => (
+          <span key={d.label} className="stats-chart__value" aria-hidden="true"
+            style={{ left: xPos(i * step + 1 + barW / 2), top: yPos(PAD.top + plotH - (d.value / max) * plotH) }}>
+            {fmt.format(d.value)}
+          </span>
+        ))}
         <Tooltip tip={tip} />
       </div>
       <XAxis data={data} mode={xLabels} centred />
@@ -200,9 +228,9 @@ export function LineChart({
   const id = useId();
   if (!data.length) return <Empty title={title} subtitle={subtitle} />;
   const max = niceMax(Math.max(...data.map((d) => d.value), 1));
-  const plotW = W - PAD.left - PAD.right;
+  const plotW = W;
   const plotH = H - PAD.top - PAD.bottom;
-  const xOf = (i: number) => PAD.left + (data.length === 1 ? plotW / 2 : (i / (data.length - 1)) * plotW);
+  const xOf = (i: number) => (data.length === 1 ? plotW / 2 : (i / (data.length - 1)) * plotW);
   const yOf = (v: number) => PAD.top + (1 - v / max) * plotH;
   const path = data.map((d, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(d.value).toFixed(1)}`).join(" ");
   const area = `${path} L${xOf(data.length - 1).toFixed(1)},${PAD.top + plotH} L${xOf(0).toFixed(1)},${PAD.top + plotH} Z`;
@@ -216,12 +244,9 @@ export function LineChart({
           <title id={id}>{title}</title>
           <Grid max={max} />
           <path d={area} className="stats-chart__area" />
-          <path d={path} className="stats-chart__line" />
+          <path d={path} className="stats-chart__line" vectorEffect="non-scaling-stroke" />
           {hovered >= 0 && (
-            <g aria-hidden="true">
-              <line x1={xOf(hovered)} x2={xOf(hovered)} y1={PAD.top} y2={PAD.top + plotH} className="stats-chart__crosshair" />
-              <circle cx={xOf(hovered)} cy={yOf(data[hovered].value)} r={5} className="stats-chart__marker" />
-            </g>
+            <line x1={xOf(hovered)} x2={xOf(hovered)} y1={PAD.top} y2={PAD.top + plotH} className="stats-chart__crosshair" vectorEffect="non-scaling-stroke" aria-hidden="true" />
           )}
           {data.map((d, i) => (
             <rect
@@ -232,8 +257,12 @@ export function LineChart({
               onMouseLeave={() => setTip(null)}
             />
           ))}
-          <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + plotH} y2={PAD.top + plotH} className="stats-chart__baseline" />
+          <line x1={0} x2={W} y1={PAD.top + plotH} y2={PAD.top + plotH} className="stats-chart__baseline" vectorEffect="non-scaling-stroke" />
         </svg>
+        <YAxis max={max} />
+        {hovered >= 0 && (
+          <span className="stats-chart__marker" aria-hidden="true" style={{ left: xPos(xOf(hovered)), top: yPos(yOf(data[hovered].value)) }} />
+        )}
         <Tooltip tip={tip} />
       </div>
       <XAxis data={data} mode={xLabels} centred={false} />
