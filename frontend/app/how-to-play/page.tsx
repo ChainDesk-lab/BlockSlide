@@ -36,12 +36,16 @@ export default function HowToPlayPage() {
   // last sections can't reach the top of the screen, so scroll position alone would mark the wrong one.
   const picked = useRef<string | null>(null);
 
-  // Highlight the section being read: the last one whose top has passed the upper third of the screen.
+  // Highlight the section being read: the last one whose top has passed a reading line a third of
+  // the way down the screen. Over the last screen of the page the line moves down to the bottom
+  // edge, so short final sections that can never reach the upper third still each get their turn.
   useEffect(() => {
     const release = () => { picked.current = null; };
     const onScroll = () => {
       if (picked.current) return setActiveId(picked.current);
-      const line = window.innerHeight * 0.33;
+      const vh = window.innerHeight;
+      const left = document.documentElement.scrollHeight - (window.scrollY + vh);
+      const line = vh * 0.33 + vh * 0.67 * Math.max(0, Math.min(1, 1 - left / vh));
       let id = GUIDE_SECTIONS[0].id;
       for (const s of GUIDE_SECTIONS) {
         const el = document.getElementById(s.id);
