@@ -21,7 +21,6 @@ import { useGame } from "./hooks/useGame";
 import { useGameSession } from "./hooks/useGameSession";
 import { useIdentity } from "./hooks/useIdentity";
 import { useUsername } from "./hooks/useUsername";
-import { useReferrerRegistration } from "./hooks/useReferrerRegistration";
 import { usePlayerRegistration } from "./hooks/usePlayerRegistration";
 import { useUndoCredits } from "./hooks/useUndoCredits";
 import { useUndoAvailability } from "./hooks/useUndoAvailability";
@@ -126,8 +125,10 @@ export default function App() {
   const DISMISSED_KEY = "username_modal_dismissed";
   const [usernameModalDismissed, setUsernameModalDismissed] = useState(false);
 
-  // Register referrer after connect (Phase 3)
-  useReferrerRegistration();
+  // Referrals: ?ref= is still captured (useRefCapture), but nothing sends a transaction on
+  // connect. The old automatic registerReferrer call used a wrong function selector, so it always
+  // reverted, cost the player gas, and re-prompted on every visit. Registering a referrer needs an
+  // explicit, reviewed player action.
 
   // Capture every authenticated wallet in the off-chain registry so it appears
   // on the leaderboard even before any on-chain username or score.
