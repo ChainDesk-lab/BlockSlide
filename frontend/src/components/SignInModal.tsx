@@ -103,14 +103,16 @@ export default function SignInModal({ onClose }: { onClose?: () => void } = {}) 
               ←
             </button>
             <h2 className="signin-modal-title">Choose a wallet</h2>
-            <button
-              className="signin-modal-close"
-              onClick={() => onClose?.()}
-              aria-label="Close"
-              disabled={isBusy}
-            >
-              ✕
-            </button>
+            {onClose && (
+              <button
+                className="signin-modal-close"
+                onClick={onClose}
+                aria-label="Close"
+                disabled={isBusy}
+              >
+                ✕
+              </button>
+            )}
           </div>
           <p className="signin-modal-subtitle">Connect the wallet that holds your G$.</p>
 
@@ -142,14 +144,18 @@ export default function SignInModal({ onClose }: { onClose?: () => void } = {}) 
       <div className="signin-modal-card">
         <div className="signin-modal-header">
           <h1 className="signin-modal-title">Sign in to BlockSlide</h1>
-          <button
-            className="signin-modal-close"
-            onClick={() => onClose?.()}
-            aria-label="Close"
-            disabled={isBusy}
-          >
-            ✕
-          </button>
+          {/* Only when the caller can close it: as the app's sign-in gate there is
+              nothing behind it to return to, and the button did nothing. */}
+          {onClose && (
+            <button
+              className="signin-modal-close"
+              onClick={onClose}
+              aria-label="Close"
+              disabled={isBusy}
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <p className="signin-modal-tagline">Play 2048 onchain and earn G$.</p>

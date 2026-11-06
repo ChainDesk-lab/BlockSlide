@@ -51,6 +51,22 @@ export type SessionPhase =
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+// The seed backup is a fallback; a slow or unreachable API must never hold up
+// starting a game or submitting a score.
+const SEED_API_TIMEOUT_MS = 10_000;
+/** A timeout signal where the browser has one (iOS Safari < 16 does not); otherwise none. */
+const seedApiSignal = (): AbortSignal | undefined =>
+  typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(SEED_API_TIMEOUT_MS)
+    : undefined;
+
+/**
+ * An error whose message was written for the player. parseContractError shows
+ * it as is, instead of matching words inside it (e.g. "on-chain" would read as
+ * a network error).
+ */
+export class PlayerFacingError extends Error {}
+
 export function useGameSession() {
   const address = useContractAddress();
   const { isConnected, authType } = useAuth();
@@ -627,6 +643,7 @@ export function useGameSession() {
               seedHash,
               seed,
             }),
+            signal: seedApiSignal(),
           });
 
           if (!serverBackupResponse.ok) {
@@ -676,7 +693,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, isWrongChain, onChainSession, signer, signerError, publicClient, refetchSession, tryResumeActiveSession, signAndBroadcast, triggerNoGas, showToast, ensureGas],
+    [address, isConnected, contractDeployed, isWrongChain, onChainSession, signer, signerError, publicClient, refetchSession, tryResumeActiveSession, signAndBroadcast, triggerNoGas, showToast, ensureGas, authType, chainId],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -870,7 +887,8 @@ export function useGameSession() {
               seedHash: session.seedHash.slice(0, 10),
             });
             const response = await fetch(
-              `/api/game/seed?address=${encodeURIComponent(address)}&seedHash=${encodeURIComponent(session.seedHash)}`
+              `/api/game/seed?address=${encodeURIComponent(address)}&seedHash=${encodeURIComponent(session.seedHash)}`,
+              { signal: seedApiSignal() },
             );
             if (!response.ok) {
               recoveryLog.steps.push({
@@ -1062,13 +1080,13 @@ export function useGameSession() {
           try {
             receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: SLOW_RECEIPT_EXTRA_MS });
           } catch {
-            throw new Error(
+            throw new PlayerFacingError(
               `Transaction ${hash} hasn't confirmed after 12 minutes. Check it on Celoscan before submitting again.`,
             );
           }
         }
         if (receipt.status === "reverted") {
-          throw new Error("Score submission reverted on-chain. Your session is still open — try submitting again.");
+          throw new PlayerFacingError("Score submission reverted on-chain. Your session is still open — try submitting again.");
         }
 
         // Transaction succeeded on-chain — mark this so catch block knows not to revert phase
@@ -1132,7 +1150,7 @@ export function useGameSession() {
         submissionInProgressRef.current = false;
       }
     },
-    [address, isConnected, contractDeployed, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, ensureGas],
+    [address, isConnected, contractDeployed, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, ensureGas, authType, chainId, isWrongChain],
   );
 
   // One submission at a time, from the first tap: the gas check, seed recovery
@@ -1186,7 +1204,8 @@ export function useGameSession() {
   };
 }
 
-function parseContractError(error: Error): string {
+export function parseContractError(error: Error): string {
+  if (error instanceof PlayerFacingError) return error.message;
   if (error instanceof BaseError) {
     const revert = error.walk(
       (e): e is ContractFunctionRevertedError =>

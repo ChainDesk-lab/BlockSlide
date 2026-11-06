@@ -27,10 +27,11 @@ describe("Redis URL guard", () => {
   });
 
   it("every Redis client in the app goes through the guard", () => {
+    // The seed route and faucet tracker use the shared client in _lib/redis.ts, which is guarded.
     const clients: Record<string, string> = {
       "../../app/api/_lib/redis.ts": "allowedRedisUrl()",
-      "../../app/api/game/seed/route.ts": "requireAllowedRedisUrl()",
-      "./faucet.ts": "requireAllowedRedisUrl()",
+      "../../app/api/game/seed/route.ts": "getRedis",
+      "./faucet.ts": "getRedis",
       "./stats/store.ts": "allowedRedisUrl()",
     };
     for (const [file, call] of Object.entries(clients)) {
