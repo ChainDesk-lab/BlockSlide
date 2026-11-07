@@ -15,6 +15,12 @@ export interface Bounty {
 // Bounty #2 times: Aug 14 2026 12:00 PM WAT (UTC+1) = 2026-08-14T11:00:00Z
 // Bounty #3 times: Aug 17 2026 12:00 PM WAT (UTC+1) = 2026-08-17T11:00:00Z (Sunday) [STARTED TODAY]
 // Bounty #3 times: Aug 25 2026 12:00 PM WAT (UTC+1) = 2026-08-25T11:00:00Z
+//
+// Scheduling: list bounties in start order, with ISO UTC times; they must not overlap.
+// src/lib/bountySchedule.test.ts checks this list (scheduleProblems), so a bad entry fails CI.
+// For a recurring run, spread recurringBounties({ idPrefix, firstStart, everyDays, durationDays,
+// count, details }) from src/lib/bountySchedule.ts into this array. It only computes dates; the
+// prize text and rules in `details` must be the team's approved values.
 export const bounties: Bounty[] = [
   {
     id: "bounty-1",
