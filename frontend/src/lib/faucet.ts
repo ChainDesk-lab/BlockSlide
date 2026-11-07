@@ -9,31 +9,14 @@
  * The server only records THAT a wallet used the faucet; the faucet call itself
  * happens client-side via the GoodDollar SDK.
  */
-import { createClient } from "redis";
+import { getRedis } from "../../app/api/_lib/redis";
 
 const REDIS_KEY_PREFIX = "gas:faucet:";
 const FAUCET_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-let redisClient: ReturnType<typeof createClient> | null = null;
-
-async function getRedisClient() {
-  if (redisClient) return redisClient;
-
-  try {
-    redisClient = createClient({ url: process.env.REDIS_URL });
-
-    redisClient.on("error", (err: Error) => {
-      console.error("[Gas Tier1] Redis error:", err);
-    });
-
-    await redisClient.connect();
-    return redisClient;
-  } catch (err) {
-    console.error("[Gas Tier1] Redis init failed:", err);
-    redisClient = null;
-    return null;
-  }
-}
+// The shared client: guarded URL, short connect timeout, null when Redis is
+// down (this module then fails open, as documented below).
+const getRedisClient = getRedis;
 
 /**
  * Whether `address` may still use the faucet. Fails OPEN: if Redis is

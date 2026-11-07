@@ -69,8 +69,7 @@ export const bounties: Bounty[] = [
   },
 ];
 
-export function getBountyStatus(bounty: Bounty): "upcoming" | "live" | "ended" {
-  const now = new Date();
+export function getBountyStatus(bounty: Bounty, now: Date = new Date()): "upcoming" | "live" | "ended" {
   const startTime = new Date(bounty.startTime);
   const endTime = new Date(bounty.endTime);
 

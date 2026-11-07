@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "redis";
+import { keccak256 } from "viem";
+import { getRedis } from "../../_lib/redis";
 
 /**
  * Game session seed storage API.
@@ -22,32 +23,15 @@ interface SeedRecord {
 const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours (matches contract)
 const SESSION_TIMEOUT_SECONDS = Math.ceil(SESSION_TIMEOUT_MS / 1000);
 const REDIS_KEY_PREFIX = "game:seed:";
-
-let redisClient: ReturnType<typeof createClient> | null = null;
+const BYTES32_RE = /^0x[0-9a-fA-F]{64}$/;
 
 /**
- * Initialize Redis client (singleton pattern)
+ * The shared client (app/api/_lib/redis): fails fast when Redis is down and
+ * reconnects on a later request. This route used to keep its own client, which
+ * after one failed connect stayed broken for the life of the instance, and with
+ * no connect timeout could hold a request open while Redis was unreachable.
  */
-async function getRedisClient() {
-  if (redisClient) return redisClient;
-
-  try {
-    redisClient = createClient({
-      url: process.env.REDIS_URL,
-    });
-
-    redisClient.on("error", (err: Error) => {
-      console.error("[Seed API Redis] Client error:", err);
-    });
-
-    await redisClient.connect();
-    console.log("[Seed API Redis] Connected to Redis");
-    return redisClient;
-  } catch (err) {
-    console.error("[Seed API Redis] Failed to initialize client:", err);
-    return null;
-  }
-}
+const getRedisClient = getRedis;
 
 /**
  * Get a seed from Redis by key
@@ -114,16 +98,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate seed format
-    if (!seed.startsWith("0x") || seed.length !== 66) {
-      console.warn("[Seed API POST] Invalid seed format:", { seed: seed.slice(0, 20) });
+    // Validate seed and hash format: 32-byte hex each
+    if (!BYTES32_RE.test(seed)) {
+      console.warn("[Seed API POST] Invalid seed format");
       return NextResponse.json(
         { success: false, message: "Invalid seed format" },
         { status: 400 }
       );
     }
+    if (!BYTES32_RE.test(seedHash)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid seedHash format" },
+        { status: 400 }
+      );
+    }
 
-    const key = `${address.toLowerCase()}_${seedHash}`;
+    // Integrity: only the real preimage of the committed hash is stored. This
+    // stops anyone overwriting another player's backup with a wrong seed (the
+    // key is public: address + the seedHash readable on-chain). It does NOT
+    // prove the caller owns the session — but only the session's owner knows
+    // a seed that hashes to its seedHash, so a valid record is always correct.
+    if (keccak256(seed as `0x${string}`).toLowerCase() !== seedHash.toLowerCase()) {
+      console.warn("[Seed API POST] Rejected seed that doesn't match seedHash", { address: address.slice(0, 6) });
+      return NextResponse.json(
+        { success: false, message: "Seed does not match seedHash" },
+        { status: 400 }
+      );
+    }
+
+    const key = `${address.toLowerCase()}_${seedHash.toLowerCase()}`;
     const now = Date.now();
 
     const record: SeedRecord = {
@@ -193,7 +196,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const key = `${address.toLowerCase()}_${seedHash}`;
+    if (!BYTES32_RE.test(seedHash)) {
+      return NextResponse.json({ message: "Invalid seedHash format" }, { status: 400 });
+    }
+
+    const key = `${address.toLowerCase()}_${seedHash.toLowerCase()}`;
     const record = await getSeedFromRedis(key);
 
     // Check if seed exists
@@ -206,6 +213,13 @@ export async function GET(request: NextRequest) {
     if (record.expiresAt < Date.now()) {
       console.log("[Seed API GET] Seed expired", { address: address.slice(0, 6), seedHash: seedHash.slice(0, 10) });
       return NextResponse.json({ message: "Seed expired" }, { status: 404 });
+    }
+
+    // A record written before the POST integrity check could hold a wrong seed;
+    // never hand back one that doesn't match the committed hash.
+    if (keccak256(record.seed as `0x${string}`).toLowerCase() !== seedHash.toLowerCase()) {
+      console.warn("[Seed API GET] Stored seed doesn't match seedHash; not returning it", { address: address.slice(0, 6) });
+      return NextResponse.json({ message: "Seed not found" }, { status: 404 });
     }
 
     console.log(

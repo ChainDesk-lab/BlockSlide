@@ -16,9 +16,16 @@ interface GameControlsProps {
   canSubmitScore: boolean;
   onNewGame: () => void;
   onSubmit: () => void;
-  undoCredits?: bigint;
+  /** Undo is available this session (operator switch on AND upgraded contract). */
+  undoAvailable?: boolean;
+  /** Credits usable this game; null while the balance is still loading. */
+  undoCredits?: bigint | null;
+  /** There is a move to take back (and the game wasn't won). */
+  canUndo?: boolean;
   onUndo?: () => void;
-  undoPending?: boolean;
+  /** Which controls to render: the board's (new game, undo, move hints), the submit card's
+   * (submit, submitting, finalizing and their hints), or both (default, unchanged). */
+  part?: "all" | "board" | "submit";
 }
 
 export default function GameControls({
@@ -29,17 +36,20 @@ export default function GameControls({
   canSubmitScore,
   onNewGame,
   onSubmit,
+  undoAvailable,
   undoCredits,
+  canUndo,
   onUndo,
-  undoPending,
+  part = "all",
 }: GameControlsProps) {
   const { isConnected } = useAuth();
   const gameEnded = state && (state.over || state.won);
+  const board = part !== "submit", submit = part !== "board";
 
   return (
-    <div className="controls">
+    <div className={`controls controls--${part}`}>
       {/* New Game — always available, no wallet required */}
-      {(phase === "idle" || phase === "done") && (
+      {board && (phase === "idle" || phase === "done") && (
         <button
           className="btn btn--primary"
           onClick={onNewGame}
@@ -49,7 +59,7 @@ export default function GameControls({
         </button>
       )}
 
-      {phase === "starting" && (
+      {board && phase === "starting" && (
         <button className="btn btn--primary" disabled>
           <Spinner /> Starting…
         </button>
@@ -58,7 +68,7 @@ export default function GameControls({
       {/* Submit Score button is always shown once the game ends — the contract
           itself rejects the tx if this wallet isn't whitelisted, and that
           revert is caught and surfaced via the error banner / hint below. */}
-      {phase === "active" && gameEnded && (
+      {submit && phase === "active" && gameEnded && (
         <button
           className="btn btn--secondary"
           onClick={onSubmit}
@@ -68,48 +78,53 @@ export default function GameControls({
         </button>
       )}
 
-      {phase === "submitting" && (
+      {submit && phase === "submitting" && (
         <button className="btn btn--secondary" disabled>
           <Spinner /> Submitting…
         </button>
       )}
 
-      {phase === "finalizing" && (
+      {submit && phase === "finalizing" && (
         <button className="btn btn--secondary" disabled>
           <Spinner /> Finalizing your game…
         </button>
       )}
 
-      {/* Undo button — shown during active gameplay */}
-      {phase === "active" && !gameEnded && onUndo && (
+      {/* Undo — during play and after a game-over (take back the losing move), not after a win.
+          Instant and local; the credits used are deducted when the score is submitted. */}
+      {board && undoAvailable && phase === "active" && !state?.won && onUndo && (
         <button
           className="btn btn--tertiary undo-btn"
           onClick={onUndo}
-          disabled={!undoCredits || undoCredits === 0n || undoPending || isPending}
+          disabled={!canUndo || undoCredits === null || undoCredits === undefined || undoCredits === 0n || isPending}
           title={
-            !undoCredits || undoCredits === 0n
-              ? "No undo credits available"
-              : `Undo move (${Number(undoCredits || 0)} credits left)`
+            undoCredits === null || undoCredits === undefined
+              ? "Checking your Undo credits…"
+              : undoCredits === 0n
+                ? "No undo credits left for this game — get some in the shop"
+                : !canUndo
+                  ? "Make a move first — Undo takes back your last move"
+                  : `Take back your last move (${Number(undoCredits)} credit${undoCredits === 1n ? "" : "s"} left; charged when you submit)`
           }
         >
-          {undoPending ? <Spinner /> : `↶ Undo (${Number(undoCredits || 0)})`}
+          {`↶ Undo (${undoCredits === null || undoCredits === undefined ? "…" : Number(undoCredits)})`}
         </button>
       )}
 
       {/* Contextual hints */}
-      {!isConnected && phase === "active" && !gameEnded && (
+      {board && !isConnected && phase === "active" && !gameEnded && (
         <p className="controls__hint">Arrow keys · WASD · swipe to move</p>
       )}
-      {!isConnected && phase === "active" && gameEnded && (
+      {submit && !isConnected && phase === "active" && gameEnded && (
         <p className="controls__hint">Connect your wallet to submit your score on-chain</p>
       )}
-      {!isConnected && (phase === "idle" || phase === "done") && !state && (
+      {board && !isConnected && (phase === "idle" || phase === "done") && !state && (
         <p className="controls__hint">Connect your wallet to save your scores on-chain</p>
       )}
-      {isConnected && !gameEnded && phase === "active" && (
+      {board && isConnected && !gameEnded && phase === "active" && (
         <p className="controls__hint">Arrow keys · WASD · swipe to move</p>
       )}
-      {isConnected && !canSubmitScore && phase === "active" && gameEnded && (
+      {submit && isConnected && !canSubmitScore && phase === "active" && gameEnded && (
         <p className="controls__hint">
           {identityStatus === "verified"
             ? "Your GoodDollar verification is on a different wallet — switch to it to submit your score on-chain."

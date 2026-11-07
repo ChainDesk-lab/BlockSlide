@@ -12,6 +12,10 @@ import { createPublicClient, http, type PublicClient } from "viem";
 import { celo } from "viem/chains";
 import { GAME_ADDRESS, MAX_RANGE } from "./config";
 import { applyLogs, type RawLog, type StatsState } from "./state";
+import { parseEstimateWindow } from "../rewards/config";
+
+/** Season window for the rewards XP estimate; null when not configured. */
+const SEASON_WINDOW = parseEstimateWindow(process.env);
 
 const RPCS = (process.env.CELO_RPC_URLS ?? "https://forno.celo.org").split(",").map((s) => s.trim()).filter(Boolean);
 const REPEATS = Number(process.env.STATS_SCAN_REPEATS ?? 3);
@@ -80,6 +84,7 @@ async function readChunk(from: bigint, to: bigint): Promise<RawLog[] | null> {
             blockNumber: Number(l.blockNumber),
             topics: l.topics as unknown as string[],
             data: l.data as string | undefined,
+            transactionHash: l.transactionHash ?? undefined,
           });
         }
         break;
@@ -110,7 +115,7 @@ export async function scanForward(state: StatsState, head: number): Promise<Scan
       return { scannedTo: state.checkpointBlock, chunks, logs: logCount, caughtUp: false };
     }
     logs.sort((a, b) => a.blockNumber - b.blockNumber);
-    applyLogs(state, logs, to);
+    applyLogs(state, logs, to, SEASON_WINDOW);
     logCount += logs.length;
     chunks += 1;
     from = to + 1;

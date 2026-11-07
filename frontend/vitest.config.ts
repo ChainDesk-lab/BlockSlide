@@ -1,8 +1,11 @@
 import { defineConfig } from "vitest/config";
 
-// Scoped deliberately narrow: the only unit-tested module today is the pure
-// tile-identity tracker, which has no React / DOM / Next dependencies.
+// Node environment: tests cover pure modules, API route handlers (with their
+// Redis / network dependencies mocked) and components rendered to static
+// markup via react-dom/server — no DOM needed.
 export default defineConfig({
+  // tsconfig keeps `"jsx": "preserve"` for Next; tests need JSX compiled.
+  esbuild: { jsx: "automatic" },
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",

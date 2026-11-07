@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../../src/auth/AuthContext";
 import { useProfileData } from "../../../src/hooks/useProfileData";
+import { useUbiContribution } from "../../../src/hooks/useUbiContribution";
+import { ubiStat } from "../../../src/lib/ubiProfile";
+import { useLeaderboardTop } from "../../../src/hooks/useLeaderboardTop";
 import StatCard from "../../../src/components/StatCard";
-import {
-  resolveIdentifier,
-  formatAddress,
-  getAddressInitial,
-  getAvatarGradient,
-  isAddress,
-} from "../../../src/lib/profileUtils";
+import UsernameModal from "../../../src/components/UsernameModal";
+import { InviteCard, ProfileHeader, ProfileLayout, ProfileStat, RunHistoryCard } from "../../../src/components/ProfilePanels";
+import { SOLVE_TIME_STAT, countStat, rankStat, referralNote } from "../../../src/lib/profileState";
+import { resolveIdentifier, isAddress } from "../../../src/lib/profileUtils";
 
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
 const PRODUCTION_URL = "https://blockslide.app";
@@ -31,7 +32,26 @@ export default function ProfileView({ identifier }: { identifier: string }) {
   const [notFound, setNotFound] = useState(false);
   const [resolving, setResolving] = useState(true);
 
-  const { player, streak, loading, coreLoading, streakLoading, gdollarLoading, error } = useProfileData(profileAddress, SUBGRAPH_URL);
+  const { player, streak, loading, coreLoading, streakLoading, gdollarLoading, ubi, error } = useProfileData(profileAddress, SUBGRAPH_URL);
+  // The contract's own rate words the UBI caption; before the UBI upgrade it reads as unavailable.
+  const ubiRate = useUbiContribution();
+  // Rank: the same first leaderboard page the play and leaderboard screens use (no per-wallet lookup exists).
+  const standing = useLeaderboardTop(profileAddress);
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [copied, setCopied] = useState<"address" | "link" | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+  const flashCopied = useCallback((what: "address" | "link") => {
+    setCopied(what);
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(null), 2000);
+  }, []);
+  // A saved username changes the core profile row: read it again when the editor closes.
+  const closeEditor = useCallback(() => {
+    setEditing(false);
+    queryClient.invalidateQueries({ queryKey: ["profile-player-core", profileAddress] });
+  }, [queryClient, profileAddress]);
 
   useEffect(() => {
     (async () => {
@@ -124,6 +144,8 @@ export default function ProfileView({ identifier }: { identifier: string }) {
   const gSpent = player?.totalGSpent ? formatGDollar(player.totalGSpent) : null;
   const referralCount = player?.referralCount ? parseInt(player.referralCount) : 0;
 
+  const ubiCard = ubiStat({ rate: ubiRate, totals: ubi });
+
   const hasGFields = player && (player.totalGEarned !== undefined || player.totalGSpent !== undefined);
   const hasReferralFields = player && player.referralCount !== undefined;
 
@@ -132,6 +154,16 @@ export default function ProfileView({ identifier }: { identifier: string }) {
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(refLink);
+      flashCopied("link");
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleCopyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(profileAddress);
+      flashCopied("address");
     } catch (err) {
       console.error("Failed to copy:", err);
     }
@@ -153,56 +185,34 @@ export default function ProfileView({ identifier }: { identifier: string }) {
     }
   };
 
+  const coreError = !!error && !player;
+  const referral = hasReferralFields
+    ? referralNote(referralCount)
+    : !loading ? referralNote(null) : null;
+
   return (
-    <div>
-      <div className="profile-header">
-        <div
-          className="profile-avatar"
-          style={{ background: getAvatarGradient(profileAddress) }}
-        >
-          {getAddressInitial(profileAddress)}
-        </div>
+    <ProfileLayout>
+      <ProfileHeader
+        address={profileAddress}
+        username={username}
+        verified={isVerified}
+        isOwn={!!isOwnProfile}
+        copied={copied === "address"}
+        onCopyAddress={handleCopyAddress}
+        onEdit={() => setEditing(true)}
+      />
 
-        <div className="profile-name">
-          <h1 className="profile-title">
-            {username ?? formatAddress(profileAddress)}
-            {isVerified && <span className="profile-badge">✓ Verified</span>}
-          </h1>
-        </div>
-
-        <div className="profile-address">
-          <span>{formatAddress(profileAddress, 8)}</span>
-          <button className="profile-address-copy" onClick={handleCopyLink}>
-            Copy
-          </button>
-        </div>
+      <div className="profile2__stats">
+        <ProfileStat label="Current Rank" stat={rankStat({ loading: standing.isLoading, error: standing.isError, rank: standing.rank, pageSize: standing.pageSize })} />
+        <ProfileStat label="Personal Best" stat={coreLoading ? null : countStat(coreError ? null : bestScore, "High score record") ?? { value: "Unavailable", note: "Profile can't be read right now", tone: "empty" }} />
+        <ProfileStat label="Best Solve Time" stat={SOLVE_TIME_STAT} />
+        <ProfileStat label="Games Played" stat={coreLoading ? null : countStat(coreError ? null : gamesPlayed, "Total career runs") ?? { value: "Unavailable", note: "Profile can't be read right now", tone: "empty" }} />
       </div>
 
-      <div className="stat-cards-grid">
-        <StatCard
-          label="XP"
-          value={coreLoading ? null : xp.toLocaleString()}
-          loading={coreLoading}
-          error={!!error && !player}
-        />
-        <StatCard
-          label="Best Score"
-          value={coreLoading ? null : bestScore.toLocaleString()}
-          loading={coreLoading}
-          error={!!error && !player}
-        />
-        <StatCard
-          label="Game Sessions"
-          value={coreLoading ? null : gamesPlayed}
-          loading={coreLoading}
-          error={!!error && !player}
-        />
-        <StatCard
-          label="Current Streak"
-          value={streakLoading ? null : streakCount}
-          loading={streakLoading}
-          error={false}
-        />
+      {/* The other figures the profile has always shown, kept below the designed four. */}
+      <div className="profile2__more stat-cards-grid">
+        <StatCard label="XP" value={coreLoading ? null : xp.toLocaleString()} loading={coreLoading} error={coreError} />
+        <StatCard label="Current Streak" value={streakLoading ? null : streakCount} loading={streakLoading} error={false} />
         <StatCard
           label="G$ Earned"
           value={gdollarLoading ? null : gEarned}
@@ -217,40 +227,30 @@ export default function ProfileView({ identifier }: { identifier: string }) {
           error={false}
           comingSoon={!hasGFields && !gdollarLoading && !!player}
         />
+        <StatCard
+          label="UBI contributed"
+          value={ubiCard.state === "shown" ? ubiCard.value : null}
+          loading={ubiCard.state === "loading"}
+          note={ubiCard.state === "shown" ? ubiCard.note : undefined}
+          muted={ubiCard.state === "shown" && ubiCard.muted}
+          title={ubiCard.state === "shown" ? ubiCard.title : undefined}
+        />
       </div>
 
-      {isOwnProfile && (
-        <div className="invite-block">
-          <h2 className="invite-block__title">Invite friends</h2>
-          <p className="invite-block__copy">
-            Share your link and grow the BlockSlide community. Earn rewards when your friends join.
-          </p>
+      <div className={`profile2__body ${isOwnProfile ? "" : "profile2__body--single"}`}>
+        <RunHistoryCard />
+        {isOwnProfile && (
+          <InviteCard
+            refLink={refLink}
+            copied={copied === "link"}
+            referral={referral}
+            onCopy={handleCopyLink}
+            onShare={handleShareLink}
+          />
+        )}
+      </div>
 
-          <div className="invite-link-group">
-            <div className="invite-link-input">{refLink}</div>
-            <button className="invite-link-copy-btn" onClick={handleCopyLink}>
-              Copy
-            </button>
-          </div>
-
-          <button className="invite-share-btn" onClick={handleShareLink}>
-            Share invite
-          </button>
-
-          {hasReferralFields && (
-            <div className="invite-referral-count">
-              {referralCount === 0
-                ? "No referrals yet"
-                : `${referralCount} player${referralCount === 1 ? "" : "s"} joined through you`}
-            </div>
-          )}
-          {!hasReferralFields && !loading && (
-            <div className="invite-referral-count">
-              Referral tracking coming soon
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      {editing && isOwnProfile && <UsernameModal onClose={closeEditor} />}
+    </ProfileLayout>
   );
 }

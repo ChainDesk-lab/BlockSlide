@@ -273,7 +273,7 @@ export default function ClaimUBI() {
       }));
 
       // Show success toast
-      showToast("✓ Daily G$ claimed! Check your balance.", "success");
+      showToast("Daily G$ claimed! Check your balance.", "success");
 
       // Wait for the transaction to be fully processed on-chain.
       // Celo blocks are ~5s, plus indexing time — use longer delay to be safe.
@@ -313,7 +313,7 @@ export default function ClaimUBI() {
           error: errorMsg,
           isClaiming: false,
         }));
-        showToast(`❌ ${errorMsg}`, "error");
+        showToast(errorMsg, "error");
       }
     }
   };

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getDeviceStorage, setDeviceStorage } from "../lib/unifiedStorage";
+import { MoonIcon, SunIcon } from "./icons";
 
 export default function ThemeToggle() {
   const [isDark, setIsDark] = useState(false);
@@ -42,17 +43,18 @@ export default function ThemeToggle() {
     setDeviceStorage("theme", newIsDark ? "dark" : "light");
   };
 
-  // Don't render until mounted to prevent hydration mismatch
-  if (!isMounted) return null;
+  // Until mounted the theme isn't known (it lives in device storage), so render an inert
+  // placeholder of the same size: no hydration mismatch, and the header doesn't shift when it appears.
+  if (!isMounted) return <span className="theme-toggle theme-toggle--placeholder" aria-hidden="true" />;
 
   return (
     <button
       className="theme-toggle"
       onClick={toggleTheme}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      aria-label={isDark ? "Light mode" : "Dark mode"}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
-      {isDark ? "🌙" : "☀️"}
+      {isDark ? <MoonIcon /> : <SunIcon />}
     </button>
   );
 }

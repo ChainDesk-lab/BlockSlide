@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { shouldShowNotification, markNotificationShown, shouldShowBountyWinnerNotification, markBountyWinnerNotificationShown } from "../lib/notificationManager";
 import { getUserStorage, setUserStorage } from "../lib/unifiedStorage";
 import { findBountyWinner } from "../lib/bountyWinners";
+import { useUndoAvailability } from "./useUndoAvailability";
 
 interface ActiveNotification {
   type: "undoStep" | "cosmetics" | "flowStateVoting" | "bountyWinner";
@@ -26,6 +27,8 @@ export function useFeatureNotifications(
 ) {
   const [activeNotifications, setActiveNotifications] = useState<ActiveNotification[]>([]);
   const [shownThisSession, setShownThisSession] = useState<Set<string>>(new Set());
+  // Never advertise Undo unless it can actually be used (switch on AND upgraded contract).
+  const undoAvailable = useUndoAvailability().available;
 
   // Initialize session count tracking
   useEffect(() => {
@@ -67,8 +70,8 @@ export function useFeatureNotifications(
     if (!address || !isGameActive) return;
 
     // Trigger Undo Step notification after 3+ moves into the session
-    // (give player time to understand the game before announcing features)
-    if (moveCount === 3 && !shownThisSession.has("undoStep")) {
+    // (give player time to understand the game before announcing features).
+    if (undoAvailable && moveCount === 3 && !shownThisSession.has("undoStep")) {
       if (shouldShowNotification("undoStep", sessionCount)) {
         setActiveNotifications((prev) => [
           ...prev,
@@ -102,7 +105,7 @@ export function useFeatureNotifications(
         markNotificationShown("flowStateVoting", sessionCount);
       }
     }
-  }, [address, moveCount, sessionCount, isGameActive, isVerified, shownThisSession]);
+  }, [address, moveCount, sessionCount, isGameActive, isVerified, shownThisSession, undoAvailable]);
 
   const dismissNotification = useCallback((id: string) => {
     setActiveNotifications((prev) => prev.filter((n) => n.id !== id));

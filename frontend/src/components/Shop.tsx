@@ -1,11 +1,20 @@
-import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useState, useEffect, useRef } from "react";
+import { useAccount, useReadContract } from "wagmi";
 import { useSearchParams } from "next/navigation";
 import { useShop } from "../hooks/useShop";
+import { useContractAddress } from "../hooks/useContractData";
 import { ShopIcon } from "./ShopIcon";
-import { CategoryIcon } from "./CategoryIcon";
+import Notice from "./Notice";
+import ShopCard, { CoinMark, type ShopArt, type ShopBadge } from "./ShopCard";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
+import { GAME2048_V6_FUNCTIONS } from "../lib/abiV6";
+import { CONTRACT_DEPLOYED, GAME2048_ADDRESS } from "../lib/constants";
+import { undoUnavailableMessage } from "../lib/undoAvailability";
+import { priceLabel, priceBlockReason, type PriceRead } from "../lib/shopPrice";
+import { buyButtonState, formatG, shopCategoryFromParam, type ShopCategory } from "../lib/shopState";
 import { useUbiContribution } from "../hooks/useUbiContribution";
+import { useToast } from "../contexts/ToastContext";
+import type { BuyButtonState } from "../lib/shopState";
 import { formatBps, ubiContributionFor } from "../lib/ubiContribution";
 
 const CELOSCAN = "https://celoscan.io";
@@ -13,11 +22,6 @@ const CELOSCAN = "https://celoscan.io";
 /** G$ with up to 2 decimals (contributions are often fractional: 5% of 25 = 1.25). */
 function fmtGExact(val: bigint): string {
   return (Number(val) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " G$";
-}
-
-function fmtG(val: bigint | undefined): string {
-  if (val === undefined) return "…";
-  return (Number(val) / 1e18).toLocaleString('en-US', { maximumFractionDigits: 0 }) + " G$";
 }
 
 function fmtTimeLeft(expiry: bigint): string {
@@ -28,60 +32,90 @@ function fmtTimeLeft(expiry: bigint): string {
   return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
 }
 
-type View = "landing" | "powerups" | "cosmetics";
-type Category = "power-ups" | "cosmetics";
+const COSMETIC_ICON: Record<number, "tile" | "fits" | "flair" | "goggles" | "caps"> = { 1: "tile", 2: "fits", 3: "flair", 4: "goggles", 5: "caps" };
+
+/**
+ * Original Figma product artwork (public/shop-art), as supplied by the team. Five files are
+ * byte-identical to the originals; xp-boost.png and tile-skin.png are the originals with only the
+ * baked-in tier-label strip cropped off (the game has no product tiers). Leaderboard Flair
+ * has no supplied original and keeps its existing illustration (ShopIcon).
+ */
+const ART = {
+  undo: { src: "/shop-art/undo-step.png" },
+  shield: { src: "/shop-art/streak-shield.png" },
+  // The supplied bolt for 2x; 5x uses the same artwork recoloured gold (hue rotated -78 degrees) to set it apart.
+  boost: { src: "/shop-art/xp-boost.png", fit: "contain" }, // the whole bolt and ring stay visible, as in the design
+  boost5: { src: "/shop-art/xp-boost-5x.png", fit: "contain" },
+} satisfies Record<string, ShopArt>;
+const COSMETIC_ART: Partial<Record<number, ShopArt>> = {
+  1: { src: "/shop-art/tile-skin.png" },
+  2: { src: "/shop-art/fits.jpg", position: "center 42%" }, // keeps the BLOCKSLIDE chest print in view
+  4: { src: "/shop-art/goggles.jpg" },
+  5: { src: "/shop-art/caps.jpg", position: "center 48%" },
+};
+const COSMETIC_DESC: Record<string, string> = {
+  tile: "Applies to the game board when equipped.",
+  avatar: "Avatar accessory.",
+  flair: "Renders next to your name on leaderboards.",
+};
 
 export default function Shop() {
-  const { isConnected } = useAccount();
+  // Purchases are sent through wagmi, so they need a connected browser wallet. An email (Magic)
+  // sign-in has no wagmi connection: it can see the shop and its prices but not buy yet.
+  const { isConnected: walletConnected } = useAccount();
+  const { showToast } = useToast();
   const searchParams = useSearchParams();
-  const [view, setView] = useState<View>("landing");
-  const [activeCategory, setActiveCategory] = useState<Category>("power-ups");
+  const [activeCategory, setActiveCategory] = useState<ShopCategory>(() => shopCategoryFromParam(searchParams.get("category")));
   const [undoQuantity, setUndoQuantity] = useState(1);
 
   useEffect(() => {
-    const category = searchParams.get("category") as Category | null;
-    const tab = searchParams.get("tab");
-    if (tab === "shop" && category) {
-      // Map category ("power-ups", "cosmetics") to view ("powerups", "cosmetics")
-      const viewMap: Record<Category, View> = {
-        "power-ups": "powerups",
-        "cosmetics": "cosmetics",
-      };
-      setView(viewMap[category]);
-      setActiveCategory(category);
-    }
+    if (searchParams.get("tab") === "shop") setActiveCategory(shopCategoryFromParam(searchParams.get("category")));
   }, [searchParams]);
 
-  const updateView = (newView: View, newCategory?: Category) => {
-    console.log("[Shop] updateView called:", { newView, newCategory, currentView: view });
+  const selectCategory = (cat: ShopCategory) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (newView === "landing") {
-      params.delete("category");
-      window.history.pushState({}, "", `?${params.toString()}`);
-    } else {
-      const cat = newCategory || activeCategory;
-      params.set("tab", "shop");
-      params.set("category", cat);
-      window.history.pushState({}, "", `?${params.toString()}`);
-      setActiveCategory(cat);
-    }
-    setView(newView);
-    console.log("[Shop] updateView completed, new view:", newView);
+    params.set("tab", "shop");
+    params.set("category", cat);
+    window.history.pushState({}, "", `?${params.toString()}`);
+    setActiveCategory(cat);
   };
 
   const {
-    shieldPrice, boost2xPrice, boost5xPrice,
+    prices, cosmeticPrices,
     shieldCount, xpBoost, boostActive,
     playerXp, streakCount,
     gdBalance,
-    undoPrice, undoCredits,
+    undoCredits,
     pendingAction,
     approve, buyShield, buyBoost, buyUndoMove, buyCosmetic,
     isApproved, canAfford,
     error,
-    lastUbiContribution, onChainPrices,
+    lastUbiContribution,
+    undo,
   } = useShop();
   const ubi = useUbiContribution();
+
+  // Which cosmetics this wallet owns, straight from the contract (getCosmeticsOwned). If the read
+  // fails or hasn't returned, ownership is unknown and the cards behave exactly as before.
+  const player = useContractAddress();
+  const ownedRead = useReadContract({
+    address: GAME2048_ADDRESS,
+    abi: GAME2048_V6_FUNCTIONS,
+    functionName: "getCosmeticsOwned",
+    args: player ? [player, COSMETICS_CATALOG.map((c) => BigInt(c.id))] : undefined,
+    query: { enabled: !!player && CONTRACT_DEPLOYED },
+  });
+  const owned = (id: number): boolean => {
+    const i = COSMETICS_CATALOG.findIndex((c) => c.id === id);
+    const data = ownedRead.data as readonly boolean[] | undefined;
+    return !!data && i >= 0 && data[i] === true;
+  };
+  // A finished cosmetic purchase changes ownership: read it again.
+  const prevPending = useRef(pendingAction);
+  useEffect(() => {
+    if (prevPending.current === "cosmetic" && pendingAction === null) ownedRead.refetch();
+    prevPending.current = pendingAction;
+  }, [pendingAction, ownedRead]);
 
   // Shown only when the contract reports its rate (i.e. after the UBI
   // contribution upgrade). Before that, nothing is claimed.
@@ -96,412 +130,165 @@ export default function Shop() {
 
   // Only what the confirmed receipt's UbiContribution event says.
   const ubiConfirmed = lastUbiContribution ? (
-    <p className="shop__ubi-confirmed">
-      ✓ {fmtGExact(lastUbiContribution.amount)} of this purchase went to GoodDollar UBI ·{" "}
+    <Notice tone="success" className="shop__ubi-confirmed">
+      {fmtGExact(lastUbiContribution.amount)} of this purchase went to GoodDollar UBI ·{" "}
       <a href={`${CELOSCAN}/tx/${lastUbiContribution.txHash}`} target="_blank" rel="noopener noreferrer">
         View transaction ↗
       </a>
-    </p>
+    </Notice>
   ) : null;
 
   /** "incl. 1.25 G$ for UBI" from the on-chain price, or nothing if unknown. */
   const ubiShare = (price: bigint | undefined) =>
     ubi.status === "ready" && price !== undefined && price > 0n ? (
-      <span className="shop-item__ubi">incl. {fmtGExact(ubiContributionFor(price, ubi.bps))} for UBI</span>
+      <span className="shop-card__ubi">incl. {fmtGExact(ubiContributionFor(price, ubi.bps))} for UBI</span>
     ) : null;
 
-  // Debug: log shop state
-  useEffect(() => {
-    console.log("[Shop Component] Rendered", {
-      view,
-      activeCategory,
-      isConnected,
-      prices: {
-        shield: shieldPrice?.toString() ?? "undefined",
-        boost2x: boost2xPrice?.toString() ?? "undefined",
-        boost5x: boost5xPrice?.toString() ?? "undefined",
-        undo: undoPrice?.toString() ?? "undefined",
-      },
-      error,
+  const walletNeeded: BuyButtonState = { label: "Browser wallet needed", variant: "disabled", disabled: true, action: null, busy: false };
+
+  /** The existing purchase rules, now as a card button state (see lib/shopState). */
+  const button = (priceRead: PriceRead, pendingKey: NonNullable<typeof pendingAction>, o: { quantity?: bigint; listed?: boolean; owned?: boolean } = {}): BuyButtonState => {
+    if (!walletConnected && !o.owned) return walletNeeded;
+    const blocked = priceBlockReason(priceRead, o.listed ?? true);
+    const total = blocked ? 0n : (priceRead.value as bigint) * (o.quantity ?? 1n);
+    return buyButtonState({
+      blocked, owned: o.owned, affordable: blocked ? true : canAfford(total), approved: blocked ? true : isApproved(total),
+      pending: pendingAction === pendingKey, approvePending: pendingAction === "approve", anyPending: !!pendingAction,
     });
-  }, [view, activeCategory, isConnected, shieldPrice, boost2xPrice, boost5xPrice, undoPrice, error]);
+  };
+  // "Buy Now" always buys. When G$ spending isn't approved yet, the one click sends the approval
+  // and then the purchase (two wallet prompts); a rejected or failed approval stops there.
+  const act = (buy: () => Promise<boolean>) => async (a: "approve" | "buy") => {
+    if (a === "buy") { await buy(); return; }
+    showToast("Step 1 of 2: approve G$ spending in your wallet. The purchase request follows.", "info", 6000);
+    if (await approve()) await buy();
+  };
+  const countBadge = (n: bigint, one: string, many: string): ShopBadge | null =>
+    n > 0n ? { label: `${Number(n)} ${n === 1n ? one : many}`, tone: "info" } : null;
 
-  if (!isConnected) {
-    console.log("[Shop] Not connected, returning null");
-    return null;
-  }
-
-  console.log("[Shop] Rendering view:", view);
-
-  const isPending = (a: typeof pendingAction) => pendingAction === a;
-
-  function ItemButton({
-    price,
-    buyAction,
-    pendingKey,
-  }: {
-    price: bigint | undefined;
-    buyAction: () => void;
-    pendingKey: "shield" | "boost2" | "boost5" | "undo" | "cosmetic";
-  }) {
-    const pending = isPending(pendingKey);
-    const approvePending = isPending("approve");
-
-    if (price === undefined || price === 0n) {
-      return (
-        <button className="shop-btn shop-btn--disabled" disabled>
-          Coming soon
-        </button>
-      );
-    }
-
-    if (!canAfford(price)) {
-      return (
-        <button className="shop-btn shop-btn--disabled" disabled>
-          Insufficient G$
-        </button>
-      );
-    }
-
-    if (!isApproved(price)) {
-      return (
-        <button
-          className="shop-btn shop-btn--approve"
-          onClick={approve}
-          disabled={!!pendingAction}
-        >
-          {approvePending ? <Spinner /> : "Buy"}
-        </button>
-      );
-    }
-
-    return (
-      <button
-        className="shop-btn shop-btn--buy"
-        onClick={buyAction}
-        disabled={!!pendingAction}
-      >
-        {pending ? <Spinner /> : "Buy"}
-      </button>
-    );
-  }
-
-  // Landing Page: Category Cards
-  if (view === "landing") {
-    return (
-      <section className="shop">
-        <div className="shop__header">
-          <div>
-            <h2 className="shop__title">Game Shop</h2>
-            <p className="shop__subtitle">Enhance your gameplay</p>
-          </div>
-          <div className="shop__balance">
-            <div className="shop__balance-label">Balance</div>
-            <div className="shop__balance-value">{fmtG(gdBalance)}</div>
-          </div>
+  return (
+    <section className="shop2" aria-label="Shop">
+      <header className="shop2__hero">
+        <div>
+          <h1 className="page__title">The Shop</h1>
+          <p className="page__lede page__lede--wide">Customize your gaming experience with premium themes, skins, and boosters.</p>
         </div>
-
-        {ubiNote}
-
-        <div className="shop__categories">
-          <div
-            className="shop__category-card"
-            onClick={() => {
-              console.log("[Shop] Power-Ups card clicked");
-              updateView("powerups", "power-ups");
-            }}
-          >
-            <div className="shop__category-icon-wrapper">
-              <CategoryIcon type="power-ups" size={110} />
-            </div>
-            <h3 className="shop__category-name">Power-Ups</h3>
-            <p className="shop__category-desc">Shields, XP boosts, and undo moves</p>
-          </div>
-
-          <div
-            className="shop__category-card"
-            onClick={() => updateView("cosmetics", "cosmetics")}
-          >
-            <div className="shop__category-icon-wrapper">
-              <CategoryIcon type="cosmetics" size={110} />
-            </div>
-            <h3 className="shop__category-name">Cosmetics</h3>
-            <p className="shop__category-desc">Customize your look and leaderboard presence</p>
-          </div>
+        <div className="shop2__balance" aria-label="Your G$ balance">
+          <CoinMark />
+          <span>{formatG(gdBalance)}</span>
         </div>
+      </header>
 
-        {ubiConfirmed}
-        {error && <p className="shop__error">{error}</p>}
-      </section>
-    );
-  }
-
-  // Power-Ups Category
-  if (view === "powerups") {
-    return (
-      <section className="shop">
-        <div className="shop__header">
-          <button
-            className="shop__back-btn"
-            onClick={() => updateView("landing")}
-          >
-            ← Back
-          </button>
-          <div>
-            <h2 className="shop__title">Power-Ups</h2>
-            <p className="shop__subtitle">Strengthen your game</p>
-          </div>
-          <div className="shop__balance">
-            <div className="shop__balance-label">Balance</div>
-            <div className="shop__balance-value">{fmtG(gdBalance)}</div>
-          </div>
+      <div className="shop2__bar">
+        <div className="seg-tabs" role="tablist" aria-label="Shop category">
+          {(["power-ups", "cosmetics"] as const).map((c) => (
+            <button key={c} role="tab" aria-selected={activeCategory === c}
+              className={`seg-tabs__tab ${activeCategory === c ? "seg-tabs__tab--active" : ""}`} onClick={() => selectCategory(c)}>
+              {c === "power-ups" ? "Power-Ups" : "Cosmetics"}
+            </button>
+          ))}
         </div>
-
-        {ubiNote}
-
-        <div className="shop__category-tabs">
-          <button
-            className={`shop__category-tab ${activeCategory === "power-ups" ? "shop__category-tab--active" : ""}`}
-            onClick={() => updateView("powerups", "power-ups")}
-          >
-            Power-Ups
-          </button>
-          <button
-            className={`shop__category-tab ${activeCategory === "cosmetics" ? "shop__category-tab--active" : ""}`}
-            onClick={() => updateView("cosmetics", "cosmetics")}
-          >
-            Cosmetics
-          </button>
-        </div>
-
-        <div className="shop__stats">
-          <div className="shop__stat">
-            <span className="shop__stat-label">XP</span>
-            <span className="shop__stat-value">{Number(playerXp).toLocaleString()}</span>
+        {activeCategory === "power-ups" && (
+          <div className="shop2__chips">
+            <span className="shop2__chip">XP <strong>{Number(playerXp).toLocaleString()}</strong></span>
+            <span className="shop2__chip">Streak <strong>{Number(streakCount)} day{streakCount !== 1n ? "s" : ""}</strong></span>
           </div>
-          <div className="shop__stat">
-            <span className="shop__stat-label">Streak</span>
-            <span className="shop__stat-value">{Number(streakCount)} day{streakCount !== 1n ? "s" : ""}</span>
-          </div>
-        </div>
+        )}
+      </div>
 
-        <div className="shop__items shop__items--powerups">
-          {/* Streak Shield */}
-          <div className="shop-item">
-            <div className="shop-item__icon-wrapper">
-              <ShopIcon type="shield" size={110} />
-            </div>
-            <div className="shop-item__top">
-              <p className="shop-item__name">Streak Shield</p>
-            </div>
-            <div className="shop-item__content">
-              <p className="shop-item__desc">
-                Protects your streak for one missed day.
-              </p>
-              <p className="shop-item__status">
-                {Number(shieldCount) > 0
-                  ? `${Number(shieldCount)} shield${shieldCount !== 1n ? "s" : ""}`
-                  : "No shields"}
-              </p>
-            </div>
-            <div className="shop-item__footer">
-              <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(shieldPrice)}</span>
-                {ubiShare(onChainPrices.shield)}
-              </div>
-              <ItemButton price={shieldPrice} buyAction={buyShield} pendingKey="shield" />
-            </div>
-          </div>
+      {!walletConnected && (
+        <p className="shop__wallet-note" role="note">
+          Purchases need a browser wallet such as MetaMask. You can browse the shop with your email sign-in, but buying isn&apos;t available for it yet.
+        </p>
+      )}
+      {ubiNote}
 
-          {/* 2x XP Boost */}
-          <div className="shop-item">
-            <div className="shop-item__icon-wrapper">
-              <ShopIcon type="boost2" size={110} />
-            </div>
-            <div className="shop-item__top">
-              <p className="shop-item__name">XP Boost 2x</p>
-            </div>
-            <div className="shop-item__content">
-              <p className="shop-item__desc">
-                Double all XP earned from games for 5 hours.
-              </p>
-              <p className="shop-item__status">
-                {boostActive && xpBoost?.multiplier === 2
-                  ? fmtTimeLeft(xpBoost.expiry)
-                  : "Not active"}
-              </p>
-            </div>
-            <div className="shop-item__footer">
-              <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(boost2xPrice)}</span>
-                {ubiShare(onChainPrices.boost2x)}
-              </div>
-              <ItemButton price={boost2xPrice} buyAction={() => buyBoost(2)} pendingKey="boost2" />
-            </div>
-          </div>
-
-          {/* 5x XP Boost */}
-          <div className="shop-item">
-            <div className="shop-item__icon-wrapper">
-              <ShopIcon type="boost5" size={110} />
-            </div>
-            <div className="shop-item__top">
-              <p className="shop-item__name">XP Boost 5x</p>
-            </div>
-            <div className="shop-item__content">
-              <p className="shop-item__desc">
-                Multiply all XP earned from games by 5 for 5 hours.
-              </p>
-              <p className="shop-item__status">
-                {boostActive && xpBoost?.multiplier === 5
-                  ? fmtTimeLeft(xpBoost.expiry)
-                  : "Not active"}
-              </p>
-            </div>
-            <div className="shop-item__footer">
-              <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(boost5xPrice)}</span>
-                {ubiShare(onChainPrices.boost5x)}
-              </div>
-              <ItemButton price={boost5xPrice} buyAction={() => buyBoost(5)} pendingKey="boost5" />
-            </div>
-          </div>
-
-          {/* Undo Step */}
-          <div className="shop-item">
-            <div className="shop-item__icon-wrapper">
-              <ShopIcon type="undo" size={110} />
-            </div>
-            <div className="shop-item__top">
-              <p className="shop-item__name">Undo Step</p>
-            </div>
-            <div className="shop-item__content">
-              <p className="shop-item__desc">
-                Revert your last move during gameplay.
-              </p>
-              <p className="shop-item__status">
-                {Number(undoCredits) > 0
-                  ? `${Number(undoCredits)} credit${undoCredits !== 1n ? "s" : ""}`
-                  : "No credits"}
-              </p>
-            </div>
-            <div className="shop-item__footer">
-              <div className="shop-item__price-section">
-                <span className="shop-item__price">{fmtG(undoPrice)}</span>
-                {ubiShare(onChainPrices.undo !== undefined ? onChainPrices.undo * BigInt(undoQuantity) : undefined)}
-              </div>
-              <div className="shop-item__quantity-selector">
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={undoQuantity}
+      {activeCategory === "power-ups" ? (
+        <div className="shop2__grid shop2__grid--3">
+          <ShopCard
+            name="Undo Step"
+            image={<ShopIcon type="undo" size={120} />}
+            art={ART.undo}
+            badge={countBadge(undoCredits, "credit", "credits")}
+            price={priceLabel(prices.undo)}
+            priceNote={ubiShare(prices.undo.value !== undefined ? prices.undo.value * BigInt(undoQuantity) : undefined)}
+            description={undo.available
+              ? "Take back your last move — tap Undo under the board. One credit per undo, charged when you submit the score."
+              : undoUnavailableMessage(undo.reason)}
+            extra={
+              <label className="shop-card__qty">
+                <span>Qty</span>
+                <input type="number" min="1" max="10" value={undoQuantity} aria-label="Undo credits to buy"
                   onChange={(e) => setUndoQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                  className="shop-item__quantity-input"
-                  disabled={!!pendingAction}
-                />
-              </div>
-              <ItemButton
-                price={undoPrice ? undoPrice * BigInt(undoQuantity) : undefined}
-                buyAction={() => buyUndoMove(undoQuantity)}
-                pendingKey="undo"
-              />
-            </div>
-          </div>
+                  disabled={!!pendingAction || !undo.available} />
+              </label>
+            }
+            // Don't sell credits that can't be used yet.
+            button={undo.available ? button(prices.undo, "undo", { quantity: BigInt(undoQuantity) })
+              : { label: "Unavailable", variant: "disabled", disabled: true, action: null, busy: false }}
+            onAction={act(() => buyUndoMove(undoQuantity))}
+          />
+          <ShopCard
+            name="Streak Shield"
+            image={<ShopIcon type="shield" size={120} />}
+            art={ART.shield}
+            badge={countBadge(shieldCount, "shield", "shields")}
+            price={priceLabel(prices.shield)}
+            priceNote={ubiShare(prices.shield.value)}
+            description="Protects your streak for one missed day."
+            button={button(prices.shield, "shield")}
+            onAction={act(buyShield)}
+          />
+          <ShopCard
+            name="XP Boost 2x"
+            image={<ShopIcon type="boost2" size={120} />}
+            art={ART.boost}
+            badge={boostActive && xpBoost?.multiplier === 2 ? { label: "Active", tone: "active" } : null}
+            price={priceLabel(prices.boost2x)}
+            priceNote={ubiShare(prices.boost2x.value)}
+            description="Double all XP earned from games for 5 hours."
+            status={boostActive && xpBoost?.multiplier === 2 ? fmtTimeLeft(xpBoost.expiry) : undefined}
+            button={button(prices.boost2x, "boost2")}
+            onAction={act(() => buyBoost(2))}
+          />
+          <ShopCard
+            name="XP Boost 5x"
+            image={<ShopIcon type="boost5" size={120} />}
+            art={ART.boost5}
+            badge={boostActive && xpBoost?.multiplier === 5 ? { label: "Active", tone: "active" } : null}
+            price={priceLabel(prices.boost5x)}
+            priceNote={ubiShare(prices.boost5x.value)}
+            description="Multiply all XP earned from games by 5 for 5 hours."
+            status={boostActive && xpBoost?.multiplier === 5 ? fmtTimeLeft(xpBoost.expiry) : undefined}
+            button={button(prices.boost5x, "boost5")}
+            onAction={act(() => buyBoost(5))}
+          />
         </div>
-
-        {ubiConfirmed}
-        {error && <p className="shop__error">{error}</p>}
-      </section>
-    );
-  }
-
-  // Cosmetics Category
-  if (view === "cosmetics") {
-    return (
-      <section className="shop">
-        <div className="shop__header">
-          <button
-            className="shop__back-btn"
-            onClick={() => updateView("landing")}
-          >
-            ← Back
-          </button>
-          <div>
-            <h2 className="shop__title">Cosmetics</h2>
-            <p className="shop__subtitle">Personalize your game</p>
-          </div>
-          <div className="shop__balance">
-            <div className="shop__balance-label">Balance</div>
-            <div className="shop__balance-value">{fmtG(gdBalance)}</div>
-          </div>
-        </div>
-
-        {ubiNote}
-
-        <div className="shop__category-tabs">
-          <button
-            className={`shop__category-tab ${activeCategory === "power-ups" ? "shop__category-tab--active" : ""}`}
-            onClick={() => updateView("powerups", "power-ups")}
-          >
-            Power-Ups
-          </button>
-          <button
-            className={`shop__category-tab ${activeCategory === "cosmetics" ? "shop__category-tab--active" : ""}`}
-            onClick={() => updateView("cosmetics", "cosmetics")}
-          >
-            Cosmetics
-          </button>
-        </div>
-
-        <div className="shop__items shop__items--cosmetics">
+      ) : (
+        <div className="shop2__grid shop2__grid--4">
           {COSMETICS_CATALOG.map((cosmetic) => {
-            const iconMap: Record<number, any> = {
-              1: "tile",
-              2: "fits",
-              3: "flair",
-              4: "goggles",
-              5: "caps",
-            };
+            const onChain = cosmeticPrices[cosmetic.id];
+            const isOwned = owned(cosmetic.id);
             return (
-            <div key={cosmetic.id} className="shop-item">
-              <div className="shop-item__icon-wrapper">
-                <ShopIcon type={iconMap[cosmetic.id]} size={110} />
-              </div>
-              <div className="shop-item__top">
-                <p className="shop-item__name">{cosmetic.name}</p>
-              </div>
-              <div className="shop-item__content">
-                <p className="shop-item__desc">
-                  {cosmetic.category === 'tile' && 'Applies to the game board when equipped.'}
-                  {cosmetic.category === 'avatar' && 'Avatar accessory.'}
-                  {cosmetic.category === 'flair' && 'Renders next to your name on leaderboards.'}
-                </p>
-              </div>
-              <div className="shop-item__footer">
-                <div className="shop-item__price-section">
-                  <span className="shop-item__price">{fmtG(cosmetic.price)}</span>
-                </div>
-                <ItemButton
-                  price={cosmetic.price}
-                  buyAction={() => buyCosmetic(cosmetic.id)}
-                  pendingKey="cosmetic"
-                />
-              </div>
-            </div>
+              <ShopCard
+                key={cosmetic.id}
+                size="sm"
+                name={cosmetic.name}
+                image={<ShopIcon type={COSMETIC_ICON[cosmetic.id]} size={104} />}
+                art={COSMETIC_ART[cosmetic.id]}
+                badge={isOwned ? { label: "Owned", tone: "owned" } : null}
+                price={onChain.listed ? priceLabel(onChain.price) : "Unavailable"}
+                description={COSMETIC_DESC[cosmetic.category] ?? ""}
+                button={button(onChain.price, "cosmetic", { listed: onChain.listed, owned: isOwned })}
+                onAction={act(() => buyCosmetic(cosmetic.id))}
+              />
             );
           })}
         </div>
+      )}
 
-        {ubiConfirmed}
-        {error && <p className="shop__error">{error}</p>}
-      </section>
-    );
-  }
-
-  return null;
-}
-
-function Spinner() {
-  return <span className="spinner" aria-hidden="true" />;
+      {ubiConfirmed}
+      {error && <Notice tone="error" className="shop__error" role="alert">{error}</Notice>}
+    </section>
+  );
 }

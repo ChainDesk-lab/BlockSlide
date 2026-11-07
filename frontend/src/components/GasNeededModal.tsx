@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { FuelIcon } from "./icons";
+import { fetchGasStatus, topUpConfirmMessage } from "../lib/gasTopUp";
 
 interface Props {
   onClose: () => void;
+  /** The pending transaction's requirement, when known (lib/gasPlan.ts). */
+  requiredWei?: bigint;
 }
 
 // BlockSlide's Telegram group hands out small CELO top-ups for gas when the
@@ -12,9 +16,11 @@ const TELEGRAM_GAS_URL = "https://t.me/blockslide_xyz/394";
 // Shown when an on-chain action fails because the wallet has no CELO for gas.
 // New email/social-login wallets start empty, so we surface the address with a
 // one-tap copy and tell the user to top up — clearer than a failed transaction.
-export default function GasNeededModal({ onClose }: Props) {
+export default function GasNeededModal({ onClose, requiredWei }: Props) {
   const { address } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const copy = async () => {
     if (!address) return;
@@ -32,6 +38,25 @@ export default function GasNeededModal({ onClose }: Props) {
     window.open(TELEGRAM_GAS_URL, "_blank", "noopener,noreferrer");
   };
 
+  // Confirm the CELO actually arrived before closing, so the player isn't sent
+  // straight back into the same "not enough gas" failure. If the check itself
+  // can't run, close anyway rather than trap them in the modal.
+  const confirmTopUp = async () => {
+    if (!address) {
+      onClose();
+      return;
+    }
+    setChecking(true);
+    setConfirmError(null);
+    const message = topUpConfirmMessage(await fetchGasStatus(address, requiredWei));
+    setChecking(false);
+    if (message) {
+      setConfirmError(message);
+      return;
+    }
+    onClose();
+  };
+
   return (
     <div
       className="htp-backdrop"
@@ -45,7 +70,7 @@ export default function GasNeededModal({ onClose }: Props) {
           ✕
         </button>
 
-        <p className="htp-label">⛽ Gas needed</p>
+        <p className="htp-label"><FuelIcon size={14} className="htp-label__icon" /> Gas needed</p>
         <h2 className="username-modal__title">Add a little CELO</h2>
 
         <p className="gas-modal__addr-label">Your wallet address</p>
@@ -67,13 +92,15 @@ export default function GasNeededModal({ onClose }: Props) {
         </ol>
 
         <div className="username-modal__actions username-modal__actions--stack">
-          <button className="btn btn--secondary" onClick={openTelegram} disabled={!address}>
+          <button className="btn btn--secondary" onClick={openTelegram} disabled={!address || checking}>
             Get gas in Telegram ↗
           </button>
-          <button className="btn btn--primary" onClick={onClose}>
-            I've topped up
+          <button className="btn btn--primary" onClick={confirmTopUp} disabled={checking}>
+            {checking ? "Checking..." : "I've topped up"}
           </button>
         </div>
+
+        {confirmError && <p className="gas-modal__error">{confirmError}</p>}
       </div>
     </div>
   );
