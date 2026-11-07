@@ -236,6 +236,9 @@ html.light-mode .stats { --viz-2: #1baf7a; --viz-grid: rgba(31, 41, 55, 0.09); -
   font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; text-decoration: none;
 }
 .stats2__back:hover { background: var(--brand-400); }
+.stats2__footer-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.stats2__back--secondary { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--brand-500); }
+.stats2__back--secondary:hover { background: var(--card-2); }
 .stats2__back:focus-visible, .stats2 .stats-chart__toggle:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 3px; }
 
 @media (max-width: 1024px) {

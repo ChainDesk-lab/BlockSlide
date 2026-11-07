@@ -180,7 +180,10 @@ export default function StatsPage() {
           Contract <code>0xD551…ceB6</code> on Celo. Counts are distinct wallet addresses, not distinct people: one person can hold
           several wallets. GoodDollar identity verification is separate from the wallet activity shown here.
         </p>
-        <Link href="/" className="stats2__back">Back to the game</Link>
+        <div className="stats2__footer-links">
+          <Link href="/analytics" className="stats2__back stats2__back--secondary">Detailed analytics</Link>
+          <Link href="/" className="stats2__back">Back to the game</Link>
+        </div>
       </div>
     </Shell>
   );
