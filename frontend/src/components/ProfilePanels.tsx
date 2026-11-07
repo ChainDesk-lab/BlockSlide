@@ -104,7 +104,7 @@ export function InviteCard({ refLink, copied, referral, onCopy, onShare }: {
   return (
     <section className="card profile2__invite" aria-label="Invite friends">
       <h2 className="card__title">Invite Friends</h2>
-      <p className="profile2__invite-copy">Share your link and grow the BlockSlide community. Earn rewards when your friends join.</p>
+      <p className="profile2__invite-copy">Share your link and grow the BlockSlide community.</p>
       <div className="profile2__link">
         <span className="profile2__link-text" title={refLink}>{shortLink(refLink)}</span>
         <button type="button" className="profile2__link-copy" onClick={onCopy} aria-label="Copy invite link">
