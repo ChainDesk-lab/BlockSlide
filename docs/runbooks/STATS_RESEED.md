@@ -57,7 +57,8 @@ log (and likewise at the other end) describes the same hole.
 
 ### 2.2 How we know
 
-Four independent kinds of evidence, none of which touched production data:
+Four independent kinds of evidence. None of them accessed or modified the production Redis. The investigation did make read-only requests to the public production
+`/api/stats` endpoint (evidence 1 compares against that response); the log sources were Blockscout and a public Celo RPC:
 
 1. **The public series.** Rebuilding the aggregate from the full log list minus exactly these two runs gives a state whose
    public view equals production's `/api/stats` response in every series (totals, daily, weekly, funnel, engagement,
@@ -565,8 +566,12 @@ Tests: `reseed.test.ts`, `reseedPlan.test.ts`, `reseedVerify.test.ts`, `rpcLogs.
 ## Appendix C. Review record
 
 - Every claim about the app (`store.ts`, `refresh.ts`, both routes, `vercel.json`, `config.ts`, `state.ts`) was read at source.
-- Every safety check was **mutation-tested**: deliberately broken, and the tests had to fail. Of 33 deliberate breakages (22 in the first round, 11 more after
-  the design change), 29 were caught at once; the other 4 exposed missing assertions, which were added and then caught.
+- Only the **core safety checks** were mutation-tested (deliberately broken, and the tests had to fail): the merge (`mergeGapLogs`), the dry-run gates (`planReseed`),
+  the apply-input verification (`verifyApplyInputs`), the later-scans proof (`verifyLaterScansOnly`), the apply and rollback resolvers (`applyResolver`,
+  `rollbackResolver`), and the Redis swap and lock (`guardedSwap`, `swapIfUnchanged`, `releaseLockIfOwner`). Of 33 deliberate breakages (22 in the first round, 11 more after
+  the design change), 29 were caught at once; the other 4 exposed missing assertions, which were added and then caught. **The endpoint verifier (`reseedVerify.ts`,
+  `verify-live-stats.ts`), the RPC reader (`rpcLogs.ts`) and the Blockscout collector (`blockscout-logs.mjs`) were not mutation-tested**, and nothing outside the list
+  above was; that code is covered by ordinary tests and the rehearsal only.
 - Reading this procedure against how production really behaves found **one design flaw**, after the first rehearsal had passed: `apply` required the stored value to be
   byte-identical to the snapshot, but the app rewrites it on every refresh, so it would routinely have refused (safely, but impractically, and "redo the steps" invites
   mistakes). The rehearsal had disabled the app's refresh for most steps, which hid it. `apply` now decides under the lock from the value actually stored (section 6, step 5).
