@@ -289,7 +289,12 @@ export default function App() {
 
   return (
     <>
-      {showHowToPlay && <HowToPlay onClose={closeHowToPlay} />}
+      {showHowToPlay && (
+        <HowToPlay
+          onClose={closeHowToPlay}
+          onStart={() => { closeHowToPlay(); router.replace("/?tab=game", { scroll: false }); }}
+        />
+      )}
       {isFundingWallet && (
         <div
           className="htp-backdrop"

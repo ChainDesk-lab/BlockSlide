@@ -92,7 +92,7 @@ export default function StatsPage() {
         {error
           ? <p className="state-note state-note--error" role="alert">Stats are unavailable right now: {error.replace(/\.\s*$/, "")}. Nothing is shown rather than guessed.</p>
           : <p className="state-note" role="status">Reading the chain…</p>}
-        <div className="stats2__footer"><span /><Link href="/" className="stats2__back">Back to the game</Link></div>
+        <div className="stats2__footer"><span /><Link href="/?tab=game" className="stats2__back">Back to the game</Link></div>
       </Shell>
     );
   }
@@ -182,7 +182,7 @@ export default function StatsPage() {
         </p>
         <div className="stats2__footer-links">
           <Link href="/analytics" className="stats2__back stats2__back--secondary">Detailed analytics</Link>
-          <Link href="/" className="stats2__back">Back to the game</Link>
+          <Link href="/?tab=game" className="stats2__back">Back to the game</Link>
         </div>
       </div>
     </Shell>

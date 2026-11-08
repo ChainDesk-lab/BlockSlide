@@ -24,10 +24,13 @@ const SLIDES = [
 ];
 
 interface Props {
+  /** Closing without finishing (✕, backdrop, Escape): the player stays where they are. */
   onClose: () => void;
+  /** "Start playing" on the last slide. Defaults to onClose. */
+  onStart?: () => void;
 }
 
-export default function HowToPlay({ onClose }: Props) {
+export default function HowToPlay({ onClose, onStart = onClose }: Props) {
   const [index, setIndex]       = useState(0);
   const [direction, setDir]     = useState<"forward" | "back">("forward");
   const [animKey, setAnimKey]   = useState(0);
@@ -41,7 +44,7 @@ export default function HowToPlay({ onClose }: Props) {
   const prev = () => { if (index > 0) goTo(index - 1, "back"); };
   const next = () => {
     if (index < SLIDES.length - 1) goTo(index + 1, "forward");
-    else onClose();
+    else onStart();
   };
 
   const slide = SLIDES[index];
