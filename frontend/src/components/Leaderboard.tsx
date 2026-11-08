@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { useUsername } from "../hooks/useUsername";
@@ -44,6 +45,7 @@ export default function Leaderboard() {
   const { address } = useAuth();
   const { isSaving, error, save, clearFeedback } = useUsername();
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -153,7 +155,7 @@ export default function Leaderboard() {
           <div className="leaderboard__empty-icon">🎮</div>
           <h3>No Scores Yet</h3>
           <p>Be the first to slide tiles and claim the top rank.</p>
-          <button className="btn btn--primary" onClick={() => { /* navigate to game */ }}>
+          <button className="btn btn--primary" onClick={() => router.replace("/?tab=game", { scroll: false })}>
             Play Now
           </button>
         </div>
