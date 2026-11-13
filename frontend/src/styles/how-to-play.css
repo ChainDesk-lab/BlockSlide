@@ -7,7 +7,9 @@
 /* --htp-header is the height of the sticky site header (AppShell) at each width: the sidebar
    sticks below it and a section opened from the sidebar lands below it, not under it. */
 .htp2 { --htp-header: 125px; }
-@media (max-width: 767px) { .htp2 { --htp-header: 110px; } }
+/* Under 768px the header is a single row: its links are in the phone navigation bar. */
+@media (max-width: 767px) { .htp2 { --htp-header: 78px; } }
+@media (max-width: 480px) { .htp2 { --htp-header: 64px; } }
 @media (min-width: 1401px) { .htp2 { --htp-header: 75px; } }
 /* A sideways phone's header scrolls away with the page (index.css), so there is nothing to clear. */
 @media (orientation: landscape) and (max-height: 500px) and (max-width: 960px) { .htp2 { --htp-header: 0px; } }
