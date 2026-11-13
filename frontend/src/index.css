@@ -5013,7 +5013,8 @@ html.light-mode .shop-card__media { background: radial-gradient(120% 90% at 50% 
   color: var(--accent-green); background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74, 222, 128, 0.3);
   border-radius: 999px; padding: 3px 10px;
 }
-.profile2__wallet { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--text-muted); font-size: 0.85rem; }
+/* Wraps so the Copy button moves under the address when the row is too narrow for both. */
+.profile2__wallet { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--text-muted); font-size: 0.85rem; }
 .profile2__addr { color: var(--accent-cyan); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
 .profile2__copy {
   background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px;
@@ -5090,6 +5091,22 @@ html.light-mode .profile2__link { background: var(--surface-2); }
   .profile2__stats { gap: 12px; }
   .profile2__stat { padding: 16px; }
   .profile2__table th, .profile2__table td { padding-left: 14px; padding-right: 14px; }
+}
+/* Small phones: tighter inner cell padding keeps all five run-history columns inside the card,
+   and a smaller name fits a 20-character username beside the avatar on one line. */
+@media (max-width: 380px) {
+  .profile2__who { gap: 12px; }
+  .profile2__table th, .profile2__table td { padding-left: 8px; padding-right: 8px; }
+  .profile2__table th:first-child, .profile2__table td:first-child { padding-left: 14px; }
+  .profile2__table th:last-child, .profile2__table td:last-child { padding-right: 14px; }
+}
+@media (max-width: 340px) {
+  .profile2__name { font-size: 1.1rem; }
+}
+@media (max-width: 300px) {
+  .profile2__table th, .profile2__table td { padding-left: 5px; padding-right: 5px; }
+  .profile2__table th:first-child, .profile2__table td:first-child { padding-left: 12px; }
+  .profile2__table th:last-child, .profile2__table td:last-child { padding-right: 12px; }
 }
 
 /* ── Bounties: numbering and completed-bounty winners ───────────────────── */
