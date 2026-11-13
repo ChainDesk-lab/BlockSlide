@@ -11,6 +11,7 @@ import { useIdentity } from "../hooks/useIdentity";
 import BlockSlideMark from "./BlockSlideMark";
 import WalletButton from "./WalletButton";
 import ThemeToggle from "./ThemeToggle";
+import BottomNav, { type PageId } from "./BottomNav";
 import { SoundOnIcon, SoundOffIcon, VerifiedIcon } from "./icons";
 import { DIAGNOSTICS_STORAGE_KEY, diagnosticsEnabled, diagnosticsPreference } from "../lib/diagnostics";
 
@@ -65,6 +66,9 @@ export default function AppShell({ children }: AppShellProps) {
   const isProfile = pathname.startsWith("/profile");
   const isHowToPlay = pathname === "/how-to-play";
   const isStats = pathname === "/analytics" || pathname === "/stats";
+  const currentPage: PageId | null =
+    isHome ? "home" : isGame ? "game" : isLeaderboard ? "leaderboard" : isShop ? "shop" : isBounty ? "bounty"
+    : isProfile ? "profile" : isHowToPlay ? "howtoplay" : isStats ? "stats" : null;
 
   return (
     <div className="app">
@@ -141,6 +145,8 @@ export default function AppShell({ children }: AppShellProps) {
         </nav>
       </footer>
 
+      <BottomNav current={currentPage} address={address} />
+
       {/* Diagnostic footer for support/debugging */}
       <DiagnosticFooter />
     </div>
@@ -193,7 +199,7 @@ function DiagnosticFooter() {
   return (
     <div style={{
       position: "fixed",
-      bottom: 0,
+      bottom: "var(--bnav-h, 0px)",
       right: 0,
       padding: "4px 8px",
       fontSize: "11px",
