@@ -290,6 +290,18 @@ export function InfoIcon({ className, size = 18 }: IconProps) {
   );
 }
 
+/** Four tiles: "all pages" (the phone navigation's More tab). */
+export function GridIcon({ className, size = 18 }: IconProps) {
+  return (
+    <LineIcon className={className} size={size}>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    </LineIcon>
+  );
+}
+
 export function CloseIcon({ className, size = 16 }: IconProps) {
   return (
     <LineIcon className={className} size={size}>
