@@ -61,10 +61,14 @@
 /* ── Grids ───────────────────────────────────────────────────────────────── */
 .an-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .an-grid--single { grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
-.an-grid--tables { align-items: start; }
+/* The two leaderboard tables sit side by side only when each panel gets at least 480px; otherwise they stack. */
+.an-grid.an-grid--tables { grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); align-items: start; }
 .an-grid--tables > .an-panel { margin-bottom: 16px; }
 @media (max-width: 760px) {
   .an-grid { grid-template-columns: minmax(0, 1fr); }
+}
+/* At 960px and below the update details wrap under the subtitle, so they align with it. */
+@media (max-width: 960px) {
   .an-header__meta { align-items: flex-start; }
 }
 
@@ -96,14 +100,43 @@
 .an-num { text-align: right !important; }
 .an-rank { color: var(--text-muted, #6b7280); width: 2.5em; }
 .an-name { font-weight: 650; margin-right: 6px; color: var(--text, #1f2937) !important; }
-@media (max-width: 560px) {
-  .an-addr-secondary { display: none; }
+/* A name too long for the cell moves its address and badge to the next line instead of widening the
+   table. The address is an inline block so the line can break between it and the name. */
+.an-table td.an-player { white-space: normal; }
+.an-table td.an-player .an-name { overflow-wrap: anywhere; }
+.an-table td.an-player .an-addr-secondary, .an-table td.an-player .an-verified { white-space: nowrap; }
+@media (min-width: 561px) {
+  .an-table td.an-player .an-addr-secondary { display: inline-block; }
+}
+/* Recent activity: below 700px the details move under the event name instead of their own column. */
+@media (max-width: 700px) {
   .an-col-detail { display: none; }
   .an-table .an-inline-detail { display: block; }
+}
+@media (max-width: 560px) {
+  .an-addr-secondary { display: none; }
   .an-table td.an-player { white-space: normal; overflow-wrap: anywhere; }
   .an-table td, .an-table th { padding-inline: 6px; }
   .an-metric__value { font-size: 1.3rem; }
   .an-panel { padding: 14px; }
+  /* Recent activity on phones: each event is a two-line card (event and time, then player and
+     transaction). The column headers stay in the page for screen readers. */
+  .an-table:has(th.an-col-detail), .an-table:has(th.an-col-detail) tbody { display: block; }
+  .an-table:has(th.an-col-detail) thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .an-table:has(th.an-col-detail) tbody tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px;
+    padding: 10px 6px; border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  }
+  .an-table:has(th.an-col-detail) tbody tr:last-child { border-bottom: 0; }
+  .an-table:has(th.an-col-detail) td { padding: 0; border: 0; white-space: normal; min-width: 0; }
+  .an-table:has(th.an-col-detail) td:nth-child(1) {
+    grid-column: 2; grid-row: 1; text-align: right; color: var(--text-muted, #6b7280); font-size: 0.78rem;
+  }
+  .an-table:has(th.an-col-detail) td:nth-child(2) { grid-column: 1; grid-row: 1; }
+  .an-table:has(th.an-col-detail) td:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .an-table:has(th.an-col-detail) td:nth-child(5) { grid-column: 2; grid-row: 2; text-align: right; }
 }
 .an-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
 .an-verified {
