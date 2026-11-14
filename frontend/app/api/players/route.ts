@@ -3,6 +3,8 @@ import { createPublicClient, fallback, http, parseAbi } from "viem";
 import { celo } from "viem/chains";
 import { getRedis } from "../_lib/redis";
 import { GAME2048_ADDRESS } from "../../../src/lib/constants";
+import { normalizeAddress, type ReferralOutcome } from "../../../src/lib/referrals";
+import { recordReferral } from "../../../src/lib/referralStore";
 
 /**
  * Player registry API.
@@ -83,14 +85,17 @@ function normalizeUsername(raw: unknown): string | null {
 
 /**
  * POST /api/players
- * body: { address: string, username?: string }
+ * body: { address: string, username?: string, ref?: string }
  * Upsert a wallet into the registry. Idempotent — safe to call on every connect.
+ * `ref` is the invite link's inviter; the response's `referral` says what was done with it
+ * (rules in src/lib/referrals.ts). Only a wallet's first sign-in can record one.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       address?: string;
       username?: string | null;
+      ref?: string | null;
     };
 
     if (!isValidAddress(body.address)) {
@@ -118,6 +123,17 @@ export async function POST(request: NextRequest) {
       ? (JSON.parse(existingRaw) as PlayerProfile)
       : null;
 
+    // Decided before this sign-in is written to the registry: only a first sign-in is "new".
+    let referral: ReferralOutcome | undefined;
+    if (body.ref !== undefined && body.ref !== null) {
+      try {
+        referral = await recordReferral(client, { invitee: address, referrer: normalizeAddress(body.ref), inviteeInRegistry: !!existing });
+      } catch (e) {
+        // The sign-in itself must still succeed; the client keeps the ref and retries next time.
+        console.warn("[Players API] referral not recorded:", e instanceof Error ? e.message : e);
+      }
+    }
+
     // A submitted name counts only if the contract agrees. When it was checked,
     // the contract's value wins (a stale or spoofed registry name is replaced);
     // when the check couldn't run, nothing submitted is accepted.
@@ -141,11 +157,11 @@ export async function POST(request: NextRequest) {
 
     // Nothing meaningful changed — skip the write so reconnects stay quiet.
     if (existing && existing.username === profile.username) {
-      return NextResponse.json({ ok: true, profile: existing, unchanged: true });
+      return NextResponse.json({ ok: true, profile: existing, unchanged: true, referral });
     }
 
     await client.hSet(REGISTRY_KEY, address, JSON.stringify(profile));
-    return NextResponse.json({ ok: true, profile });
+    return NextResponse.json({ ok: true, profile, referral });
   } catch (err) {
     console.error("[Players API POST] error:", err);
     return NextResponse.json(

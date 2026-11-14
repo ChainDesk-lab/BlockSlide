@@ -5141,7 +5141,9 @@ html.light-mode .shop-card__media { background: radial-gradient(120% 90% at 50% 
 .profile2__stat-value--empty { color: var(--text-muted); font-size: clamp(1.1rem, 2vw, 1.3rem); }
 .profile2__stat-note { color: var(--text-muted); font-size: 0.8rem; margin: 0; }
 
-.profile2__more.stat-cards-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0; gap: 12px; }
+/* Six cards: one row on wide screens, two rows of three on laptops, two columns from 1000px down. */
+.profile2__more.stat-cards-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0; gap: 12px; }
+@media (max-width: 1280px) { .profile2__more.stat-cards-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .profile2__more .stat-card { background: var(--card); box-shadow: none; border-radius: 12px; min-height: 0; padding: 14px 16px; gap: 4px; }
 .profile2__more .stat-card__label { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.05em; }
 .profile2__more .stat-card__value { font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; }
@@ -5174,6 +5176,35 @@ html.light-mode .shop-card__media { background: radial-gradient(120% 90% at 50% 
 }
 .profile2__share { width: 100%; }
 .profile2__referrals { margin: 0; font-size: 0.8rem; color: var(--text-muted); text-align: center; }
+/* The inviter's own list of players who joined through their link. */
+.profile2__invitees-btn {
+  align-self: center; background: transparent; color: var(--brand-400); border: 1px solid var(--border); border-radius: 8px;
+  font-family: var(--font-display); font-size: 0.78rem; font-weight: 600; padding: 8px 14px; cursor: pointer;
+}
+.profile2__invitees-btn:hover { border-color: var(--brand-400); }
+.profile2__invitees-btn:focus-visible, .profile2__invitees-link:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 2px; }
+.profile2__invitees-note { margin: 0; font-size: 0.78rem; color: var(--text-muted); text-align: center; line-height: 1.5; }
+.profile2__invitees-link {
+  background: none; border: 0; padding: 0; color: var(--brand-400); font: inherit; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; text-decoration: underline;
+}
+.profile2__invitees { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 14px; }
+.profile2__invitees-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.profile2__invitees-title { margin: 0; font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; }
+.profile2__invitees-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+.profile2__invitee {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.profile2__invitee:last-child { border-bottom: 0; }
+.profile2__invitee-who { display: flex; flex-direction: column; min-width: 0; }
+.profile2__invitee-name { color: var(--text); font-weight: 600; font-size: 0.86rem; text-decoration: none; overflow-wrap: anywhere; }
+.profile2__invitee-name:hover { color: var(--brand-400); }
+.profile2__invitee-date { color: var(--text-muted); font-size: 0.72rem; }
+.profile2__invitee-badge {
+  flex: none; font-size: 0.68rem; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+  color: var(--text-muted); border: 1px solid var(--border);
+}
+.profile2__invitee-badge--played { color: var(--accent-green); border-color: rgba(74, 222, 128, 0.35); background: rgba(74, 222, 128, 0.1); }
 
 html.light-mode .profile2__avatar { border-color: rgba(0, 0, 0, 0.08); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12); }
 html.light-mode .profile2__link { background: var(--surface-2); }

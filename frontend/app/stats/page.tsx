@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BarChart, LineChart } from "../../src/components/stats/Charts";
 import { CatchingUpNotice, CloserLook, Funnel, StatTile } from "../../src/components/stats/StatsPanels";
+import TopInviters from "../../src/components/stats/TopInviters";
 import { catchingUp, shortWeek, utcDayEvents, weekRangeLabel } from "../../src/lib/stats/statsView";
 import "../../src/styles/stats.css";
 
@@ -167,6 +168,8 @@ export default function StatsPage() {
             data={data.engagement.map((e) => ({ label: e.bucket.replace("-", "–"), value: e.wallets }))} />
         </div>
       </section>
+
+      <TopInviters />
 
       <CloserLook rows={[
         ["Median games completed (per wallet that played)", data.medianGames],

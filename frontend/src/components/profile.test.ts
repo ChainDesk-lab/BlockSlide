@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { InviteCard, ProfileHeader, ProfileStat, RunHistoryCard } from "./ProfilePanels";
-import { SOLVE_TIME_STAT, countStat, rankStat, referralNote, shortLink } from "../lib/profileState";
+import { SOLVE_TIME_STAT, countStat, inviteNote, rankStat, shortLink } from "../lib/profileState";
 
 const ADDR = "0xaa5e2b37666afca1b6aac7b108a9bdecaa44dfe8";
 const view = readFileSync(join(__dirname, "../../app/profile/[identifier]/ProfileView.tsx"), "utf8");
@@ -40,11 +40,13 @@ describe("Profile: stat values", () => {
     expect(view).toContain('stat={SOLVE_TIME_STAT}');
   });
 
-  it("referral line keeps the existing wording", () => {
-    expect(referralNote(null)).toBe("Referral tracking coming soon");
-    expect(referralNote(0)).toBe("No referrals yet");
-    expect(referralNote(1)).toBe("1 player joined through you");
-    expect(referralNote(4)).toBe("4 players joined through you");
+  it("invite line reports joined and played, and never guesses", () => {
+    expect(inviteNote(null)).toBeNull();
+    expect(inviteNote("error")).toBe("Invite counts can't be read right now");
+    expect(inviteNote({ joined: 0, played: 0 })).toBe("No one has joined through your link yet");
+    expect(inviteNote({ joined: 1, played: 1 })).toBe("1 player joined through your link · 1 has played");
+    expect(inviteNote({ joined: 12, played: 7 })).toBe("12 players joined through your link · 7 have played");
+    expect(inviteNote({ joined: 3, played: null })).toBe("3 players joined through your link");
   });
 });
 
@@ -114,7 +116,7 @@ describe("Profile: guards", () => {
     expect(view).toContain("const refLink = `${PRODUCTION_URL}/?ref=${profileAddress}`;");
     expect(view).toContain("navigator.clipboard.writeText(refLink)");
     expect(view).toContain("navigator.share(");
-    expect(view).toMatch(/isOwnProfile && \(\s*<InviteCard/);
+    expect(view).toMatch(/isOwnProfile && \(\s*<OwnInviteCard/);
   });
 
   it("stats come from the existing sources only", () => {
