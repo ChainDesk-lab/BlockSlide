@@ -35,8 +35,14 @@ export function shortLink(url: string, keep = 28): string {
   return url.length <= keep ? url : `${url.slice(0, keep)}…`;
 }
 
-export function referralNote(count: number | null): string {
-  if (count === null) return "Referral tracking coming soon";
-  if (count === 0) return "No referrals yet";
-  return `${count} player${count === 1 ? "" : "s"} joined through you`;
+/**
+ * The invite card's count line. `played` is null when it can't be read right now; `counts` is
+ * null while loading, "error" when the counts can't be read at all.
+ */
+export function inviteNote(counts: { joined: number; played: number | null } | null | "error"): string | null {
+  if (counts === null) return null;
+  if (counts === "error") return "Invite counts can't be read right now";
+  if (counts.joined === 0) return "No one has joined through your link yet";
+  const joined = `${counts.joined} player${counts.joined === 1 ? "" : "s"} joined through your link`;
+  return counts.played === null ? joined : `${joined} · ${counts.played} ${counts.played === 1 ? "has" : "have"} played`;
 }

@@ -221,6 +221,30 @@ html.light-mode .stats { --viz-2: #1baf7a; --viz-grid: rgba(31, 41, 55, 0.09); -
 .stats2__funnel-track { display: block; height: 8px; border-radius: 4px; background: var(--viz-grid); overflow: hidden; }
 .stats2__funnel-fill { display: block; height: 100%; border-radius: 4px; background: var(--viz-1); }
 
+/* Top inviters (components/stats/TopInviters.tsx) */
+.stats2__invites { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.stats2__invites .state-note { margin: 0; }
+.stats2__invites-total { margin: 0; font-size: 0.9rem; color: var(--text-muted); }
+.stats2__invites-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.stats2__invites-scroll { overflow-x: auto; }
+.stats2__invites-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.stats2__invites-table caption {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.stats2__invites-table th {
+  text-align: left; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted); padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+.stats2__invites-table td { padding: 10px; border-bottom: 1px solid var(--border); }
+.stats2__invites-table tbody tr:last-child td { border-bottom: 0; }
+.stats2__invites-table .num { text-align: right; width: 5.5em; }
+.stats2__invites-table .rank { color: var(--text-muted); width: 2.5em; }
+.stats2__invites-table .who { overflow-wrap: anywhere; }
+.stats2__invites-table .who a { color: var(--text); font-weight: 600; text-decoration: none; }
+.stats2__invites-table .who a:hover { color: var(--brand-400); }
+.stats2__invites-table .who a:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 2px; }
+.stats2__invites-note { margin: 0; font-size: 0.78rem; line-height: 1.6; color: var(--text-muted); }
+
 .stats2__closer { padding: 22px 24px; }
 .stats2__closer .card__title { margin: 0 0 14px; }
 .stats2__closer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; margin: 0; }
@@ -251,6 +275,9 @@ html.light-mode .stats { --viz-2: #1baf7a; --viz-grid: rgba(31, 41, 55, 0.09); -
   .stats2 .stats-chart { padding: 16px 14px 12px; }
   .stats2__closer-grid { grid-template-columns: minmax(0, 1fr); }
   .stats2__meta { margin-top: -8px; }
+  .stats2__invites { padding: 16px 14px; }
+  .stats2__invites-table th, .stats2__invites-table td { padding-inline: 6px; }
+  .stats2__invites-table .num { width: 4.5em; }
 }
 @media (max-width: 380px) {
   .stats2__tiles { grid-template-columns: minmax(0, 1fr); gap: 10px; }

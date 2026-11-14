@@ -10,7 +10,8 @@ import { useLeaderboardTop } from "../../../src/hooks/useLeaderboardTop";
 import StatCard from "../../../src/components/StatCard";
 import UsernameModal from "../../../src/components/UsernameModal";
 import { InviteCard, ProfileHeader, ProfileLayout, ProfileStat, RunHistoryCard } from "../../../src/components/ProfilePanels";
-import { SOLVE_TIME_STAT, countStat, rankStat, referralNote } from "../../../src/lib/profileState";
+import { SOLVE_TIME_STAT, countStat, inviteNote, rankStat } from "../../../src/lib/profileState";
+import { useInviteCounts, useMyInvitees } from "../../../src/hooks/useReferrals";
 import { resolveIdentifier, isAddress } from "../../../src/lib/profileUtils";
 
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
@@ -37,6 +38,7 @@ export default function ProfileView({ identifier }: { identifier: string }) {
   const ubiRate = useUbiContribution();
   // Rank: the same first leaderboard page the play and leaderboard screens use (no per-wallet lookup exists).
   const standing = useLeaderboardTop(profileAddress);
+  const invites = useInviteCounts(profileAddress);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState<"address" | "link" | null>(null);
@@ -142,12 +144,10 @@ export default function ProfileView({ identifier }: { identifier: string }) {
 
   const gEarned = player?.totalGEarned ? formatGDollar(player.totalGEarned) : null;
   const gSpent = player?.totalGSpent ? formatGDollar(player.totalGSpent) : null;
-  const referralCount = player?.referralCount ? parseInt(player.referralCount) : 0;
 
   const ubiCard = ubiStat({ rate: ubiRate, totals: ubi });
 
   const hasGFields = player && (player.totalGEarned !== undefined || player.totalGSpent !== undefined);
-  const hasReferralFields = player && player.referralCount !== undefined;
 
   const refLink = `${PRODUCTION_URL}/?ref=${profileAddress}`;
 
@@ -186,9 +186,8 @@ export default function ProfileView({ identifier }: { identifier: string }) {
   };
 
   const coreError = !!error && !player;
-  const referral = hasReferralFields
-    ? referralNote(referralCount)
-    : !loading ? referralNote(null) : null;
+  const inviteCounts = invites.data ? { joined: invites.data.joined, played: invites.data.played } : null;
+  const referral = inviteNote(invites.isError ? "error" : inviteCounts);
 
   return (
     <ProfileLayout>
@@ -235,15 +234,24 @@ export default function ProfileView({ identifier }: { identifier: string }) {
           muted={ubiCard.state === "shown" && ubiCard.muted}
           title={ubiCard.state === "shown" ? ubiCard.title : undefined}
         />
+        <StatCard
+          label="Players invited"
+          value={inviteCounts ? (inviteCounts.played ?? inviteCounts.joined) : null}
+          loading={invites.isLoading}
+          error={invites.isError}
+          note={inviteCounts ? (inviteCounts.played === null ? "joined via invite link" : `played · ${inviteCounts.joined} joined via invite link`) : undefined}
+        />
       </div>
 
       <div className={`profile2__body ${isOwnProfile ? "" : "profile2__body--single"}`}>
         <RunHistoryCard />
         {isOwnProfile && (
-          <InviteCard
+          <OwnInviteCard
+            address={profileAddress}
             refLink={refLink}
             copied={copied === "link"}
             referral={referral}
+            canList={(inviteCounts?.joined ?? 0) > 0}
             onCopy={handleCopyLink}
             onShare={handleShareLink}
           />
@@ -253,4 +261,18 @@ export default function ProfileView({ identifier }: { identifier: string }) {
       {editing && isOwnProfile && <UsernameModal onClose={closeEditor} />}
     </ProfileLayout>
   );
+}
+
+/** The invite card on the viewer's own profile, which alone may ask the wallet to sign for the invitee list. */
+function OwnInviteCard({ address, ...card }: {
+  address: string;
+  refLink: string;
+  copied: boolean;
+  referral: string | null;
+  canList: boolean;
+  onCopy: () => void;
+  onShare: () => void;
+}) {
+  const invitees = useMyInvitees(address);
+  return <InviteCard {...card} list={invitees.state} onShowList={invitees.load} onHideList={invitees.hide} />;
 }

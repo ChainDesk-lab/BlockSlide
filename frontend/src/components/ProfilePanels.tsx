@@ -93,13 +93,25 @@ export function RunHistoryCard() {
 
 // ── Invite friends ───────────────────────────────────────────────────────
 
-export function InviteCard({ refLink, copied, referral, onCopy, onShare }: {
+export interface InviteeView { address: string; username: string | null; joinedAt: string; played: boolean | null }
+export type InviteListView =
+  | { status: "idle" } | { status: "signing" } | { status: "loading" }
+  | { status: "shown"; invitees: InviteeView[] } | { status: "error"; message: string };
+
+const joinedDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+
+export function InviteCard({ refLink, copied, referral, onCopy, onShare, canList = false, list = { status: "idle" }, onShowList, onHideList }: {
   refLink: string;
   copied: boolean;
-  /** The referral count line, or null while it is still loading. */
+  /** The invite count line, or null while it is still loading. */
   referral: string | null;
   onCopy: () => void;
   onShare: () => void;
+  /** Whether anyone has joined through the link, so there is a list to show. */
+  canList?: boolean;
+  list?: InviteListView;
+  onShowList?: () => void;
+  onHideList?: () => void;
 }) {
   return (
     <section className="card profile2__invite" aria-label="Invite friends">
@@ -113,6 +125,45 @@ export function InviteCard({ refLink, copied, referral, onCopy, onShare }: {
       </div>
       <button type="button" className="profile2__share" onClick={onShare}>Share Invite</button>
       {referral && <p className="profile2__referrals">{referral}</p>}
+
+      {canList && list.status === "idle" && (
+        <button type="button" className="profile2__invitees-btn" onClick={onShowList}>See who you invited</button>
+      )}
+      {list.status === "signing" && <p className="profile2__invitees-note" role="status">Confirm the signature in your wallet. It&apos;s free and sends nothing.</p>}
+      {list.status === "loading" && <p className="profile2__invitees-note" role="status">Loading your invited players…</p>}
+      {list.status === "error" && (
+        <p className="profile2__invitees-note" role="alert">
+          {list.message} <button type="button" className="profile2__invitees-link" onClick={onShowList}>Try again</button>
+        </p>
+      )}
+      {list.status === "shown" && (
+        <div className="profile2__invitees">
+          <div className="profile2__invitees-head">
+            <h3 className="profile2__invitees-title">Players you invited</h3>
+            <button type="button" className="profile2__invitees-link" onClick={onHideList}>Hide</button>
+          </div>
+          {list.invitees.length === 0 ? (
+            <p className="profile2__invitees-note">No one has joined through your link yet.</p>
+          ) : (
+            <ul className="profile2__invitees-list">
+              {list.invitees.map((p) => (
+                <li key={p.address} className="profile2__invitee">
+                  <span className="profile2__invitee-who">
+                    <a href={`/profile/${p.address}`} className="profile2__invitee-name">{p.username ?? formatAddress(p.address)}</a>
+                    <span className="profile2__invitee-date">Joined {joinedDate(p.joinedAt)}</span>
+                  </span>
+                  {p.played !== null && (
+                    <span className={`profile2__invitee-badge ${p.played ? "profile2__invitee-badge--played" : ""}`}>
+                      {p.played ? "Played" : "Not played yet"}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="profile2__invitees-note">Only you can see this list.</p>
+        </div>
+      )}
     </section>
   );
 }
