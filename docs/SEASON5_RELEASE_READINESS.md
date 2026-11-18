@@ -2,12 +2,14 @@
 
 **Last updated:** 2026-11-18, Gate 2 and shared rows, for the UBI-only release on `feat/ubi-release-prep` · **Previous update:** 2026-11-07, `master` at `e71ca4ed`
 
-> **2026-11-18: Gate 2 is being released on its own.** Management made the 5% UBI contribution the immediate priority. The release candidate is the UBI-only implementation: PR #78 (`2a6de3dd`) plus the uncommitted branch `feat/ubi-release-prep`, which doesn't change the contract. It isn't the combined Undo and UBI implementation described below.
+> **2026-11-18: Gate 2 is being released on its own.** Management made the 5% UBI contribution the immediate priority. The release candidate is the UBI-only implementation: PR #78 (`2a6de3dd`) plus the branch `feat/ubi-release-prep` (commit `c6f90061`, draft PR #87), which doesn't change the contract. It isn't the combined Undo and UBI implementation described below.
 > - **Gate 2 rows** now show that package's status.
 > - **Its evidence** is in `~/blockslide-worktrees/.ubi-release-evidence/`, with a checksummed archive.
 > - **Its review brief and runbook** are `docs/release-review/UBI_RELEASE_REVIEW.md` and `UBI_RELEASE_RUNBOOK.md`.
 >
 > Gates 1 and 3 are unchanged.
+>
+> **2026-11-19: independent review waived for this release.** The product owner waived it in writing (S-5 and G-A3) for this release only and acknowledged the residual risk, including the milestone-reward reentrancy. A follow-up independent review comes after release, and its findings go into a later upgrade. The approval tracker holds the decision record.
 
 This document sets out three separate approval gates. Each feature is approved and released on its own:
 
@@ -54,11 +56,11 @@ Gates 1 and 2 change the same contract. They are planned as **one implementation
 
 | # | Prerequisite | Applies to | Status | Evidence / blocker |
 |---|---|---|---|---|
-| S-1 | **Freeze the review target.** Commit or tag the proposed contract, tests, subgraph and evidence, or publish a checksummed archive, and record its identifier here | 1, 2, 3 | ◐ Partial for Gate 2 | The UBI-only package has a checksummed archive (`review-target-<timestamp>.tar.gz` and `.sha256` in the evidence folder; use the newest), and its build fingerprints are pinned in `scripts/lib/ubiReleasePacket.ts`. Committing and pushing wait on approval. |
+| S-1 | **Freeze the review target.** Commit or tag the proposed contract, tests, subgraph and evidence, or publish a checksummed archive, and record its identifier here | 1, 2, 3 | ☑ Done for Gate 2 | Commit `c6f90061` on `feat/ubi-release-prep` (draft PR #87). Its tree is identical to the frozen archive `review-target-20261118-231304`, and its build fingerprints are pinned in `scripts/lib/ubiReleasePacket.ts`. |
 | S-2 | **Owner key migration (Phase 1B).** Ownership is a single EOA, `0xcb6f…1838`, delegated through EIP-7702 to `0x63c0c19a…e32b`, and the delegate hasn't been identified. There's no multisig and no timelock; migration to a Safe hasn't been done | 1, 2 (upgrade), 3 (funding) | ☐ Open | `release-review/06-release-blockers.md` T-3; `release-review/02-contract-security-review.md`; the team owns this |
 | S-3 | **Upgrade path rehearsal** from that exact owner: signing path and calldata for `upgradeToAndCall(newImpl, "0x")` | 1, 2 | ◐ Partial for Gate 2 | Calldata and pre-signing checks are ready (`scripts/checks/verify-ubi-release-packet.ts`). On a fork at block 83,137,713, the owner's exact upgrade and rollback transactions passed (`release-packet-rehearsal.*`). Still open: the owner's own wallet and signing path (S-2). |
 | S-4 | **Storage layout and bytecode.** 25 variables, 0 mismatches, nothing appended. Runtime 15,807 B; transient storage (`TSTORE`) works on Celo mainnet nodes (simulation only) | 1, 2 | ☑ Done for Gate 2 | UBI-only package: 25 of 25 variables identical (`storage-layout-ubi-release.txt`). Runtime 15,425 B. Transient storage works on Celo forks (three rehearsals). Upgrade and rollback leave every slot identical. |
-| S-5 | **Independent external security review** of the proposed `Game2048.sol`, with findings resolved | 1, 2 | ☐ Open | Only the internal package exists (`release-review/02-contract-security-review.md`) |
+| S-5 | **Independent external security review** of the proposed `Game2048.sol`, with findings resolved | 1, 2 | Gate 2: waived for this release (19 Nov). Gate 1: ☐ Open | Gate 2: the product owner's written waiver of 19 Nov 2026 acknowledges the residual risk; a follow-up independent review comes after release, and findings go into a later upgrade. Gate 1: only the internal package exists (`release-review/02-contract-security-review.md`) |
 | S-6 | **Stale Ignition modules excluded.** Seven modules call `Game2048` without its new constructor argument; `Game2048Module` keeps a wrong G$ constant | 1, 2 | ☑ Done on `feat/ubi-release-prep` | The legacy upgrade modules are removed, and `Game2048.ts` now uses the real G$ and passes the recipient. `test/ignitionModules.ts` guards both. |
 | S-7 | **Known design limitations accepted:** self-reported score and tile, no pause, single-key owner, unchecked owner transfers | 1, 2 | ☐ Open | `release-review/06-release-blockers.md` A-2 |
 
@@ -157,8 +159,8 @@ Not applicable. Undo doesn't change how G$ is collected; purchases go through th
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | G-A1 | Internal review of `_collectPayment`, rounding, the immutable recipient and `nonReentrant` on the four `buy*` functions | ◐ Partial (internal only) | `release-review/01-release-scope.md` A3–A6, `release-review/02` |
-| G-A2 | **Milestone-reentrancy position.** Accept "not exploitable with the current G$", or harden before release | ☐ Open: owner decision after the reviewer's R1 to R8 | Risk record: `docs/release-review/MILESTONE_REWARD_REENTRANCY.md` (impact, why acceptable, reviewer checks). Facts checked 2026-11-18: the code is identical to live V6 and unchanged here. The G$ implementation is unchanged. 79 rewards have been paid, with no milestone paid twice. The treasury ceiling is 45,815 G$. |
-| G-A3 | External review (S-5) | ☐ Open | — |
+| G-A2 | **Milestone-reentrancy position.** Accept "not exploitable with the current G$", or harden before release | ☐ Open: the contract owner's decision. With the review waived, R1 to R8 move to the follow-up review | Risk record: `docs/release-review/MILESTONE_REWARD_REENTRANCY.md` (impact, why acceptable, reviewer checks). Facts checked 2026-11-18: the code is identical to live V6 and unchanged here. The G$ implementation is unchanged. 79 rewards have been paid, with no milestone paid twice. The treasury ceiling is 45,815 G$. |
+| G-A3 | External review (S-5) | Waived for this release (19 Nov) | Follow-up independent review after release; findings go into a later upgrade |
 
 ### 2.4 Automated tests and rehearsal
 
@@ -179,23 +181,24 @@ Contributions must be verified from the purchase receipt's G$ `Transfer` log. UB
 |---|---|---|
 | G-D1 | **Written confirmation from GoodDollar** that `0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1` is the right production UBIScheme recipient for third-party contributions, and that a direct G$ transfer is an acceptable route | ☐ Open. The address is sourced from GoodDollar's GoodCollective factories, which pay their protocol fee to it; that source wasn't re-verified for this package (`release-review/05` §5) |
 | G-D2 | GoodDollar is aware of the public "UBI contributed" attribution wording | ☐ Open |
-| G-D3 | Monitoring for G$ and Identity upgrades and for G$ fee-formula changes. Today the fee is 0; a fee would under-report contributions and changes the reentrancy assumption | ☐ Open (`release-review/06` P-3, P-4). At block 83,138,012: fees 0 on all three flows, not paused (`gdollar-fees-and-pause.txt`). |
+| G-D3 | Monitoring for G$ and Identity upgrades and for G$ fee-formula changes. Today the fee is 0; a fee would under-report contributions and changes the reentrancy assumption | ☐ Open (`release-review/06` P-3, P-4). At block 83,138,012: fees 0 on all three flows, not paused (`gdollar-fees-and-pause.txt`). Responsible person: not yet assigned; the product owner names one. With the review waived, this is the main safeguard behind accepting G-A2. |
 
 ### 2.6 Governance and owner approval
 
 | # | Approval | Status |
 |---|---|---|
 | G-G1 | Product owner and treasury sign-off on G-P1 | ☐ Open |
-| G-G2 | Release authorisation after S-1 to S-7, G-A2, G-A3, G-E5 and G-D1 | ☐ Open |
+| G-G2 | Release authorisation after S-1 to S-7, G-A2, G-A3, G-E5 and G-D1 | ☐ Open (G-A3 waived 19 Nov) |
 | G-G3 | Authorised owner signs the upgrade (S-2, S-3); the implementation is deployed with `Game2048UbiContributionImpl.ts` (production profile) and its address recorded | ☐ Open (`release-review/06` O-1, O-2) |
 
 ### 2.7 Outstanding blockers
 
 - **Economics sign-off.** G-P1 is open.
 - **GoodDollar confirmation.** G-D1 is open.
-- **No external review**, and the reentrancy decision is open (G-A2, G-A3). The review brief is ready.
+- **Reentrancy decision.** It's open, and it's the contract owner's decision (G-A2). The independent review was waived for this release on 19 Nov (G-A3), and a follow-up review comes after release.
 - **The owner key.** S-2 is open. For S-3, the calldata and checks are rehearsed, but the owner's own signing path isn't.
-- **Commit and push** need approval (S-1).
+- **G$ monitoring.** No one is assigned yet (G-D3).
+- **Committed.** The package is draft PR #87 (`c6f90061`), and merging waits on the approvals above.
 - **Subgraph questions** G-T2, G-T3 and G-T6 are open. They affect only the profile figure.
 
 The fork rehearsal (G-E5), the mutation reproduction (G-E3), the historical scan (G-T5), the storage layout (S-4) and the Ignition clean-up (S-6) are done for the UBI-only package.

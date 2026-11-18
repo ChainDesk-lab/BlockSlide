@@ -2,7 +2,10 @@
 
 This brief is for the independent reviewer (approval 4, gates S-5 and G-A3 in `docs/SEASON5_RELEASE_READINESS.md`). The release runbook is in [UBI_RELEASE_RUNBOOK.md](UBI_RELEASE_RUNBOOK.md).
 
-**Status (2026-11-18):** not deployed. Production still runs Game2048 V6, `0x0322…2249`, with no UBI code. Contributions are **not live**.
+**Status (2026-11-19):**
+- **Not deployed.** Production still runs Game2048 V6, `0x0322…2249`, with no UBI code, so contributions are **not live**.
+- **Review waived for this release.** The product owner waived the independent review on 19 Nov and acknowledged the residual risk in writing.
+- **Follow-up review.** This brief now serves the independent review that follows the release; any finding goes into a later upgrade.
 
 ## 1. What is under review
 
@@ -52,7 +55,7 @@ The fingerprints are pinned in `scripts/lib/ubiReleasePacket.ts` (`REVIEWED_BUIL
 
 ## 5. Known issues outside this change (pre-existing, unchanged)
 
-- **Milestone-reward reentrancy (G-A2).** `_payMilestoneRewards` sets the claimed bit only after the G$ transfer, and `submitScore` and `startSession` aren't `nonReentrant`. This isn't exploitable with today's G$, because `transfer` makes no recipient call. The code is identical to live V6. The full record, with the impact, why it's acceptable and the checks you must make (R1 to R8), is [MILESTONE_REWARD_REENTRANCY.md](MILESTONE_REWARD_REENTRANCY.md). The owner decides on approval 3 after your verdict.
+- **Milestone-reward reentrancy (G-A2).** `_payMilestoneRewards` sets the claimed bit only after the G$ transfer, and `submitScore` and `startSession` aren't `nonReentrant`. This isn't exploitable with today's G$, because `transfer` makes no recipient call. The code is identical to live V6. The full record, with the impact, why it's acceptable and the checks you must make (R1 to R8), is [MILESTONE_REWARD_REENTRANCY.md](MILESTONE_REWARD_REENTRANCY.md). With the review waived for this release, the contract owner decides approval 3 before release, and your verdict on R1 to R8 comes in the follow-up review.
 - **`consumeUndo(player)` has no caller check.** Anyone can burn anyone's Undo credits; it's live today and unchanged here. The fix exists only in the Season 5 package.
 - **S-7 design limitations.** Score and tile are self-reported, there's no pause, the owner is a single key (an EOA with an EIP-7702 delegation to an unidentified `0x63c0…E32B`), and owner transfers are unchecked.
 - **Gas.** A purchase costs about 142,776 more gas (+59%). For an Undo or a cosmetic, that extra gas is worth more than the G$ contributed.
@@ -84,6 +87,6 @@ Everything listed here is in `~/blockslide-worktrees/.ubi-release-evidence/`. As
 2. Are floor rounding and the `contribution > 0` skip acceptable?
 3. Is there any risk from SuperGoodDollar specifics: `safeTransferFrom` on a SuperToken, the ERC-777 operator model, or a future non-zero fee?
 4. Can the transient reentrancy guard interact with UUPS upgrades or delegatecall in any way?
-5. On G-A2: do checks R1 to R8 in [MILESTONE_REWARD_REENTRANCY.md](MILESTONE_REWARD_REENTRANCY.md) pass, so the risk can be accepted for this release? Which hardening option do you recommend for the next upgrade?
+5. On G-A2: do checks R1 to R8 in [MILESTONE_REWARD_REENTRANCY.md](MILESTONE_REWARD_REENTRANCY.md) pass for the released code? Which hardening option do you recommend for the next upgrade?
 6. Is an immutable recipient with a constant rate the right trade-off, given that a correction needs an upgrade?
 7. Does the release-packet check bind the deployed implementation to the reviewed source? It compares runtime code with immutables zeroed, checks both immutables' values, and simulates the owner's call.

@@ -13,13 +13,13 @@ All of the following must be recorded in the approval tracker:
 | 1 | Economics sign-off: 5%, the UBIScheme recipient, 95% to the treasury, the extra gas | Release |
 | 2 | GoodDollar's written confirmation of the recipient and the transfer route | Release |
 | 3 | G-A2 decision: accept, or harden (see below and [MILESTONE_REWARD_REENTRANCY.md](MILESTONE_REWARD_REENTRANCY.md)) | Release |
-| 4 | External review done, with findings resolved | Release |
+| 4 | Independent review: waived for this release by the product owner on 19 Nov; a follow-up review comes after release | Not required for this release |
 | 5 | Owner key: a migration, or a recorded acceptance of the single key | Release |
 | 6 | Branch committed, pushed and merged, and the reviewed commit hash recorded | Release |
 | 7 | Release authorisation and a release window | Release |
 | 8 | Subgraph switch | The profile's "UBI contributed" figure only |
 
-**If approval 3 is "harden", or the review changes the contract:**
+**If approval 3 is "harden", or the contract changes for any other reason before release:**
 1. Make the change.
 2. Get it re-reviewed.
 3. Update `REVIEWED_BUILD` in `scripts/lib/ubiReleasePacket.ts`.

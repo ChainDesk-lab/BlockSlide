@@ -1,8 +1,13 @@
 # Milestone-reward reentrancy (G-A2): risk record
 
-This record is for the owner, who decides approval 3, and for the independent reviewer, who must verify it first. It's part of the UBI release package. Read it with [UBI_RELEASE_REVIEW.md](UBI_RELEASE_REVIEW.md).
+This record is for the contract owner, who decides approval 3, and for the follow-up independent reviewer. It's part of the UBI release package. Read it with [UBI_RELEASE_REVIEW.md](UBI_RELEASE_REVIEW.md).
 
-**The proposal:** release the 5% UBI contribution with this risk accepted, and harden the code in the next contract upgrade. **The condition:** the independent reviewer confirms R1 to R8 below. **Status (2026-11-18):** not yet accepted; the decision is requested.
+**The proposal:** release the 5% UBI contribution with this risk accepted, and harden the code in the next contract upgrade.
+
+**Status (2026-11-19):**
+- **The review is waived for this release.** The product owner waived the independent review in writing and acknowledged this residual risk.
+- **The decision is still open.** The contract owner's decision (approval 3: accept or harden) is outstanding.
+- **The checks move.** Checks R1 to R8 below go to the follow-up independent review after release.
 
 ## 1. The issue
 
@@ -47,7 +52,9 @@ Exploiting it needs **both** of these conditions:
 5. **Controls exist without a code change.** The owner can move the whole treasury out with `withdrawTreasury` the moment G$ changes. Monitoring G$'s implementation and fees (gate G-D3) gives that trigger.
 6. **Hardening now would cost the release.** Any contract change alters the reviewed bytecode. That means a re-review, new fingerprints, and re-running the suite and both fork rehearsals, all for a path that doesn't exist with today's token.
 
-## 5. What the independent reviewer must verify before the risk is accepted
+## 5. What the follow-up independent review must verify
+
+The product owner waived the independent review for this release on 19 Nov. These checks now belong to the follow-up review after release, and any finding goes into a later upgrade.
 
 | # | Check | Passes when |
 |---|---|---|
@@ -75,7 +82,8 @@ Neither option changes storage.
 
 | Item | Status |
 |---|---|
-| Reviewer's verdict on R1 to R8 | Pending (approval 4) |
-| Owner's decision: accept now and harden later, or harden before release | Requested (approval 3) |
-| G-D3 monitoring in place | Open, recommended before release |
+| Reviewer's verdict on R1 to R8 | Waived for this release (19 Nov); due in the follow-up review after release |
+| Product owner's acknowledgement of the residual risk | Given in the 19 Nov waiver |
+| Contract owner's decision: accept now and harden later, or harden before release | Outstanding (approval 3) |
+| G-D3 monitoring of G$ transfer behaviour | Open: no one is assigned yet, and the product owner names a person. Recommended before release |
 | Hardening scheduled for the next upgrade | To be recorded with the decision |
