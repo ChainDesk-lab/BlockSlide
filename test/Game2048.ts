@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { keccak256, encodePacked, parseEther } from "viem";
+import { keccak256, encodePacked, parseEther, encodeFunctionData } from "viem";
 
 import { network } from "hardhat";
 
@@ -10,14 +10,21 @@ describe("Game2048 — integration", async function () {
   // ── Fixture ─────────────────────────────────────────────────────────────────
 
   async function deploy() {
-    const [owner, alice, bob] = await viem.getWalletClients();
+    const [owner, alice, bob, ubi] = await viem.getWalletClients();
 
     const token    = await viem.deployContract("MockERC20");
     const identity = await viem.deployContract("MockIdentity");
-    const game     = await viem.deployContract("Game2048", [
-      token.address,
-      identity.address,
-    ]);
+    // Same layout as production (ignition/modules/Game2048.ts): the
+    // implementation, then Game2048Proxy initialized in its constructor.
+    // The implementation takes the UBI recipient as a constructor immutable.
+    const impl     = await viem.deployContract("Game2048", [ubi.account.address]);
+    const initData = encodeFunctionData({
+      abi: impl.abi,
+      functionName: "initialize",
+      args: [token.address, identity.address],
+    });
+    const proxy    = await viem.deployContract("Game2048Proxy", [impl.address, initData]);
+    const game     = await viem.getContractAt("Game2048", proxy.address);
 
     // Fund treasury with 10 000 G$
     await token.write.mint([owner.account.address, parseEther("10000")]);
@@ -45,9 +52,10 @@ describe("Game2048 — integration", async function () {
     score: bigint,
     highestTile: number,
     moveCount: bigint,
+    comboMoves = 0n,
   ) {
     await game.write.submitScore(
-      [score, highestTile, moveCount, SEED],
+      [score, highestTile, moveCount, SEED, comboMoves],
       { account: account.account },
     );
   }
@@ -76,14 +84,23 @@ describe("Game2048 — integration", async function () {
     assert.equal(balanceAfter - balanceBefore, REWARD_512 + REWARD_256);
   });
 
-  it("rejects unwhitelisted player", async function () {
-    const { game, bob } = await networkHelpers.loadFixture(deploy);
+  it("unverified player can play and score but receives no G$", async function () {
+    const { game, token, identity, bob } = await networkHelpers.loadFixture(deploy);
+    assert.equal(await identity.read.isWhitelisted([bob.account.address]), false);
 
-    await viem.assertions.revertWithCustomError(
-      game.write.startSession([SEED_HASH], { account: bob.account }),
-      game,
-      "NotVerifiedHuman",
-    );
+    // Since V6 anyone can start a session; only rewards need verification.
+    const balanceBefore  = await token.read.balanceOf([bob.account.address]);
+    const treasuryBefore = await token.read.balanceOf([game.address]);
+    await startSession(game, bob);
+    assert.equal((await game.read.getSession([bob.account.address])).active, true);
+
+    await submitScore(game, bob, 8000n, 512, 200n);
+
+    assert.equal((await game.read.getSession([bob.account.address])).active, false);
+    assert.equal(await game.read.bestScore([bob.account.address]), 8000n);
+    assert.equal(await token.read.balanceOf([bob.account.address]), balanceBefore, "unverified player paid");
+    assert.equal(await token.read.balanceOf([game.address]), treasuryBefore, "treasury moved");
+    assert.equal(await game.read.claimedMilestones([bob.account.address]), 0);
   });
 
   it("rejects wrong seed on submitScore", async function () {
@@ -93,7 +110,7 @@ describe("Game2048 — integration", async function () {
 
     const badSeed: `0x${string}` = "0x0000000000000000000000000000000000000000000000000000000000000001";
     await viem.assertions.revertWithCustomError(
-      game.write.submitScore([1000n, 256, 100n, badSeed], { account: alice.account }),
+      game.write.submitScore([1000n, 256, 100n, badSeed, 0n], { account: alice.account }),
       game,
       "InvalidSeed",
     );
@@ -108,7 +125,7 @@ describe("Game2048 — integration", async function () {
     await networkHelpers.time.increase(Number(timeout) + 1);
 
     await viem.assertions.revertWithCustomError(
-      game.write.submitScore([1000n, 256, 100n, SEED], { account: alice.account }),
+      game.write.submitScore([1000n, 256, 100n, SEED, 0n], { account: alice.account }),
       game,
       "SessionExpired",
     );
@@ -117,10 +134,13 @@ describe("Game2048 — integration", async function () {
   it("milestone rewards are paid only once per address", async function () {
     const { game, token, alice } = await networkHelpers.loadFixture(deploy);
 
+    const before = await token.read.balanceOf([alice.account.address]);
+
     // First game — 256 tile, earns REWARD_256
     await startSession(game, alice);
     await submitScore(game, alice, 1000n, 256, 50n);
     const afterFirst = await token.read.balanceOf([alice.account.address]);
+    assert.equal(afterFirst - before, await game.read.REWARD_256(), "first 256 not paid");
 
     // Second game — 256 tile again, no additional reward
     await startSession(game, alice);

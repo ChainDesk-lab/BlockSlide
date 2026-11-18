@@ -1,5 +1,7 @@
 # Game2048 V6 Deployment Guide
 
+> **Historical.** V6 is live, and `ignition/modules/Game2048V6Upgrade.ts` has been removed so it can't be re-run against the live proxy by mistake. Recover it from git history if needed (`git show e9cb804b:ignition/modules/Game2048V6Upgrade.ts`). For future upgrades see "Upgrading the live proxy" in the README.
+
 ## Pre-Deployment Checklist
 
 - [ ] All tests pass on local network
@@ -44,7 +46,10 @@ forge test --match-contract Game2048V6UpgradeTest -vv
 
 **Option A: Using Ignition (Recommended)**
 
+> **Historical — do not run.** `ignition/modules/Game2048V6Upgrade.ts` has been removed from the repository and is no longer available; V6 is already live. The command below is kept only as a record.
+
 ```bash
+# HISTORICAL — DO NOT RUN: ignition/modules/Game2048V6Upgrade.ts has been removed.
 npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts \
   --network celo-alfajores \
   --verify \
@@ -187,7 +192,10 @@ Once testnet testing complete and approved:
 
 ### 1. Repeat Steps 3-9 on Mainnet
 
+> **Historical — do not run.** `ignition/modules/Game2048V6Upgrade.ts` has been removed from the repository and is no longer available; V6 is already live. The command below is kept only as a record.
+
 ```bash
+# HISTORICAL — DO NOT RUN: ignition/modules/Game2048V6Upgrade.ts has been removed.
 # Deploy to mainnet
 npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts \
   --network celo \

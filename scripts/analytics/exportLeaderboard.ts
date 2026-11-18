@@ -37,7 +37,7 @@ async function main() {
   });
 
   // Read the raw leaderboard (10 slots)
-  const rawLeaderboard = (await game.read.getLeaderboard()) as LeaderboardEntry[];
+  const rawLeaderboard = (await game.read.getLeaderboard()) as readonly LeaderboardEntry[];
   console.log(`  Raw leaderboard entries: ${rawLeaderboard.length}`);
 
   // Filter out empty slots and deduplicate by address (keep highest score)

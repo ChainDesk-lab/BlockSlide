@@ -130,6 +130,24 @@ describe("UBI contribution: purchase coverage guard", async () => {
     assert.deepEqual(payable.filter((n) => !PAYABLE_ALLOWED.has(n)), []);
   });
 
+  it("G$ leaves the contract only as the UBI contribution, milestone rewards or the owner's withdrawal: no refund path", () => {
+    /** Calls that send the contract's own tokens out. */
+    const SENDS = new Set(["transfer", "safeTransfer"]);
+    /** Every place G$ may leave Game2048, and why. A refund would have to be added here, after its UBI accounting is reviewed. */
+    const OUTFLOW_ALLOWED: Record<string, string> = {
+      _collectPayment: "the 5% UBI contribution, to the immutable ubiRecipient",
+      _sendReward: "milestone rewards (called from _payMilestoneRewards), to the player who earned them",
+      withdrawTreasury: "the owner's treasury withdrawal",
+    };
+    const sites = new Set<string>();
+    for (const f of fns) for (const n of walk(f.node.body)) if (SENDS.has(memberCalled(n) ?? "")) sites.add(f.name);
+    assert.deepEqual([...sites].sort(), Object.keys(OUTFLOW_ALLOWED).sort(), "a new way for G$ to leave Game2048 (a refund?) needs its UBI accounting reviewed first");
+    const withdraw = fns.find((f) => f.name === "withdrawTreasury");
+    assert.ok(withdraw, "withdrawTreasury is allowlisted but no longer exists");
+    const mods = ((withdraw.node.modifiers as Node[]) ?? []).map((m) => ((m.modifierName as Node).name as string));
+    assert.ok(mods.includes("onlyOwner"), "withdrawTreasury must stay onlyOwner");
+  });
+
   it("the regression matrix calls every paid function, and nothing else of Game2048", async () => {
     const matrix = await contractAst(MATRIX);
     const purchase = [...walk(matrix)].find((n) => n.nodeType === "FunctionDefinition" && n.name === "_purchase");

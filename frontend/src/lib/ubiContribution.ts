@@ -53,3 +53,18 @@ export function contributionsFromReceipt(
   }
   return out;
 }
+
+/**
+ * The total a purchase receipt proves this buyer contributed: the sum of their
+ * UbiContribution events, and only when the transaction succeeded. A failed
+ * or reverted purchase proves nothing, whatever logs come with it, so it is
+ * never reported as a contribution.
+ */
+export function confirmedContributionTotal(
+  receipt: { status: string; logs: Parameters<typeof contributionsFromReceipt>[0] },
+  game: `0x${string}`,
+  buyer: `0x${string}`,
+): bigint {
+  if (receipt.status !== "success") return 0n;
+  return contributionsFromReceipt(receipt.logs, game, buyer).reduce((sum, c) => sum + c.contribution, 0n);
+}

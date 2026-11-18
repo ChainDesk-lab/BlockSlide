@@ -1,6 +1,13 @@
 # Season 5 release readiness: approval gates
 
-**Last updated:** 2026-11-07 · **Repository state:** `master` at `e71ca4ed`
+**Last updated:** 2026-11-18, Gate 2 and shared rows, for the UBI-only release on `feat/ubi-release-prep` · **Previous update:** 2026-11-07, `master` at `e71ca4ed`
+
+> **2026-11-18: Gate 2 is being released on its own.** Management made the 5% UBI contribution the immediate priority. The release candidate is the UBI-only implementation: PR #78 (`2a6de3dd`) plus the uncommitted branch `feat/ubi-release-prep`, which doesn't change the contract. It isn't the combined Undo and UBI implementation described below.
+> - **Gate 2 rows** now show that package's status.
+> - **Its evidence** is in `~/blockslide-worktrees/.ubi-release-evidence/`, with a checksummed archive.
+> - **Its review brief and runbook** are `docs/release-review/UBI_RELEASE_REVIEW.md` and `UBI_RELEASE_RUNBOOK.md`.
+>
+> Gates 1 and 3 are unchanged.
 
 This document sets out three separate approval gates. Each feature is approved and released on its own:
 
@@ -47,12 +54,12 @@ Gates 1 and 2 change the same contract. They are planned as **one implementation
 
 | # | Prerequisite | Applies to | Status | Evidence / blocker |
 |---|---|---|---|---|
-| S-1 | **Freeze the review target.** Commit or tag the proposed contract, tests, subgraph and evidence, or publish a checksummed archive, and record its identifier here | 1, 2, 3 | ☐ Open | `release-review/06-release-blockers.md` G-0 |
+| S-1 | **Freeze the review target.** Commit or tag the proposed contract, tests, subgraph and evidence, or publish a checksummed archive, and record its identifier here | 1, 2, 3 | ◐ Partial for Gate 2 | The UBI-only package has a checksummed archive (`review-target-<timestamp>.tar.gz` and `.sha256` in the evidence folder; use the newest), and its build fingerprints are pinned in `scripts/lib/ubiReleasePacket.ts`. Committing and pushing wait on approval. |
 | S-2 | **Owner key migration (Phase 1B).** Ownership is a single EOA, `0xcb6f…1838`, delegated through EIP-7702 to `0x63c0c19a…e32b`, and the delegate hasn't been identified. There's no multisig and no timelock; migration to a Safe hasn't been done | 1, 2 (upgrade), 3 (funding) | ☐ Open | `release-review/06-release-blockers.md` T-3; `release-review/02-contract-security-review.md`; the team owns this |
-| S-3 | **Upgrade path rehearsal** from that exact owner: signing path and calldata for `upgradeToAndCall(newImpl, "0x")` | 1, 2 | ☐ Open | `release-review/06-release-blockers.md` T-3 |
-| S-4 | **Storage layout and bytecode.** 25 variables, 0 mismatches, nothing appended. Runtime 15,807 B; transient storage (`TSTORE`) works on Celo mainnet nodes (simulation only) | 1, 2 | ◐ Partial | `evidence/storage-layout-comparison.txt`, `evidence/production-build.txt`; the live upgrade test is T-2 below |
+| S-3 | **Upgrade path rehearsal** from that exact owner: signing path and calldata for `upgradeToAndCall(newImpl, "0x")` | 1, 2 | ◐ Partial for Gate 2 | Calldata and pre-signing checks are ready (`scripts/checks/verify-ubi-release-packet.ts`). On a fork at block 83,137,713, the owner's exact upgrade and rollback transactions passed (`release-packet-rehearsal.*`). Still open: the owner's own wallet and signing path (S-2). |
+| S-4 | **Storage layout and bytecode.** 25 variables, 0 mismatches, nothing appended. Runtime 15,807 B; transient storage (`TSTORE`) works on Celo mainnet nodes (simulation only) | 1, 2 | ☑ Done for Gate 2 | UBI-only package: 25 of 25 variables identical (`storage-layout-ubi-release.txt`). Runtime 15,425 B. Transient storage works on Celo forks (three rehearsals). Upgrade and rollback leave every slot identical. |
 | S-5 | **Independent external security review** of the proposed `Game2048.sol`, with findings resolved | 1, 2 | ☐ Open | Only the internal package exists (`release-review/02-contract-security-review.md`) |
-| S-6 | **Stale Ignition modules excluded.** Seven modules call `Game2048` without its new constructor argument; `Game2048Module` keeps a wrong G$ constant | 1, 2 | ☐ Open | `release-review/04-compatibility-audit.md` §1; `season5/DECISIONS.md` D24 |
+| S-6 | **Stale Ignition modules excluded.** Seven modules call `Game2048` without its new constructor argument; `Game2048Module` keeps a wrong G$ constant | 1, 2 | ☑ Done on `feat/ubi-release-prep` | The legacy upgrade modules are removed, and `Game2048.ts` now uses the real G$ and passes the recipient. `test/ignitionModules.ts` guards both. |
 | S-7 | **Known design limitations accepted:** self-reported score and tile, no pause, single-key owner, unchecked owner transfers | 1, 2 | ☐ Open | `release-review/06-release-blockers.md` A-2 |
 
 ---
@@ -131,8 +138,8 @@ Not applicable. Undo doesn't change how G$ is collected; purchases go through th
 
 | # | Decision | Status | Notes |
 |---|---|---|---|
-| G-P1 | **Sign-off on the 5% rate, the recipient and the treasury impact** | ☐ Open | Stated as a product requirement in task briefs; no recorded sign-off (`release-review/06` A-1) |
-| G-P2 | **Per-player attribution shown publicly:** a "UBI contributed" figure on profiles, and possibly on Stats | ☐ Open | Subgraph and profile card are built in the Season 5 worktree (uncommitted); Stats has no UBI display |
+| G-P1 | **Sign-off on the 5% rate, the recipient and the treasury impact** | ◐ Partial | Management direction, 2026-11-18: the 5% contribution on every successful eligible paid Shop purchase is the immediate engineering priority. A formal sign-off covering the recipient, the treasury impact and the extra gas isn't recorded yet (`release-review/06` A-1). |
+| G-P2 | **Per-player attribution shown publicly:** a "UBI contributed" figure on profiles, and possibly on Stats | ◐ Partial | The subgraph is ported to `feat/ubi-release-prep` (12 of 12 tests), and the profile card is on `master`. It shows only receipt-verified totals. Stats has no UBI display. The public wording needs G-D2. |
 
 ### 2.2 Technical dependencies
 
@@ -141,8 +148,8 @@ Not applicable. Undo doesn't change how G$ is collected; purchases go through th
 | G-T1 | Shared prerequisites S-1 to S-7 | ☐ Open | — |
 | G-T2 | Subgraph version to deploy; `deploy:goldsky` currently targets `blockslide-leaderboard-staging/3.0.0` | ☐ Open | `release-review/06` T-7 |
 | G-T3 | Goldsky supports `receipt: true` handlers. Without it, every contribution shows as unverified | ☐ Open | `release-review/06` T-8; `release-review/05` §6 |
-| G-T4 | Resync from block 69,294,066, or record the upgrade block | ☐ Open | `release-review/06` T-9 |
-| G-T5 | Historical scan confirming zero `UbiContribution` events before the upgrade, run with repeats and the union of results | ☐ Open | `release-review/06` T-10 |
+| G-T4 | Resync from block 69,294,066, or record the upgrade block | ◐ Partial | `subgraph.yaml` sets `startBlock: 69294066`, so the new version resyncs fully. The upgrade block is recorded at release (runbook step 5). |
+| G-T5 | Historical scan confirming zero `UbiContribution` events before the upgrade, run with repeats and the union of results | ☑ Done | `g-t5-historical-scan.*`, 2026-11-18. Blocks 69,294,066 to 83,136,959 were read in 3 passes, which agreed on 15,429 logs and 0 `UbiContribution`. Blockscout also shows 0, and the event's topic is absent from the proxy and all 10 implementations it has used. |
 | G-T6 | Set `NEXT_PUBLIC_SUBGRAPH_URL` to the new version as a plain value, never a write-only Secret, then redeploy the frontend | ☐ Open | Production configuration change; needs approval |
 
 ### 2.3 Contract review and security audit
@@ -150,7 +157,7 @@ Not applicable. Undo doesn't change how G$ is collected; purchases go through th
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | G-A1 | Internal review of `_collectPayment`, rounding, the immutable recipient and `nonReentrant` on the four `buy*` functions | ◐ Partial (internal only) | `release-review/01-release-scope.md` A3–A6, `release-review/02` |
-| G-A2 | **Milestone-reentrancy position.** Accept "not exploitable with the current G$", or harden before release | ☐ Open | `release-review/04` §3; `release-review/06` T-6 |
+| G-A2 | **Milestone-reentrancy position.** Accept "not exploitable with the current G$", or harden before release | ☐ Open: owner decision after the reviewer's R1 to R8 | Risk record: `docs/release-review/MILESTONE_REWARD_REENTRANCY.md` (impact, why acceptable, reviewer checks). Facts checked 2026-11-18: the code is identical to live V6 and unchanged here. The G$ implementation is unchanged. 79 rewards have been paid, with no milestone paid twice. The treasury ceiling is 45,815 G$. |
 | G-A3 | External review (S-5) | ☐ Open | — |
 
 ### 2.4 Automated tests and rehearsal
@@ -158,11 +165,11 @@ Not applicable. Undo doesn't change how G$ is collected; purchases go through th
 | # | Evidence | Status | Location |
 |---|---|---|---|
 | G-E1 | UBI regression matrix: all six paid paths, exactly one event each, exact amounts | ☑ 17 pass | `contracts/Game2048UbiRegression.t.sol`; `evidence/ubi-regression-solidity.log` |
-| G-E2 | Purchase coverage guard: every paid ABI function goes through `_collectPayment` | ☑ 5 pass | `test/ubiPurchaseGuard.ts`; `evidence/ubi-coverage-guard.log` |
-| G-E3 | Contract mutations detected | ◐ 12/12, not reproduced for this package | `evidence/contract-mutation-run.log` |
-| G-E4 | Subgraph (matchstick) | ☑ 12 pass | `evidence/subgraph-tests.log` |
-| G-E5 | **Fork rehearsal with real G$ and UBIScheme** (`scripts/checks/rehearse-ubi-contribution.ts`): a purchase on every path, with 5% reaching `0x43d72Ff1…4A1` and a matching G$ `Transfer` | ☐ **Not run** | `release-review/06` T-2 |
-| G-E6 | After release: bytecode verified; `ubiRecipient()` and `supportsUndoAtSubmit()` checked; the first real contribution checked on Celoscan, in the subgraph and on the profile card | ☐ Open | `release-review/06` P-1, P-2 |
+| G-E2 | Purchase coverage guard: every paid ABI function goes through `_collectPayment` | ☑ 6 pass | `test/ubiPurchaseGuard.ts`, which now includes the refund-path guard |
+| G-E3 | Contract mutations detected | ☑ 15 of 15, reproduced for the UBI-only package | `g-e3-mutation-run.log` and `g-e3-mutation-caught-by.txt`. Unmutated control: 124 of 124. Five of the mutations are future-item cases. |
+| G-E4 | Subgraph (matchstick) | ☑ 12 pass | `subgraph-tests.log` |
+| G-E5 | **Fork rehearsal with real G$ and UBIScheme** (`scripts/checks/rehearse-ubi-contribution.ts`): a purchase on every path, with 5% reaching `0x43d72Ff1…4A1` and a matching G$ `Transfer` | ☑ Passed | `rehearsal-83121518.*` and `rehearsal-83121792.*`: all six paths, 352.5 G$ to the UBIScheme, 0 discrepancies. The release packet and rollback were also rehearsed (`release-packet-rehearsal.*`, block 83,137,713). |
+| G-E6 | After release: bytecode verified; `ubiRecipient()` and `supportsUndoAtSubmit()` checked; the first real contribution checked on Celoscan, in the subgraph and on the profile card | ☐ Open: after release | The tooling is ready: `verify-ubi-release-packet.ts` (bytecode, recipient, rate) and `reconcile-ubi-contributions.ts` (first contribution). `supportsUndoAtSubmit()` doesn't apply to the UBI-only package. |
 
 Contributions must be verified from the purchase receipt's G$ `Transfer` log. UBIScheme balance changes are not reliable evidence, because its Superfluid streams move the balance continuously.
 
@@ -172,7 +179,7 @@ Contributions must be verified from the purchase receipt's G$ `Transfer` log. UB
 |---|---|---|
 | G-D1 | **Written confirmation from GoodDollar** that `0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1` is the right production UBIScheme recipient for third-party contributions, and that a direct G$ transfer is an acceptable route | ☐ Open. The address is sourced from GoodDollar's GoodCollective factories, which pay their protocol fee to it; that source wasn't re-verified for this package (`release-review/05` §5) |
 | G-D2 | GoodDollar is aware of the public "UBI contributed" attribution wording | ☐ Open |
-| G-D3 | Monitoring for G$ and Identity upgrades and for G$ fee-formula changes. Today the fee is 0; a fee would under-report contributions and changes the reentrancy assumption | ☐ Open (`release-review/06` P-3, P-4) |
+| G-D3 | Monitoring for G$ and Identity upgrades and for G$ fee-formula changes. Today the fee is 0; a fee would under-report contributions and changes the reentrancy assumption | ☐ Open (`release-review/06` P-3, P-4). At block 83,138,012: fees 0 on all three flows, not paused (`gdollar-fees-and-pause.txt`). |
 
 ### 2.6 Governance and owner approval
 
@@ -186,10 +193,12 @@ Contributions must be verified from the purchase receipt's G$ `Transfer` log. UB
 
 - **Economics sign-off.** G-P1 is open.
 - **GoodDollar confirmation.** G-D1 is open.
-- **No external review**, and the reentrancy decision is open (G-A2, G-A3).
-- **No fork rehearsal.** G-E5 has not been run.
-- **The owner key.** S-2 and S-3 are not done.
-- **Subgraph questions** G-T2 to G-T4 are open.
+- **No external review**, and the reentrancy decision is open (G-A2, G-A3). The review brief is ready.
+- **The owner key.** S-2 is open. For S-3, the calldata and checks are rehearsed, but the owner's own signing path isn't.
+- **Commit and push** need approval (S-1).
+- **Subgraph questions** G-T2, G-T3 and G-T6 are open. They affect only the profile figure.
+
+The fork rehearsal (G-E5), the mutation reproduction (G-E3), the historical scan (G-T5), the storage layout (S-4) and the Ignition clean-up (S-6) are done for the UBI-only package.
 
 ---
 

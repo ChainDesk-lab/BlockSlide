@@ -186,7 +186,11 @@ struct CosmeticItem {
 ### Deployment Procedure
 
 #### Step 1: Deploy V6 Implementation
+
+> **Historical — do not run.** `ignition/modules/Game2048V6Upgrade.ts` has been removed from the repository and is no longer available; V6 is already live. The command below is kept only as a record.
+
 ```bash
+# HISTORICAL — DO NOT RUN: ignition/modules/Game2048V6Upgrade.ts has been removed.
 npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts --network celo --verify
 ```
 

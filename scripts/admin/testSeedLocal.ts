@@ -35,7 +35,7 @@ async function main() {
     identity.address,
   ]);
 
-  const proxy = await viem.deployContract("ERC1967Proxy", [impl.address, initData]);
+  const proxy = await viem.deployContract("ERC1967Proxy", [impl.address, initData as `0x${string}`]);
   console.log("   ✓ ERC1967Proxy:", proxy.address);
 
   // Connect to proxy through Game2048 ABI (using getContractAt returns a typed contract)
@@ -74,7 +74,7 @@ async function main() {
 
   // Verify seeded data
   console.log("\n✅ Verifying seeded data…");
-  const leaderboard = (await game.read.getLeaderboard()) as Array<{
+  const leaderboard = (await game.read.getLeaderboard()) as ReadonlyArray<{
     player: string;
     score: bigint;
     highestTile: number;
