@@ -5,9 +5,11 @@ This record is for the contract owner, who decides approval 3, and for the follo
 **The proposal:** release the 5% UBI contribution with this risk accepted, and harden the code in the next contract upgrade.
 
 **Status (2026-11-19):**
+- **Rated LOW and theoretical.** The 19 Nov internal security assessment records this as L-1. It isn't exploitable with current G$ behaviour: G$ `transfer` and `transferFrom` were verified from the SuperGoodDollar source to make no call to the recipient. The assessment ran no new tests or fuzzing. Its register is in [SEASON5_RELEASE_READINESS.md §2.3](../SEASON5_RELEASE_READINESS.md#23-contract-review-and-security-audit).
 - **The review is waived for this release.** The product owner waived the independent review in writing and acknowledged this residual risk.
 - **The decision is still open.** The contract owner's decision (approval 3: accept or harden) is outstanding.
-- **The checks move.** Checks R1 to R8 below go to the follow-up independent review after release.
+- **A named G$ monitoring owner is required** before release (G-D3). No one is assigned yet.
+- **The checks move.** Checks R1 to R8 below go to the follow-up independent review after release, which is committed for the GoodBuilders seasonal audit.
 
 ## 1. The issue
 
@@ -32,7 +34,7 @@ Exploiting it needs **both** of these conditions:
 | A | A G$ `transfer` runs code at the recipient, for example an ERC-777 `tokensReceived` hook or an ERC-677/1363 callback | **Not met.** G$ is SuperGoodDollar, implementation `0xb4419a3d…29ef`, unchanged at block 83,137,360. Its `transfer` path (`_transferFrom` → `SuperToken._transferFrom` → `_move`) makes no call to the recipient. Superfluid removed ERC-777 hooks from ERC-20 transfers; recipient calls exist only in `send` and `transferAndCall`, which the game doesn't use. |
 | B | The attacker controls a GoodDollar-verified address that can run code | **Plausible.** Any verified person can point their wallet at code with EIP-7702, which is live on Celo. 3 of the 55 addresses ever rewarded, including the owner, already have an EIP-7702 delegation to `0x63c0…E32B`. Blockscout lists that address as the verified contract `EIP7702StatelessDeleGator`. |
 
-**Condition A is the barrier.** G$ is upgradeable by GoodDollar, not by BlockSlide, so condition A could change without any action by BlockSlide.
+**Condition A is the barrier.** G$ is upgradeable by GoodDollar, not by BlockSlide, so condition A could change without any action by BlockSlide. Its only upgrade admin (`DEFAULT_ADMIN_ROLE`) is the contract `0x495d…eCEC`. The game's owner could also point the game at a different token with `setTokens`.
 
 ## 3. Potential impact if condition A ever changed
 
@@ -54,7 +56,7 @@ Exploiting it needs **both** of these conditions:
 
 ## 5. What the follow-up independent review must verify
 
-The product owner waived the independent review for this release on 19 Nov. These checks now belong to the follow-up review after release, and any finding goes into a later upgrade.
+The product owner waived the independent review for this release on 19 Nov. These checks now belong to the follow-up review after release, which is committed for the GoodBuilders seasonal audit, and any finding goes into a later upgrade.
 
 | # | Check | Passes when |
 |---|---|---|
@@ -82,8 +84,9 @@ Neither option changes storage.
 
 | Item | Status |
 |---|---|
-| Reviewer's verdict on R1 to R8 | Waived for this release (19 Nov); due in the follow-up review after release |
+| Internal security assessment | 19 Nov: L-1, LOW and theoretical; not exploitable with current G$ behaviour (`security-assessment-20261119/ASSESSMENT.md`). Internal only; no new tests or fuzzing |
+| Reviewer's verdict on R1 to R8 | Waived for this release (19 Nov); due in the follow-up review after release, committed for the GoodBuilders seasonal audit |
 | Product owner's acknowledgement of the residual risk | Given in the 19 Nov waiver |
 | Contract owner's decision: accept now and harden later, or harden before release | Outstanding (approval 3) |
-| G-D3 monitoring of G$ transfer behaviour | Open: no one is assigned yet, and the product owner names a person. Recommended before release |
+| G-D3 monitoring of G$ transfer behaviour | Open: required before release (19 Nov). No one is assigned yet, and the product owner names a person |
 | Hardening scheduled for the next upgrade | To be recorded with the decision |
