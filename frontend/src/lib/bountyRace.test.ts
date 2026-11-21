@@ -64,12 +64,12 @@ describe("Race configuration", () => {
 
   it("lists the four requirements and says which ones the team checks", () => {
     expect(race.eligibility!.map((e) => [e.text, e.check])).toEqual([
-      ["Follow @ImmanuelOlivia1 on X", "team"],
+      ["Follow @blockslide_app on X", "team"],
       ["Be GoodDollar verified", "on-chain"],
       ["Complete at least 10 qualifying BlockSlide Shop purchases during the race", "on-chain"],
       ["Finish in the top five eligible players on the race leaderboard", "leaderboard"],
     ]);
-    expect(RULES).toEqual({ goodDollarVerified: true, minPurchases: 10, manualChecks: ["Follows @ImmanuelOlivia1 on X"] });
+    expect(RULES).toEqual({ goodDollarVerified: true, minPurchases: 10, manualChecks: ["Follows @blockslide_app on X"] });
     const html = renderToStaticMarkup(createElement(EligibilityList, { items: race.eligibility! }));
     expect(html).toContain("Checked by the team");
     expect(html).toContain("Checked on-chain");
@@ -407,7 +407,7 @@ describe("GET /api/bounties for the race", () => {
     const html = renderToStaticMarkup(createElement(BountyStandings, { standings: s }));
     expect(html).toContain("Provisional Winners");
     expect(html).toContain("$10 equivalent in G$");
-    expect(html).toContain("Checked by the team before any prize is paid: Follows @ImmanuelOlivia1 on X.");
+    expect(html).toContain("Checked by the team before any prize is paid: Follows @blockslide_app on X.");
   });
 
   it("XP at the boundaries: the first race block counts, the block before it doesn't, and the first block at the end doesn't", async () => {

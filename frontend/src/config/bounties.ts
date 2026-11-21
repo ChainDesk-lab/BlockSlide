@@ -135,10 +135,10 @@ export const bounties: Bounty[] = [
       "Verify your identity with GoodDollar (one face, one wallet)",
       "Play during the race: all the XP you earn counts",
       "Make at least 10 Shop purchases during the race",
-      "Follow @ImmanuelOlivia1 on X",
+      "Follow @blockslide_app on X",
     ],
     eligibility: [
-      { text: "Follow @ImmanuelOlivia1 on X", check: "team" },
+      { text: "Follow @blockslide_app on X", check: "team" },
       { text: "Be GoodDollar verified", check: "on-chain" },
       { text: "Complete at least 10 qualifying BlockSlide Shop purchases during the race", check: "on-chain" },
       { text: "Finish in the top five eligible players on the race leaderboard", check: "leaderboard" },
@@ -146,7 +146,7 @@ export const bounties: Bounty[] = [
     rules: {
       goodDollarVerified: true,
       minPurchases: 10,
-      manualChecks: ["Follows @ImmanuelOlivia1 on X"],
+      manualChecks: ["Follows @blockslide_app on X"],
     },
     winnerCriteria: "The five highest-ranked eligible players by XP earned during the race",
     timeZone: { iana: "Africa/Lagos", label: "WAT" },
