@@ -5277,6 +5277,38 @@ html.light-mode .profile2__link { background: var(--surface-2); }
   .bounty-card, .bounty-ended { padding: 14px; }
 }
 
+/* ── Bounties with rules: prizes, eligibility and per-player checks ─────── */
+.bounty-prizes__table { width: 100%; max-width: 440px; border-collapse: collapse; font-size: 0.92rem; }
+.bounty-prizes__caption { caption-side: top; text-align: left; padding: 0 0 8px; font-weight: 700; color: var(--text); }
+.bounty-prizes__table th, .bounty-prizes__table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.18)); }
+.bounty-prizes__table thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; }
+.bounty-prizes__table tbody th { width: 72px; font-family: var(--font-display); font-weight: 700; }
+.bounty-prizes__row--1 th { color: #F5C542; }
+.bounty-prizes__note, .bounty-card__fineprint { margin: 10px 0 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+.bounty-eligibility { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.bounty-eligibility__item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px;
+  border-radius: 10px; background: var(--surface-2, rgba(127, 127, 127, 0.08));
+}
+.bounty-eligibility__text { min-width: 0; line-height: 1.4; }
+.bounty-eligibility__check { flex-shrink: 0; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.bounty-eligibility__check--on-chain, .bounty-eligibility__check--leaderboard { background: rgba(34, 197, 94, 0.14); color: var(--accent-green, #22C55E); }
+.bounty-eligibility__check--team { background: rgba(245, 197, 66, 0.16); color: #D9A520; }
+.bounty-leaderboard__who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.bounty-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.bounty-badge { font-size: 0.68rem; font-weight: 600; padding: 2px 7px; border-radius: 999px; line-height: 1.5; white-space: nowrap; }
+.bounty-badge--ok { background: rgba(34, 197, 94, 0.14); color: var(--accent-green, #22C55E); }
+.bounty-badge--no { background: rgba(148, 163, 184, 0.16); color: var(--text-muted); }
+.bounty-badge--unknown { background: rgba(245, 197, 66, 0.14); color: #D9A520; }
+.bounty-leaderboard__prize { display: block; font-size: 0.72rem; font-weight: 600; color: #D9A520; text-align: right; }
+.bounty-checks { margin-top: 10px; display: grid; gap: 4px; }
+.bounty-checks__line { margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+.bounty-checks__line--warn { color: #D9A520; }
+@media (max-width: 560px) {
+  .bounty-eligibility__item { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .bounty-prizes__table { max-width: none; }
+}
+
 /* ── Header controls: one visual language ────────────────────────────────── */
 .header__actions .theme-toggle, .header__actions .icon-btn--ghost {
   width: 36px; height: 36px; border-radius: 8px; color: var(--text-muted); font-size: 0; transform: none;

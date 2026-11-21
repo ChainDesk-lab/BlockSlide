@@ -65,9 +65,38 @@ export async function resolveBlockByTime(
   return resultBlock;
 }
 
+const firstBlockCache = new Map<string, bigint>();
+
 /**
- * Clear the in-memory block cache (useful for testing).
+ * The first block whose timestamp is at or after `time`: exact, not the nearest block (compare
+ * resolveBlockByTime above, which the original bounties keep using). A window that starts
+ * inclusive and ends exclusive, [start, end), covers the blocks from firstBlockAtOrAfter(start)
+ * to firstBlockAtOrAfter(end) - 1. Block timestamps are whole seconds, so a time with
+ * milliseconds rounds up. Throws if the chain hasn't reached `time` yet. Cached in memory.
+ */
+export async function firstBlockAtOrAfter(publicClient: PublicClient, time: Date): Promise<bigint> {
+  const key = time.toISOString();
+  const hit = firstBlockCache.get(key);
+  if (hit !== undefined) return hit;
+  const target = BigInt(Math.ceil(time.getTime() / 1000));
+  const head = await publicClient.getBlock();
+  if (head.number === null || head.timestamp < target) throw new Error(`the chain hasn't reached ${key} yet`);
+  let lo = 0n;
+  let hi = head.number; // the head is at or after the target, so the answer is at or below it
+  while (lo < hi) {
+    const mid = (lo + hi) / 2n;
+    const block = await publicClient.getBlock({ blockNumber: mid });
+    if (block.timestamp < target) lo = mid + 1n;
+    else hi = mid;
+  }
+  firstBlockCache.set(key, lo);
+  return lo;
+}
+
+/**
+ * Clear the in-memory block caches (useful for testing).
  */
 export function clearBlockCache() {
   Object.keys(blockCache).forEach((key) => delete blockCache[key]);
+  firstBlockCache.clear();
 }
