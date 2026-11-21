@@ -266,9 +266,9 @@ Custom errors defined in the contract:
 | `Game2048UpgradeModule` | V1 upgrade | `0x5cF517877Bf5C2e4FD95fE7C2B46065830D6F7c0` | First contract iteration |
 | `Game2048UpgradeV2Module` | V2 upgrade | `0xD28D879e36757dE28132e7D3B099e334E8406d8D` | Added shop, XP, streaks, combos |
 | `Game2048UpgradeV3Module` | V3 upgrade | `0xbc0b92c9eA514A3630eD34a091da0e6490f693af` | Fixed G$ address, try/catch rewards |
-| Rollback script | RollbackV5 | `0x6b730fbfe0c7bbc8b308c9963d2ecec4064910dd` | Rolled back misaligned V5 impl |
+| `rollbackV5.ts` (removed) | V5 rollback | `0x6b730fbfe0c7bbc8b308c9963d2ecec4064910dd` | Re-pointed the proxy to V4 (on-chain usernames, commit `c22b8be8`) after the misaligned V5 impl |
 
-Proxy (`0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6`) is constant across all upgrades.
+Proxy (`0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6`) is constant across all upgrades. The upgrade modules named above have been removed from `ignition/modules/` (see [Upgrading the live proxy](#upgrading-the-live-proxy)); they remain in git history.
 
 ---
 
@@ -310,7 +310,26 @@ Shields stack in inventory (unlimited). A shield is consumed automatically on th
 | 2x XP Boost | 50 G$ | Doubles XP from all games for 24 hours. |
 | 5x XP Boost | 125 G$ | 5x XP from all games for 24 hours. Overwrites existing boost. |
 
-All shop G$ payments go to the contract treasury (not burned). The owner can adjust prices at any time via `setShopPrices()`.
+All shop G$ payments go to the contract treasury (not burned), minus the UBI contribution below. The owner can adjust prices at any time via `setShopPrices()`.
+
+### GoodDollar UBI contribution (after the UBI-contribution upgrade)
+
+5% of every paid shop purchase supports GoodDollar UBI. It applies to every item that pays through `_collectPayment`: streak shields, XP boosts, undo credits, cosmetics, and any future paid item, since all purchases go through that one function.
+
+| | |
+|---|---|
+| **Rate** | `UBI_CONTRIBUTION_BPS = 500` (5%), capped by `MAX_UBI_CONTRIBUTION_BPS = 1000`. A constant: changing it needs a reviewed upgrade. |
+| **Calculation** | `floor(pricePaid × 500 / 10,000)`, from the on-chain price, never a frontend value. The buyer pays exactly the listed price; the contribution is carved out of it, and the rest stays in the treasury. A price under 20 base units rounds to 0, and then nothing is sent or emitted. |
+| **Destination** | `ubiRecipient`, an implementation immutable. On Celo: the GoodDollar production UBIScheme `0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1` ([GoodDollar docs](https://docs.gooddollar.org/for-developers/apis-and-sdks/ubi)). Not owner-configurable. |
+| **Funding semantics** | A checked G$ transfer to the UBIScheme proxy (implementation `UBISchemeV2`, verified on Blockscout). Its daily pool is `G$ balance / cycleLength`, recalculated each cycle, so the contribution enters the claimable pool at the next cycle calculation. It's added to a pool governed by the GoodDollar DAO (which can `withdraw` from it), not earmarked. GoodDollar's own GoodCollective factories pay their 500 bps protocol fee to the same address the same way. |
+| **Atomicity** | Payment and contribution happen in the purchase transaction (`SafeERC20`, reentrancy guard on every purchase). If either transfer fails, the purchase reverts: no item, no charge, no event. |
+| **Record** | `UbiContribution(buyer, item, itemId, quantity, amountPaid, contribution, recipient)`, emitted only after the transfer succeeded. |
+
+**Verifying a contribution:** look for the G$ `Transfer` from the game proxy to the UBIScheme in the purchase transaction's receipt, together with `UbiContribution`. Don't compare the UBIScheme's balance before and after: it receives continuous Superfluid fee streams, so it grows every second.
+
+The shop shows the rate and each item's share only when the contract reports `UBI_CONTRIBUTION_BPS()`, and shows a confirmed amount only from the purchase receipt's `UbiContribution` event. Before the upgrade, it claims nothing.
+
+Rehearse the upgrade on a mainnet fork: `CELO_FORK_URL=<archive rpc> npx hardhat run --build-profile production scripts/checks/rehearse-ubi-contribution.ts`.
 
 ---
 
@@ -498,17 +517,19 @@ NEXT_PUBLIC_SUBGRAPH_URL=https://api.goldsky.com/api/public/<project>/subgraphs/
 
 ```bash
 # All tests (Solidity + TypeScript)
-npx hardhat test
+npx hardhat test --build-profile production
 
 # Solidity unit tests only (forge-std)
 npx hardhat test solidity
 
-# TypeScript integration tests only
-npx hardhat test nodejs
+# TypeScript integration tests only. Needs the optimized build: unoptimized,
+# Game2048 exceeds the 24,576-byte contract size limit Hardhat's simulator enforces.
+npx hardhat test nodejs --build-profile production
 ```
 
-**Solidity tests** (`contracts/Game2048.t.sol`): 34 tests covering:
+**Solidity tests** (`contracts/Game2048.t.sol`): 48 tests covering:
 - Session lifecycle (start, submit, expire, validation)
+- Identity: unverified players can play and score but receive no G$; verified players are paid
 - XP calculation (base, combo multiplier, boost stacking, expiry)
 - Streak tracking (start, daily, gap reset, shield protection, stacked shields)
 - Shop purchases (shield, boost, pricing, ownership)
@@ -518,7 +539,7 @@ npx hardhat test nodejs
 
 **TypeScript tests** (`test/Game2048.ts`): 8 integration tests using `network.create()` and `networkHelpers.loadFixture()`, covering:
 - Full happy-path session → submit → reward
-- Unwhitelisted player rejection
+- Unverified player plays and scores but receives no G$
 - Wrong seed rejection  
 - Session expiry
 - One-time milestone rewards
@@ -544,13 +565,22 @@ Open [http://localhost:3000](http://localhost:3000).
 ```bash
 # Dev deployment (Celo Sepolia testnet with MockERC20 + MockIdentity)
 npx hardhat ignition deploy ignition/modules/Game2048Dev.ts --network celoSepolia
-
-# Production deployment (Celo mainnet with real G$ + identity)
-npx hardhat ignition deploy ignition/modules/Game2048.ts --network celo
-
-# Upgrade existing proxy
-npx hardhat ignition deploy ignition/modules/Game2048UpgradeV4.ts --network celo
 ```
+
+> **`ignition/modules/Game2048.ts` is not usable for a production deployment as committed.** It records the original V1 deployment of the live proxy, and its `CELO_G_DOLLAR` constant (`0x62B8b11039FCfe5Ab0C56e502b1C372a3d462A4e`) is the typo'd address described under [Known Incidents](#known-incidents): it has no contract code on Celo. The live game was repointed to the real G$ token (`0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A`, the address GoodDollar's NameService returns for `GOODDOLLAR`) with `setTokens()`. Don't run this module against Celo mainnet until its addresses are corrected and reviewed. The game is live; changes go through [Upgrading the live proxy](#upgrading-the-live-proxy), not a fresh deployment.
+
+### Upgrading the live proxy
+
+There is no one-command upgrade. The live proxy (`0xD551317265B9c4D1D453d399D8b8fa0b98D8ceB6`) holds every player's state, so an upgrade is a reviewed, owner-signed change:
+
+1. Compare the candidate's storage layout with the live implementation (slots, offsets and types must match; new variables only at the end).
+2. Rehearse the upgrade on a local mainnet fork (impersonated owner, nothing broadcast) and check state reads are identical before and after.
+3. Deploy the new implementation on its own, with no upgrade call.
+4. Only after review, the owner calls `upgradeToAndCall(newImplementation, "0x")` on the proxy.
+
+A rollback is an upgrade and follows the same steps. Its target must be an implementation whose bytecode is verified against reviewed source and whose storage layout matches the live layout; never a hard-coded address carried over from an earlier incident.
+
+The per-version upgrade modules (`Game2048Upgrade.ts`, `Game2048UpgradeV2.ts`…`V5.ts`, `Game2048V6Upgrade.ts`) were removed: each deployed the current source and called `upgradeToAndCall` on the hard-coded live proxy, so running one by mistake would upgrade production. They remain in git history (for example `git show e9cb804b:ignition/modules/Game2048V6Upgrade.ts`). Ignition's mainnet journal (`ignition/deployments/chain-42220/`) records the upgrades that were run through Ignition; the proxy's `Upgraded` events are the complete upgrade history.
 
 ### Post-Deploy Setup (Development)
 
@@ -583,7 +613,6 @@ The frontend is configured for Vercel via `vercel.json` with Next.js framework p
 | `scripts/analytics/exportLeaderboard.ts` | Export onchain leaderboard to JSON |
 | `scripts/admin/seedLeaderboard.ts` | Seed leaderboard from exported JSON |
 | `scripts/admin/testSeedLocal.ts` | Test `seedLeaderboard()` on local hardhat network |
-| `scripts/admin/rollbackV5.ts` | Roll proxy back to pre-V5 implementation |
 
 ---
 
@@ -593,7 +622,7 @@ The frontend is configured for Vercel via `vercel.json` with Next.js framework p
 
 **V3: Corrected G$ token address** — The initial `initialize()` committed a typo'd G$ address (`…462A4e`) on Celo that had no deployed code. `submitScore` would revert when trying to pay rewards. Fix: V3 upgrade added `setTokens()` and try/catch around all token interactions.
 
-**V5 Rollback** — A V5 implementation was deployed that used a storage layout mismatched with the existing proxy's storage. This caused all state reads (XP, username, bestScore) to return garbage. Fix: `scripts/admin/rollbackV5.ts` re-pointed the proxy to the known-good V3 implementation at `0x6b730fbfe0c7bbc8b308c9963d2ecec4064910dd`.
+**V5 Rollback** — A V5 implementation was deployed that used a storage layout mismatched with the existing proxy's storage. This caused all state reads (XP, username, bestScore) to return garbage. Fix: `scripts/admin/rollbackV5.ts` re-pointed the proxy to the V4 implementation at `0x6b730fbfe0c7bbc8b308c9963d2ecec4064910dd` (on-chain usernames, commit `c22b8be8`; its bytecode matches that commit built with the optimizer). The script has since been removed: it hard-coded that V4 target, and the live V6 layout has `leaderboardSeeded` at slot 36 where V4 expects `xp`, so every later variable is off by one. Running it today would downgrade the live proxy and repeat the same misread failure in reverse. It remains in git history, but must not be used for a future rollback (see [Upgrading the live proxy](#upgrading-the-live-proxy)).
 
 ---
 
@@ -615,11 +644,7 @@ blockslide/
 ├── ignition/
 │   ├── modules/
 │   │   ├── Game2048.ts              # Production deployment (Celo mainnet)
-│   │   ├── Game2048Dev.ts           # Dev deployment (mocks + proxy)
-│   │   ├── Game2048Upgrade.ts       # V1 upgrade
-│   │   ├── Game2048UpgradeV2.ts     # V2: shop, XP, combos
-│   │   ├── Game2048UpgradeV3.ts     # V3: fix G$ address, try/catch
-│   │   └── Game2048UpgradeV4.ts     # V4: onchain usernames
+│   │   └── Game2048Dev.ts           # Dev deployment (mocks + proxy)
 │   ├── deployments/
 │   │   ├── chain-42220/             # Celo mainnet deployments
 │   │   └── chain-11142220/          # Celo Sepolia (dev) deployments
@@ -630,7 +655,6 @@ blockslide/
 │   ├── exportLeaderboard.ts         # Export onchain leaderboard
 │   ├── seedLeaderboard.ts           # Seed from exported data
 │   ├── testSeedLocal.ts             # Test seedLeaderboard locally
-│   ├── rollbackV5.ts                # Emergency rollback script
 │   └── send-op-tx.ts                # OP-chain type test
 ├── subgraph/
 │   ├── schema.graphql               # Player entity schema

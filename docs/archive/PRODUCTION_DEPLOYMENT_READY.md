@@ -103,7 +103,11 @@ Total lines added: ~6,700 code + documentation
 ### Deployment Steps (Ready to Execute)
 
 #### 1. Contract Deployment
+
+> **Historical — do not run.** `ignition/modules/Game2048V6Upgrade.ts` has been removed from the repository and is no longer available; V6 is already live. The command below is kept only as a record.
+
 ```bash
+# HISTORICAL — DO NOT RUN: ignition/modules/Game2048V6Upgrade.ts has been removed.
 npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts \
   --network celo \
   --verify
@@ -298,7 +302,7 @@ Ready for:
 ## Next Steps (Owner/DevOps)
 
 1. **Execute Contract Deployment** (if approved)
-   - Run: `npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts --network celo --verify`
+   - Historical command — do not run; `ignition/modules/Game2048V6Upgrade.ts` has been removed and is no longer available: `npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts --network celo --verify`
    - Verify: Check implementation pointer changed
    - Initialize: Set V6 shop prices
 

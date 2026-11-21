@@ -176,7 +176,7 @@ Changes committed:
 
 ### Immediate Action (Owner/DevOps)
 1. **Deploy Contract V6** to Celo Mainnet
-   - Command: `npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts --network celo --verify`
+   - Historical command — do not run; `ignition/modules/Game2048V6Upgrade.ts` has been removed and is no longer available: `npx hardhat ignition deploy ./ignition/modules/Game2048V6Upgrade.ts --network celo --verify`
    - Time: ~10-15 minutes
 
 2. **Promote Subgraph** to production

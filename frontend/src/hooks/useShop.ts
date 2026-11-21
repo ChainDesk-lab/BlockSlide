@@ -12,7 +12,7 @@ import { classifyTxError } from "../lib/txErrors";
 import { useNoGas } from "../contexts/NoGasContext";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
 import { cosmeticPriceFromRead, toPriceRead, type CosmeticPrice } from "../lib/shopPrice";
-import { contributionsFromReceipt } from "../lib/ubiContribution";
+import { confirmedContributionTotal } from "../lib/ubiContribution";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
@@ -149,10 +149,10 @@ export function useShop() {
           setError("Transaction failed — please check your balance and try again.");
           return false;
         }
-        // Only report a contribution the receipt actually contains.
+        // Only report a contribution the receipt actually contains, and only for a
+        // successful transaction (confirmedContributionTotal checks the status again).
         if (address) {
-          const found = contributionsFromReceipt(receipt.logs, GAME2048_ADDRESS, address);
-          const amount = found.reduce((sum, c) => sum + c.contribution, 0n);
+          const amount = confirmedContributionTotal(receipt, GAME2048_ADDRESS, address);
           if (amount > 0n) setLastUbiContribution({ amount, txHash: hash });
         }
       } catch (receiptErr) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, Vm } from "forge-std/Test.sol";
 import { Game2048 } from "./Game2048.sol";
 import { MockERC20 } from "./test/MockERC20.sol";
 import { MockIdentity } from "./test/MockIdentity.sol";
@@ -14,16 +14,22 @@ contract Game2048Test is Test {
     MockIdentity id;
 
     address alice = makeAddr("alice");
+    // Stand-in for the GoodDollar UBIScheme that receives the 5% contribution.
+    address ubi   = makeAddr("ubi");
     address bob   = makeAddr("bob");
 
     bytes32 constant SEED      = bytes32(uint256(0xdeadbeef));
     bytes32 immutable SEED_HASH = keccak256(abi.encodePacked(SEED));
 
+    // Mirrors Game2048's private claimedMilestones bits.
+    uint8 constant MILESTONE_256 = 1 << 0;
+    uint8 constant MILESTONE_512 = 1 << 1;
+
     function setUp() public {
         token = new MockERC20();
         id    = new MockIdentity();
 
-        Game2048 impl = new Game2048();
+        Game2048 impl = new Game2048(ubi);
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(impl),
             abi.encodeCall(Game2048.initialize, (address(token), address(id)))
@@ -53,11 +59,31 @@ contract Game2048Test is Test {
         _submit(player, tile * 4, tile, 0);
     }
 
+    /// Starts a session without verifying the player in the identity mock.
+    function _startUnverified(address player) internal {
+        assertFalse(id.isWhitelisted(player), "fixture: player must be unverified");
+        vm.prank(player);
+        game.startSession(SEED_HASH);
+    }
+
     // ─── startSession ─────────────────────────────────────────────────────────
 
-    function test_StartSession_RevertsIfNotWhitelisted() public {
+    // Since V6 (7a45b143) anyone can start and play; only G$ milestone rewards
+    // require GoodDollar verification (_payMilestoneRewards).
+    function test_StartSession_AllowsUnverifiedPlayer() public {
+        vm.expectEmit(true, false, false, false, address(game));
+        emit Game2048.SessionStarted(alice);
+        _startUnverified(alice);
+
+        Game2048.Session memory s = game.getSession(alice);
+        assertTrue(s.active);
+        assertEq(s.seedHash, SEED_HASH);
+    }
+
+    function test_StartSession_UnverifiedStillCannotOpenASecondSession() public {
+        _startUnverified(alice);
         vm.prank(alice);
-        vm.expectRevert(Game2048.NotVerifiedHuman.selector);
+        vm.expectRevert(Game2048.SessionAlreadyActive.selector);
         game.startSession(SEED_HASH);
     }
 
@@ -367,6 +393,82 @@ contract Game2048Test is Test {
         uint256 before = token.balanceOf(alice);
         _playAndSubmit(alice, 2048);
         assertEq(token.balanceOf(alice), before);
+    }
+
+    // ─── Identity gate on rewards ─────────────────────────────────────────────
+
+    function test_Reward_UnverifiedPlayerScoresButIsNotPaid() public {
+        uint256 playerBefore   = token.balanceOf(alice);
+        uint256 treasuryBefore = token.balanceOf(address(game));
+
+        _startUnverified(alice);
+        vm.recordLogs();
+        _submit(alice, 8192, 2048, 0);
+
+        // The score is accepted and recorded...
+        assertFalse(game.getSession(alice).active, "session closed");
+        assertEq(game.bestScore(alice), 8192);
+        assertEq(game.bestTile(alice), 2048);
+        assertGt(game.xp(alice), 0, "xp still earned");
+        // ...but no G$ moves and no milestone is used up.
+        assertEq(token.balanceOf(alice), playerBefore, "player not paid");
+        assertEq(token.balanceOf(address(game)), treasuryBefore, "treasury unchanged");
+        assertEq(game.claimedMilestones(alice), 0, "no milestone marked claimed");
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 rewardPaid = keccak256("RewardPaid(address,uint32,uint256)");
+        bytes32 scoreSubmitted = keccak256("ScoreSubmitted(address,uint256,uint32)");
+        bool sawScore;
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != rewardPaid, "no RewardPaid event");
+            if (logs[i].topics[0] == scoreSubmitted) sawScore = true;
+        }
+        assertTrue(sawScore, "ScoreSubmitted emitted");
+    }
+
+    function test_Reward_VerifiedPlayerIsPaid() public {
+        id.whitelist(alice);
+        uint256 before = token.balanceOf(alice);
+        vm.prank(alice);
+        game.startSession(SEED_HASH);
+
+        vm.expectEmit(true, false, false, true, address(game));
+        emit Game2048.RewardPaid(alice, 256, game.REWARD_256());
+        _submit(alice, 1024, 256, 0);
+
+        assertEq(token.balanceOf(alice) - before, game.REWARD_256());
+        assertEq(game.claimedMilestones(alice), MILESTONE_256);
+    }
+
+    function test_Reward_UnpaidMilestoneIsClaimableAfterVerifying() public {
+        _startUnverified(alice);
+        _submit(alice, 1024, 256, 0);
+        assertEq(game.claimedMilestones(alice), 0);
+
+        uint256 before = token.balanceOf(alice);
+        _playAndSubmit(alice, 256); // whitelists alice first
+        assertEq(token.balanceOf(alice) - before, game.REWARD_256());
+    }
+
+    function test_Reward_StopsWhenVerificationIsRevoked() public {
+        _playAndSubmit(alice, 256);
+        uint256 afterVerifiedGame = token.balanceOf(alice);
+
+        id.blacklist(alice);
+        vm.prank(alice);
+        game.startSession(SEED_HASH);
+        _submit(alice, 2048, 512, 0);
+
+        assertEq(token.balanceOf(alice), afterVerifiedGame, "no reward once revoked");
+        assertEq(game.claimedMilestones(alice) & MILESTONE_512, 0, "512 not marked claimed");
+    }
+
+    function test_SubmitScore_UnverifiedStillChecksTheSeed() public {
+        _startUnverified(alice);
+        vm.prank(alice);
+        vm.expectRevert(Game2048.InvalidSeed.selector);
+        game.submitScore(1000, 256, 100, bytes32(uint256(0xbadbeef)), 0);
+        assertTrue(game.getSession(alice).active, "rejected submit leaves the session open");
     }
 
     // ─── Leaderboard ──────────────────────────────────────────────────────────

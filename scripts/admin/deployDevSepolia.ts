@@ -24,9 +24,10 @@ async function main() {
   const mockIdentity = await viem.deployContract("MockIdentity", []);
   console.log("   ✓ MockIdentity:", mockIdentity.address);
 
-  // Deploy Game2048 implementation
+  // Deploy Game2048 implementation. On this dev network the UBI contribution
+  // recipient is the deployer: the G$ here is a mock, so nothing real moves.
   console.log("\n📦 Deploying Game2048 implementation…");
-  const impl = await viem.deployContract("Game2048", []);
+  const impl = await viem.deployContract("Game2048", [deployerAddr]);
   console.log("   ✓ Game2048 impl:", impl.address);
 
   // Encode initialization data using ethers
@@ -40,7 +41,7 @@ async function main() {
 
   // Deploy ERC1967Proxy
   console.log("\n📦 Deploying ERC1967Proxy…");
-  const proxy = await viem.deployContract("ERC1967Proxy", [impl.address, initData]);
+  const proxy = await viem.deployContract("ERC1967Proxy", [impl.address, initData as `0x${string}`]);
   console.log("   ✓ ERC1967Proxy (Game2048 proxy):", proxy.address);
 
   // Verify game contract is initialized
