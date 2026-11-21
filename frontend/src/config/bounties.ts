@@ -1,3 +1,29 @@
+/** One prize place: a dollar-equivalent amount, paid in G$ (no token quantity is implied). */
+export interface PrizePlace {
+  place: number; // 1-based
+  usd: number;
+}
+
+/**
+ * Winner rules a bounty can opt into. Without rules, a bounty keeps the original behaviour (top
+ * five by XP earned in the window). With rules, the API checks what it can on-chain and lists
+ * the rest as checks the team makes before paying out (see lib/bountyEligibility).
+ */
+export interface BountyRules {
+  /** Winners must pass GoodDollar's Identity.isWhitelisted, read on-chain. */
+  goodDollarVerified?: boolean;
+  /** Winners need at least this many successful Shop purchases inside the bounty window. */
+  minPurchases?: number;
+  /** Requirements the app can't check (for example an X follow); the team confirms them. */
+  manualChecks?: string[];
+}
+
+/** An eligibility requirement and who checks it: the app (on-chain or leaderboard) or the team. */
+export interface EligibilityItem {
+  text: string;
+  check: "on-chain" | "leaderboard" | "team";
+}
+
 export interface Bounty {
   id: string;
   title: string;
@@ -7,6 +33,20 @@ export interface Bounty {
   prizes: string;
   howToParticipate: string[];
   winnerCriteria: string;
+  /** Optional per-place prizes, shown as a table. */
+  prizeTable?: PrizePlace[];
+  /** Optional eligibility requirements, shown as their own list with how each one is checked. */
+  eligibility?: EligibilityItem[];
+  rules?: BountyRules;
+  /** Time zone the bounty is announced in, for display (times are stored in UTC). */
+  timeZone?: { iana: string; label: string };
+  /**
+   * Exact window: the start is inclusive and the end exclusive, and both are resolved to exact
+   * blocks (the first block at or after each time), so XP and purchases count only in blocks
+   * timestamped at or after the start and before the end. Without it a bounty keeps the original
+   * rule: the end instant is still live, and each boundary uses the block nearest in time.
+   */
+  exactWindow?: boolean;
 }
 
 // Bounty times: Aug 1 2026 12:00 PM WAT (UTC+1) = 2026-08-01T11:00:00Z
@@ -73,6 +113,46 @@ export const bounties: Bounty[] = [
     ],
     winnerCriteria: "Top 5 verified players by XP earned during the bounty period",
   },
+  // Season 5 Leaderboard Race: 21 Nov 2026 1:00 PM WAT (UTC+1) = 2026-11-21T12:00:00Z,
+  // to 26 Nov 2026 1:00 PM WAT = 2026-11-26T12:00:00Z (5 days). Fresh standings: XP earned
+  // inside the window only; the main leaderboard keeps every player's full XP as before.
+  {
+    id: "bounty-4",
+    title: "Season 5 Leaderboard Race",
+    description: "Five days, a fresh leaderboard: everyone starts the race at 0 XP. The XP you earn during the race counts here and on the main leaderboard, exactly as usual.",
+    startTime: "2026-11-21T12:00:00Z",
+    endTime: "2026-11-26T12:00:00Z",
+    prizes: "$30 equivalent in G$",
+    prizeTable: [
+      { place: 1, usd: 10 },
+      { place: 2, usd: 7 },
+      { place: 3, usd: 5 },
+      { place: 4, usd: 5 },
+      { place: 5, usd: 3 },
+    ],
+    howToParticipate: [
+      "Sign in on blockslide.app with email or a wallet",
+      "Verify your identity with GoodDollar (one face, one wallet)",
+      "Play during the race: all the XP you earn counts",
+      "Make at least 10 Shop purchases during the race",
+      "Follow @ImmanuelOlivia1 on X",
+    ],
+    eligibility: [
+      { text: "Follow @ImmanuelOlivia1 on X", check: "team" },
+      { text: "Be GoodDollar verified", check: "on-chain" },
+      { text: "Complete at least 10 qualifying BlockSlide Shop purchases during the race", check: "on-chain" },
+      { text: "Finish in the top five eligible players on the race leaderboard", check: "leaderboard" },
+    ],
+    rules: {
+      goodDollarVerified: true,
+      minPurchases: 10,
+      manualChecks: ["Follows @ImmanuelOlivia1 on X"],
+    },
+    winnerCriteria: "The five highest-ranked eligible players by XP earned during the race",
+    timeZone: { iana: "Africa/Lagos", label: "WAT" },
+    // Start inclusive (13:00:00 WAT counts), end exclusive (13:00:00 WAT on 26 Nov doesn't).
+    exactWindow: true,
+  },
 ];
 
 export function getBountyStatus(bounty: Bounty, now: Date = new Date()): "upcoming" | "live" | "ended" {
@@ -80,6 +160,6 @@ export function getBountyStatus(bounty: Bounty, now: Date = new Date()): "upcomi
   const endTime = new Date(bounty.endTime);
 
   if (now < startTime) return "upcoming";
-  if (now <= endTime) return "live";
+  if (bounty.exactWindow ? now < endTime : now <= endTime) return "live";
   return "ended";
 }

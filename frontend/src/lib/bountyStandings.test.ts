@@ -30,12 +30,12 @@ describe("Bounty 1 keeps its original data", () => {
       winnerCriteria: "Top 5 verified players by XP earned during the bounty period",
     });
     expect(b1.howToParticipate).toHaveLength(6);
-    expect(bounties.map((b) => b.id)).toEqual(["bounty-1", "bounty-2", "bounty-3"]);
+    expect(bounties.map((b) => b.id)).toEqual(["bounty-1", "bounty-2", "bounty-3", "bounty-4"]);
   });
 
   it("is numbered and listed on the page with the other completed bounties", () => {
     const pub = bounties.map((b, i) => toPublicBounty(b, i, "ended", { phase: "final", winners: [], participants: 0 }));
-    expect(pub.map((b) => b.number)).toEqual([1, 2, 3]);
+    expect(pub.map((b) => b.number)).toEqual([1, 2, 3, 4]);
     const html = renderToStaticMarkup(createElement(PastBountyCard, { bounty: pub[0] }));
     expect(html).toContain("Bounty #1");
     expect(html).toContain("BlockSlide Launch Bounty");

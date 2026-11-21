@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { bounties, getBountyStatus } from "../../src/config/bounties";
 import { useBounties } from "../../src/hooks/useBounties";
-import { BountyStandings, PastBountyCard, fmtBountyWindow } from "../../src/components/BountyPanels";
+import { BountyStandings, EligibilityList, PastBountyCard, PrizeTable, fmtBountyWindow } from "../../src/components/BountyPanels";
 import { toPublicBounty, type PublicBounty } from "../../src/lib/bountyStandings";
 
 function UpcomingBountyCard({ bounty }: { bounty: PublicBounty }) {
@@ -127,7 +127,32 @@ export default function BountyPage() {
               <span className="bounty-card__info-value">{fmtBountyWindow(currentBounty)}</span>
             </div>
           )}
+          {status !== "ended" && currentBounty.timeZone && (
+            <div className="bounty-card__info-item">
+              <span className="bounty-card__info-label">Runs</span>
+              <span className="bounty-card__info-value">{fmtBountyWindow(currentBounty)}</span>
+            </div>
+          )}
         </div>
+
+        {currentBounty.prizeTable && (
+          <div className="bounty-card__section">
+            <h3 className="bounty-card__section-title">Prize Distribution</h3>
+            <PrizeTable table={currentBounty.prizeTable} />
+          </div>
+        )}
+
+        {currentBounty.eligibility && (
+          <div className="bounty-card__section">
+            <h3 className="bounty-card__section-title">Eligibility to Win</h3>
+            <EligibilityList items={currentBounty.eligibility} />
+            <p className="bounty-card__fineprint">
+              The race leaderboard starts everyone at 0 XP and counts only XP earned during the race. Your main leaderboard XP
+              isn&apos;t reset or changed. Scores are sent by the game app and the contract doesn&apos;t verify them, so the team
+              reviews the leading players&apos; games before confirming any winner.
+            </p>
+          </div>
+        )}
 
         <div className="bounty-card__section">
           <h3 className="bounty-card__section-title">How to Participate</h3>
@@ -146,7 +171,7 @@ export default function BountyPage() {
         {/* Live: current standings. Completed: the five winners only (the API sends nothing more). */}
         {status !== "upcoming" && (
           <div className="bounty-card__section bounty-card__section--leaderboard">
-            <BountyStandings standings={currentBounty.standings} loading={standingsLoading} />
+            <BountyStandings standings={currentBounty.standings} loading={standingsLoading} bounty={currentBounty} />
           </div>
         )}
       </div>
