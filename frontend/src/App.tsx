@@ -555,7 +555,7 @@ function FeatureNotificationRenderer({
           <>
             Support BlockSlide by voting on{" "}
             <a
-              href="https://flowstate.network/flow-councils/42220/0x582e3314d4ef56c18930acb10bb64313525e7820"
+              href="https://flowstate.network/flow-councils/42220/0x889e0aadaa3f8b28a794ef70da147827c620a590"
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: "inherit", textDecoration: "underline" }}

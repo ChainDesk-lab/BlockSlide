@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-const FLOWSTATE_VOTE_URL = "https://flowstate.network/flow-councils/42220/0x582e3314d4ef56c18930acb10bb64313525e7820";
+const FLOWSTATE_VOTE_URL = "https://flowstate.network/flow-councils/42220/0x889e0aadaa3f8b28a794ef70da147827c620a590";
 
 interface VotingReminder {
   lastShownAt: number; // timestamp
