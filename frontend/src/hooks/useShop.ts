@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { maxUint256 } from "viem";
+import { maxUint256, encodeFunctionData, toHex, type Abi } from "viem";
 import { useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
 import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
@@ -13,6 +13,8 @@ import { useNoGas } from "../contexts/NoGasContext";
 import { COSMETICS_CATALOG } from "../lib/avatarSystem";
 import { cosmeticPriceFromRead, toPriceRead, type CosmeticPrice } from "../lib/shopPrice";
 import { contributionsFromReceipt } from "../lib/ubiContribution";
+import { useAuth } from "../auth/AuthContext";
+import { useSigner } from "./useSigner";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
@@ -26,6 +28,33 @@ export function useShop() {
   const { triggerNoGas } = useNoGas();
 
   const { writeContractAsync } = useWriteContract();
+  const { authType } = useAuth();
+  // Email (Magic) sign-ins have no wagmi connection, so wagmi's writeContract can't
+  // send for them. They go through the same signer the game uses (useSigner) and
+  // eth_sendTransaction, exactly like startSession/submitScore do for Magic.
+  const { signer } = useSigner();
+
+  type WriteRequest = { address: `0x${string}`; abi: Abi | readonly unknown[]; functionName: string; args?: readonly unknown[] };
+  const send = async (req: WriteRequest): Promise<`0x${string}`> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (authType !== "magic") return writeContractAsync(req as any);
+    if (!signer || !address || !publicClient) {
+      throw new Error("Your wallet is still connecting. Please wait a moment and try again.");
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = encodeFunctionData({ abi: req.abi as Abi, functionName: req.functionName, args: req.args } as any);
+    // Estimating first surfaces a revert (e.g. not enough G$) before the wallet is asked.
+    const [gas, gasPrice] = await Promise.all([
+      publicClient.estimateGas({ account: address, to: req.address, data }),
+      publicClient.getGasPrice(),
+    ]);
+    // Legacy gasPrice tx with a 20% margin, the same shape the game sends through Magic.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (await (signer as any).request({
+      method: "eth_sendTransaction",
+      params: [{ from: address, to: req.address, data, gas: toHex((gas * 12n) / 10n), gasPrice: toHex((gasPrice * 12n) / 10n) }],
+    })) as `0x${string}`;
+  };
   const undo = useUndoAvailability();
   const [pendingAction, setPendingAction] = useState<ShopAction>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
@@ -192,7 +221,7 @@ export function useShop() {
 
   const approve = () =>
     run("approve", () =>
-      writeContractAsync({
+      send({
         address: G_DOLLAR_ADDRESS,
         abi: ERC20_ABI,
         functionName: "approve",
@@ -202,7 +231,7 @@ export function useShop() {
 
   const buyShield = () =>
     run("shield", () =>
-      writeContractAsync({
+      send({
         address: GAME2048_ADDRESS,
         abi: GAME2048_ABI,
         functionName: "buyStreakShield",
@@ -211,7 +240,7 @@ export function useShop() {
 
   const buyBoost = (multiplier: 2 | 5) =>
     run(multiplier === 2 ? "boost2" : "boost5", () =>
-      writeContractAsync({
+      send({
         address: GAME2048_ADDRESS,
         abi: GAME2048_MERGED_ABI,
         functionName: "buyXpBoost",
@@ -226,7 +255,7 @@ export function useShop() {
       return Promise.resolve(false);
     }
     return run("undo", () =>
-      writeContractAsync({
+      send({
         address: GAME2048_ADDRESS,
         abi: GAME2048_MERGED_ABI,
         functionName: "buyUndoMove",
@@ -240,7 +269,7 @@ export function useShop() {
 
   const buyCosmetic = (itemId: number) =>
     run("cosmetic", () =>
-      writeContractAsync({
+      send({
         address: GAME2048_ADDRESS,
         abi: GAME2048_MERGED_ABI,
         functionName: "buyCosmetic",

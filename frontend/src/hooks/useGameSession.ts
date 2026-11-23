@@ -126,7 +126,12 @@ export function useGameSession() {
     abi: GAME2048_ABI,
     functionName: "getSession",
     args: address ? [address] : undefined,
-    query: { enabled: !!address && contractDeployed && !isWrongChain },
+    query: {
+      enabled: !!address && contractDeployed && !isWrongChain,
+      // While a start is in flight, poll the chain so the session is seen as live
+      // even if the receipt watcher never reports back (Submit depends on it).
+      refetchInterval: phase === "starting" ? 4_000 : false,
+    },
   });
 
   const phaseRef = useRef(phase);
@@ -145,7 +150,10 @@ export function useGameSession() {
       return;
     }
     if (onChainSession?.active) {
-      if (phaseRef.current === "idle" || phaseRef.current === "done") {
+      // "starting" included: if the chain already shows the session live, the
+      // start went through, whether or not the receipt watcher has fired.
+      if (phaseRef.current === "idle" || phaseRef.current === "done" || phaseRef.current === "starting") {
+        if (phaseRef.current === "starting") pendingActionRef.current = null;
         setPhase("active");
       }
     } else if (phaseRef.current === "active") {

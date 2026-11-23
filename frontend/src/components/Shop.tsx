@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useReadContract } from "wagmi";
+import { useAuth } from "../auth/AuthContext";
 import { useSearchParams } from "next/navigation";
 import { useShop } from "../hooks/useShop";
 import { useContractAddress } from "../hooks/useContractData";
@@ -60,9 +61,9 @@ const COSMETIC_DESC: Record<string, string> = {
 };
 
 export default function Shop() {
-  // Purchases are sent through wagmi, so they need a connected browser wallet. An email (Magic)
-  // sign-in has no wagmi connection: it can see the shop and its prices but not buy yet.
-  const { isConnected: walletConnected } = useAccount();
+  // Any signed-in wallet can buy: browser wallets send through wagmi, email (Magic)
+  // sign-ins through the same signer the game uses (see useShop's send).
+  const { isConnected: walletConnected } = useAuth();
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const [activeCategory, setActiveCategory] = useState<ShopCategory>(() => shopCategoryFromParam(searchParams.get("category")));
@@ -144,7 +145,7 @@ export default function Shop() {
       <span className="shop-card__ubi">incl. {fmtGExact(ubiContributionFor(price, ubi.bps))} for UBI</span>
     ) : null;
 
-  const walletNeeded: BuyButtonState = { label: "Browser wallet needed", variant: "disabled", disabled: true, action: null, busy: false };
+  const walletNeeded: BuyButtonState = { label: "Connect a wallet", variant: "disabled", disabled: true, action: null, busy: false };
 
   /** The existing purchase rules, now as a card button state (see lib/shopState). */
   const button = (priceRead: PriceRead, pendingKey: NonNullable<typeof pendingAction>, o: { quantity?: bigint; listed?: boolean; owned?: boolean } = {}): BuyButtonState => {
@@ -198,7 +199,7 @@ export default function Shop() {
 
       {!walletConnected && (
         <p className="shop__wallet-note" role="note">
-          Purchases need a browser wallet such as MetaMask. You can browse the shop with your email sign-in, but buying isn&apos;t available for it yet.
+          Sign in to buy. Email sign-in and browser wallets such as MetaMask both work.
         </p>
       )}
       {ubiNote}
