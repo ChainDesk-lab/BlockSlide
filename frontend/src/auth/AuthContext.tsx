@@ -12,7 +12,11 @@ export type AuthType = "minipay" | "magic" | null;
  * SDK hooks directly.
  */
 export interface AuthValue {
-  /** Fully authenticated: a usable wallet address is connected. */
+  /**
+   * Fully authenticated: a usable wallet address is connected. For a browser wallet this also
+   * means it has been verified on Celo (see useNetworkGuard); while it is still being set up,
+   * `address` can be present with `isConnected` false.
+   */
   isConnected: boolean;
   address?: `0x${string}`;
   /** Underlying SDK/connector is ready to accept a login. */

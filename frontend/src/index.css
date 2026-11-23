@@ -5459,6 +5459,70 @@ html.dark-mode {
 .htp-label__icon { vertical-align: -2px; margin-right: 4px; }
 .game-overlay__icon { vertical-align: -3px; margin-right: 6px; }
 
+/* ─── Wallet setup (Celo onboarding) ──────────────────────────────────────────
+   The three stages on the sign-in card (Connecting wallet, Setting up Celo, Wallet ready) and
+   the header chip while a browser wallet is being set up. Theme tokens only, so light and dark
+   both follow the theme with no rules of their own. */
+.wallet-setup { display: flex; flex-direction: column; gap: 12px; margin: 0 0 16px; }
+.wallet-setup__stages {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+}
+.wallet-setup__stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; text-align: center; }
+/* The line between two markers (28px wide, 8px grid gap), coloured once the stage before it is done. */
+.wallet-setup__stage + .wallet-setup__stage::before {
+  content: ""; position: absolute; top: 13px; left: calc(9px - 50%); right: calc(50% + 17px);
+  height: 2px; border-radius: 2px; background: var(--border);
+}
+.wallet-setup__stage--done + .wallet-setup__stage::before { background: var(--tone-success); }
+.wallet-setup__marker {
+  position: relative; z-index: 1; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  font-family: var(--font-display); font-size: 0.8rem; font-weight: 700; line-height: 1;
+  color: var(--text-muted); background: var(--surface-2); border: 2px solid var(--border);
+}
+.wallet-setup__stage--current .wallet-setup__marker {
+  color: var(--brand-400); border-color: var(--brand-400); background: color-mix(in srgb, var(--brand-400) 14%, var(--surface-2));
+}
+.wallet-setup__stage--done .wallet-setup__marker { color: var(--surface); background: var(--tone-success); border-color: var(--tone-success); }
+.wallet-setup__stage--attention .wallet-setup__marker {
+  color: var(--tone-warning); border-color: var(--tone-warning); background: color-mix(in srgb, var(--tone-warning) 14%, var(--surface-2));
+}
+.wallet-setup__label { font-size: 0.78rem; font-weight: 600; line-height: 1.25; color: var(--text-muted); overflow-wrap: anywhere; }
+.wallet-setup__stage--current .wallet-setup__label,
+.wallet-setup__stage--attention .wallet-setup__label,
+.wallet-setup__stage--done .wallet-setup__label { color: var(--text); }
+.wallet-setup__spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--brand-400) 30%, transparent); border-top-color: var(--brand-400);
+  animation: spin 0.8s linear infinite;
+}
+.wallet-setup__status { margin: 0; font-size: 0.9rem; line-height: 1.45; color: var(--text); text-align: center; }
+.wallet-setup__hint { margin: -4px 0 0; font-size: 0.8rem; line-height: 1.4; color: var(--text-muted); text-align: center; }
+.notice__actions .btn.wallet-setup__alt { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.notice__actions .btn.wallet-setup__alt:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 8%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .wallet-setup__spinner, .wallet-button__spinner { animation-duration: 2.4s; }
+}
+
+/* Header chip while the wallet isn't on Celo yet: a spinner while we wait on the wallet, an amber
+   dot when the player needs to act. */
+.wallet-button--setup { gap: 8px; }
+.wallet-button__setup-label { font-weight: 600; }
+.wallet-button__dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--tone-warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone-warning) 25%, transparent);
+}
+.wallet-button__spinner {
+  width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor;
+  animation: spin 0.8s linear infinite;
+}
+.header__actions .wallet-button-container > button.wallet-button--attention,
+html.light-mode .header__actions .wallet-button-container > button.wallet-button--attention {
+  border-color: color-mix(in srgb, var(--tone-warning) 65%, transparent);
+}
+.wallet-dropdown__note { margin: 0; font-size: 0.85rem; line-height: 1.45; color: var(--text); }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Light mode (reference frames: cool grey page, white chrome, grey cards).
    Light-only: every rule below is scoped to html.light-mode, or to a system

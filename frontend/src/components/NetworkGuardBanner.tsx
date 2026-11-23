@@ -1,44 +1,40 @@
 import { useNetworkGuard } from "../hooks/useNetworkGuard";
+import { FAILURE_COPY } from "../lib/celoOnboarding";
 import Notice from "./Notice";
 
 /**
- * Fallback for when the automatic Celo switch doesn't complete — almost always
- * because the user dismissed the wallet prompt. The guard prompts on its own
- * first, so this only appears after an attempt has settled and left the wallet
- * on the wrong chain.
+ * Shown on any page when a connected browser wallet still isn't on Celo and needs the player:
+ * a declined switch, a wallet that can't switch, one that moved off Celo again, and so on. The
+ * guard prompts on its own first, so this only appears once an attempt has settled. On the
+ * sign-in screen the setup view says the same thing, so this stays hidden there.
  */
 export function NetworkGuardBanner() {
-  const { isWrongNetwork, switchPending, switchError, hasAttempted, retrySwitch } =
-    useNetworkGuard();
+  const { status, failure, surfaceVisible, retrySwitch, disconnectWallet } = useNetworkGuard();
 
-  // While the wallet prompt is open, let the wallet UI speak for itself.
-  // `hasAttempted` keeps the banner from flashing before the first prompt.
-  if (!isWrongNetwork || switchPending || !hasAttempted) {
+  if (status !== "needs-action" || !failure || surfaceVisible) {
     return null;
   }
 
+  const copy = FAILURE_COPY[failure];
   return (
     <div className="network-guard-banner">
       <Notice
         tone="warning"
-        title="Wrong Network"
+        title={copy.title}
         titleAs="h3"
         className="network-guard-banner__content"
         floating
         actions={
           <button
             className="network-guard-banner__button btn btn--sm btn--primary"
-            onClick={retrySwitch}
-            disabled={switchPending}
+            onClick={copy.action === "reconnect" ? disconnectWallet : retrySwitch}
             type="button"
           >
-            {switchPending ? "Switching..." : "Switch to Celo"}
+            {copy.actionLabel}
           </button>
         }
       >
-        <p className="network-guard-banner__message">
-          {switchError ?? "Switch to Celo in your wallet to keep playing."}
-        </p>
+        <p className="network-guard-banner__message">{copy.message}</p>
       </Notice>
     </div>
   );
