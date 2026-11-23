@@ -114,6 +114,7 @@ describe("No emoji as notification icons", () => {
   it.each([
     "Notice.tsx", "ToastContainer.tsx", "FeatureNotification.tsx", "NetworkGuardBanner.tsx",
     "SignInModal.tsx", "GasNeededModal.tsx", "FlowstateVotingModal.tsx", "../App.tsx",
+    "WalletSetupPanel.tsx",
   ])("%s", (f) => {
     const lines = read(f).split("\n").filter((l) => EMOJI.test(l) && !/^\s*(\/\/|\*|console\.)/.test(l));
     expect(lines).toEqual([]);

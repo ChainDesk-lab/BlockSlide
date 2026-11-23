@@ -6,6 +6,10 @@ import Notice from "./Notice";
 
 interface WalletSelectorProps {
   onClose: () => void;
+  /** The player picked a wallet and its connection request is going out. */
+  onConnectStart?: (walletName: string) => void;
+  /** A connection request failed or was declined (not called for the automatic retry). */
+  onConnectError?: (error: unknown) => void;
 }
 
 interface WalletOption {
@@ -51,7 +55,7 @@ type WcEmitter = {
   off: (event: "message", listener: (payload: { type: string; data?: unknown }) => void) => void;
 };
 
-export default function WalletSelector({ onClose }: WalletSelectorProps) {
+export default function WalletSelector({ onClose, onConnectStart, onConnectError }: WalletSelectorProps) {
   const { connect } = useConnect();
   const connectors = useConnectors();
   const { isConnecting, connector: connectedConnector, isConnected, address } = useAccount();
@@ -171,6 +175,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     setReturnedStuck(false);
     leftForWalletRef.current = true;
     setConnectingTo(MOBILE_MM_ID);
+    onConnectStart?.("MetaMask");
 
     const timeoutId = setTimeout(() => {
       setConnectingTo(null);
@@ -195,6 +200,8 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
               "MetaMask didn't connect. Try again, or open BlockSlide in the MetaMask app browser below."
             );
             setReturnedStuck(true);
+          } else {
+            onConnectError?.(error);
           }
         },
       }
@@ -228,7 +235,9 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
 
   // ======================================================================
   //  DESKTOP / injected / in-app-browser path — unchanged from before the
-  //  mobile work. Do not alter.
+  //  mobile work. Do not alter. (The only addition: it reports the start and
+  //  failure of a connection to onConnectStart / onConnectError, so the
+  //  sign-in screen can show progress and explain a declined request.)
   // ======================================================================
   const handleConnectWallet = async (connectorId: string, connectorName: string) => {
     // For injected wallets with the same ID, also match by name to get the right connector
@@ -255,6 +264,7 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
     }
 
     setConnectingTo(connectorId);
+    onConnectStart?.(connectorName);
 
     const hasLiveConnection =
       connectedConnector?.id === connector.id && isConnected && address;
@@ -329,6 +339,8 @@ export default function WalletSelector({ onClose }: WalletSelectorProps) {
             }, 500);
             return;
           }
+
+          onConnectError?.(error);
         },
       }
     );

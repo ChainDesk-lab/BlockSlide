@@ -5,10 +5,13 @@ import { useAuth } from "../auth/AuthContext";
 import { useAuthSelection } from "../contexts/AuthSelectionContext";
 import { useContractPublicClient } from "../hooks/useContractData";
 import { useGDollarBalance } from "../hooks/useGDollarBalance";
+import { useNetworkGuard } from "../hooks/useNetworkGuard";
+import { FAILURE_COPY, setupStatusLine } from "../lib/celoOnboarding";
 import { formatUnits } from "viem";
 
 export default function WalletButton() {
   const { address, logout, authType } = useAuth();
+  const walletSetup = useNetworkGuard();
   const { setSelectedAuth } = useAuthSelection();
   const publicClient = useContractPublicClient();
   const { balance: gDollarBalance, refetch: refetchGDollar } = useGDollarBalance();
@@ -75,6 +78,76 @@ export default function WalletButton() {
 
   if (!address) return null;
 
+  const signOut = async () => {
+    setIsOpen(false);
+    // Reset to email auth tab and clear all state on logout
+    setSelectedAuth("email");
+    await logout();
+  };
+
+  // A browser wallet that isn't verified on Celo yet is not shown as connected: the chip says
+  // what's happening, and its menu offers the one action that helps (and Sign Out).
+  const settingUp = authType === "minipay" && walletSetup.status !== "ready" && walletSetup.status !== "idle";
+  if (settingUp) {
+    const copy = walletSetup.status === "needs-action" && walletSetup.failure ? FAILURE_COPY[walletSetup.failure] : null;
+    const chipLabel = copy
+      ? copy.action === "reconnect" ? "Reconnect wallet" : "Switch to Celo"
+      : walletSetup.status === "connecting" ? "Connecting" : "Setting up Celo";
+    return (
+      <div className="wallet-button-container" ref={containerRef}>
+        <button
+          className={`btn btn--xs wallet-button wallet-button--setup${copy ? " wallet-button--attention" : ""}${isOpen ? " wallet-button--open" : ""}`}
+          onClick={() => setIsOpen(!isOpen)}
+          title={copy ? copy.title : "Setting up your wallet on Celo"}
+          aria-haspopup="true"
+          aria-expanded={isOpen}
+        >
+          {copy ? (
+            <span className="wallet-button__dot" aria-hidden="true" />
+          ) : (
+            <span className="wallet-button__spinner" aria-hidden="true" />
+          )}
+          <span className="wallet-button__setup-label">{chipLabel}</span>
+          <svg className="wallet-button__chevron" width="10" height="10" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+            <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        {isOpen && (
+          <div className="wallet-dropdown">
+            <div className="wallet-dropdown__content">
+              <div className="wallet-dropdown__section">
+                <label className="wallet-dropdown__label">{copy ? copy.title : "Setting up Celo"}</label>
+                <p className="wallet-dropdown__note">{copy ? copy.message : setupStatusLine(walletSetup.status)}</p>
+              </div>
+              {copy && (
+                <button
+                  className="btn btn--sm btn--primary"
+                  onClick={() => {
+                    setIsOpen(false);
+                    if (copy.action === "reconnect") walletSetup.disconnectWallet();
+                    else walletSetup.retrySwitch();
+                  }}
+                >
+                  {copy.actionLabel}
+                </button>
+              )}
+              <div className="wallet-dropdown__section">
+                <label className="wallet-dropdown__label">Wallet Address</label>
+                <div className="wallet-dropdown__value">
+                  <code>{address}</code>
+                </div>
+              </div>
+              <button className="btn btn--sm btn--danger" onClick={signOut}>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
   const balanceShort = parseFloat(celoBalance).toFixed(3);
 
@@ -135,15 +208,7 @@ export default function WalletButton() {
               </div>
             </div>
 
-            <button
-              className="btn btn--sm btn--danger"
-              onClick={async () => {
-                setIsOpen(false);
-                // Reset to email auth tab and clear all state on logout
-                setSelectedAuth("email");
-                await logout();
-              }}
-            >
+            <button className="btn btn--sm btn--danger" onClick={signOut}>
               Sign Out
             </button>
           </div>

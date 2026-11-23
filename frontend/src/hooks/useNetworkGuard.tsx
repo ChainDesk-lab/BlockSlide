@@ -1,233 +1,311 @@
 "use client";
 
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useAccount, useDisconnect } from "wagmi";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { useAccount, useSwitchChain } from "wagmi";
-import { numberToHex } from "viem";
-import { useAuth } from "../auth/AuthContext";
-import { useWalletChainId } from "./useWalletChainId";
-import { TARGET_CHAIN } from "../lib/constants";
+  CELO_CHAIN_ID,
+  FAILURE_COPY,
+  classifyWalletError,
+  createSingleFlight,
+  deriveSetupStatus,
+  ensureCeloChain,
+  type CeloReadiness,
+  type Eip1193Like,
+  type EnsureCeloResult,
+  type SetupFailure,
+  type SetupStatus,
+  type SetupStep,
+} from "../lib/celoOnboarding";
 
 export interface NetworkGuardState {
-  /** Connected external wallet is on a chain other than Celo. */
+  /** Where the connected browser wallet is in setup. "idle" for email sign-ins or no wallet. */
+  status: SetupStatus;
+  /** "connecting" because a saved connection is being restored (after a reload), not a new one. */
+  restoring: boolean;
+  /** Why setup stopped, while it still applies (status "needs-action"). */
+  failure: SetupFailure | null;
+  /** "Wallet ready" is on screen after a setup the player took part in; the app waits for it. */
+  celebrating: boolean;
+  /** The wallet disconnected before setup finished. Cleared by the next connection. */
+  interrupted: boolean;
+  /** Connected browser wallet is on a chain other than Celo. */
   isWrongNetwork: boolean;
-  /** A switch/add prompt is currently open in the wallet. */
+  /** A setup run (check, switch, add or confirm) is in progress. */
   switchPending: boolean;
-  /** Human-readable reason the last attempt failed, or null. */
+  /** Plain-words reason the last attempt failed, or null. */
   switchError: string | null;
-  /** True once an attempt has settled — used to avoid flashing the banner. */
+  /** True once an attempt has settled. */
   hasAttempted: boolean;
+  /** Ask the wallet again (switch, add, or just re-check). Shares a run already in progress. */
   retrySwitch: () => void;
+  /**
+   * For an action the player just took (New Game, Submit, a purchase): resolves { ok: true } once
+   * the browser wallet is on Celo, asking it to switch (or add Celo) first when it is on another
+   * network. Shares a run already in progress, so it never opens a second prompt, and always
+   * settles (see SETUP_TIMEOUTS). Email wallets, and a wallet already on Celo, resolve at once.
+   */
+  ensureCelo: () => Promise<CeloReadiness>;
+  /** Disconnect the browser wallet, e.g. to pick a different one. */
+  disconnectWallet: () => void;
+  dismissInterrupted: () => void;
+  /** Onboarding views register while on screen, so the floating banner doesn't repeat them. */
+  registerSurface: () => () => void;
+  surfaceVisible: boolean;
 }
 
-/**
- * EIP-3085 payload used to register Celo with wallets that don't know it.
- * Values come from the viem chain definition so they can't drift from the
- * chain the app actually talks to.
- */
-const CELO_ADD_CHAIN_PARAMS = {
-  chainId: numberToHex(TARGET_CHAIN.id), // 42220 -> 0xa4ec
-  chainName: TARGET_CHAIN.name,
-  nativeCurrency: TARGET_CHAIN.nativeCurrency, // CELO / CELO / 18
-  rpcUrls: [TARGET_CHAIN.rpcUrls.default.http[0]], // https://forno.celo.org
-  blockExplorerUrls: [
-    TARGET_CHAIN.blockExplorers?.default.url ?? "https://celoscan.io",
-  ],
-};
+/** How long "Wallet ready" stays on screen after a setup the player took part in. */
+export const READY_HOLD_MS = 1_000;
 
-/** EIP-1193 "user rejected request". */
-function isUserRejection(err: any): boolean {
-  const code = err?.code ?? err?.cause?.code;
-  if (code === 4001) return true;
-  if (err?.name === "UserRejectedRequestError") return true;
-  const msg = String(err?.message ?? err).toLowerCase();
-  return msg.includes("user rejected") || msg.includes("user denied");
-}
+/** Automatic switch prompts per connection. After that only the player's own tap asks again. */
+const MAX_AUTO_PROMPTS = 3;
 
-/** EIP-3326 "unrecognized chain" — wallet has no Celo entry yet. */
-function isUnrecognizedChain(err: any): boolean {
-  const code = err?.code ?? err?.cause?.code;
-  // MetaMask Mobile nests the original error.
-  const nested = err?.data?.originalError?.code ?? err?.cause?.data?.originalError?.code;
-  if (code === 4902 || nested === 4902) return true;
-  const msg = String(err?.message ?? err).toLowerCase();
-  return msg.includes("unrecognized chain") || msg.includes("chain is not added");
-}
+const NOOP = () => {};
 
-const NetworkGuardContext = createContext<NetworkGuardState | null>(null);
-
-/** Inert state for trees rendered outside the provider (e.g. SSR). */
+/** Inert state for trees rendered outside the provider (SSR, isolated renders, tests). */
 const INERT: NetworkGuardState = {
+  status: "idle",
+  restoring: false,
+  failure: null,
+  celebrating: false,
+  interrupted: false,
   isWrongNetwork: false,
   switchPending: false,
   switchError: null,
   hasAttempted: false,
-  retrySwitch: () => {},
+  retrySwitch: NOOP,
+  // No guard in this tree, so nothing can be switched: "ok", and shop writes stay pinned to Celo.
+  ensureCelo: async () => ({ ok: true }),
+  disconnectWallet: NOOP,
+  dismissInterrupted: NOOP,
+  registerSurface: () => NOOP,
+  surfaceVisible: false,
 };
 
-/**
- * Keeps external wallets on Celo mainnet.
- *
- * On connect (and any time the wallet moves to another chain) this fires a
- * `wallet_switchEthereumChain` request. If the wallet has never heard of Celo
- * it falls back to `wallet_addEthereumChain` and then switches again, so the
- * user only ever sees wallet prompts — never a "go add this network yourself"
- * instruction. Rejecting a prompt is not an error state: it drops through to
- * the NetworkGuardBanner, which offers a retry.
- *
- * Magic.link email wallets are provisioned on Celo directly and are not wagmi
- * connections at all, so they're skipped on both counts.
- *
- * Mounted once by UnifiedAuthBridge. Consumers read the shared result via
- * useNetworkGuard(); running one instance per consumer would fire a duplicate
- * wallet prompt for every component that asked.
- */
-export function NetworkGuardProvider({ children }: { children: ReactNode }) {
-  const { authType } = useAuth();
-  const { isConnected, connector } = useAccount();
-  const walletChainId = useWalletChainId();
-  const { switchChainAsync } = useSwitchChain();
-
-  const [switchError, setSwitchError] = useState<string | null>(null);
-  const [inFlight, setInFlight] = useState(false);
-  const [hasAttempted, setHasAttempted] = useState(false);
-
-  // Magic.link email wallets never need this. They aren't wagmi connections,
-  // so `isConnected` already excludes them; the authType check keeps the
-  // intent explicit if that ever changes.
-  const isEmbeddedWallet = authType === "magic";
-
-  const isWrongNetwork =
-    !isEmbeddedWallet &&
-    isConnected &&
-    walletChainId !== undefined &&
-    walletChainId !== TARGET_CHAIN.id;
-
-  const switchToCelo = useCallback(async () => {
-    setInFlight(true);
-    setSwitchError(null);
-
-    try {
-      console.log(
-        `[NetworkGuard] Requesting switch from chain ${walletChainId} to Celo (${TARGET_CHAIN.id})...`
-      );
-      // wagmi's injected connector already handles 4902 internally by calling
-      // wallet_addEthereumChain with these params and re-switching, so most
-      // wallets are fully served by this one call.
-      await switchChainAsync({
-        chainId: TARGET_CHAIN.id,
-        addEthereumChainParameter: CELO_ADD_CHAIN_PARAMS,
-      });
-      console.log("[NetworkGuard] Now on Celo");
-      setSwitchError(null);
-      return;
-    } catch (err: any) {
-      if (isUserRejection(err)) {
-        console.log("[NetworkGuard] User declined the switch");
-        setSwitchError("Switch to Celo in your wallet to keep playing.");
-        return;
-      }
-
-      if (!isUnrecognizedChain(err)) {
-        const msg = String(err?.shortMessage ?? err?.message ?? err).slice(0, 120);
-        console.error("[NetworkGuard] Switch failed:", msg);
-        setSwitchError(`Couldn't switch to Celo: ${msg}`);
-        return;
-      }
-
-      // Connector surfaced a raw 4902 instead of handling it (some
-      // WalletConnect wallets, older injected providers). Add Celo ourselves,
-      // then switch again. Uses the connector's own provider so this works for
-      // WalletConnect, not just window.ethereum.
-      console.log("[NetworkGuard] Wallet doesn't know Celo — adding it...");
-      try {
-        const provider: any = await connector?.getProvider();
-        if (!provider?.request) {
-          setSwitchError("Couldn't reach your wallet to add the Celo network.");
-          return;
-        }
-
-        await provider.request({
-          method: "wallet_addEthereumChain",
-          params: [CELO_ADD_CHAIN_PARAMS],
-        });
-        console.log("[NetworkGuard] Celo added — switching...");
-
-        await switchChainAsync({
-          chainId: TARGET_CHAIN.id,
-          addEthereumChainParameter: CELO_ADD_CHAIN_PARAMS,
-        });
-        console.log("[NetworkGuard] Now on Celo");
-        setSwitchError(null);
-      } catch (addErr: any) {
-        if (isUserRejection(addErr)) {
-          console.log("[NetworkGuard] User declined adding Celo");
-          setSwitchError("Add the Celo network in your wallet to keep playing.");
-        } else {
-          const msg = String(addErr?.shortMessage ?? addErr?.message ?? addErr).slice(0, 120);
-          console.error("[NetworkGuard] Add network failed:", msg);
-          setSwitchError(`Couldn't add the Celo network: ${msg}`);
-        }
-      }
-    } finally {
-      setInFlight(false);
-      setHasAttempted(true);
-    }
-  }, [connector, switchChainAsync, walletChainId]);
-
-  // Auto-prompt once per (account, chain) pair. Keying on the pair means a
-  // rejection doesn't spin into a prompt loop, while a wallet that later moves
-  // to some other wrong chain still gets prompted again.
-  const attemptKey = isWrongNetwork ? `${connector?.uid ?? "?"}:${walletChainId}` : null;
-  const attemptedForRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!attemptKey) {
-      attemptedForRef.current = null;
-      return;
-    }
-    if (attemptedForRef.current === attemptKey) return;
-    attemptedForRef.current = attemptKey;
-    void switchToCelo();
-  }, [attemptKey, switchToCelo]);
-
-  // Clear stale failure text once the wallet is back on Celo or disconnects.
-  useEffect(() => {
-    if (!isWrongNetwork) {
-      setSwitchError(null);
-      setHasAttempted(false);
-    }
-  }, [isWrongNetwork]);
-
-  const retrySwitch = useCallback(() => {
-    console.log("[NetworkGuard] Retry requested");
-    void switchToCelo();
-  }, [switchToCelo]);
-
-  const value = useMemo<NetworkGuardState>(
-    () => ({
-      isWrongNetwork,
-      switchPending: inFlight,
-      switchError,
-      hasAttempted,
-      retrySwitch,
-    }),
-    [isWrongNetwork, inFlight, switchError, hasAttempted, retrySwitch]
-  );
-
-  return (
-    <NetworkGuardContext.Provider value={value}>{children}</NetworkGuardContext.Provider>
-  );
-}
+export const NetworkGuardContext = createContext<NetworkGuardState | null>(null);
 
 export function useNetworkGuard(): NetworkGuardState {
   return useContext(NetworkGuardContext) ?? INERT;
+}
+
+/**
+ * Celo onboarding for browser wallets. Called once, by UnifiedAuthBridge, which publishes the
+ * result through NetworkGuardContext and only reports a browser wallet as signed in once this
+ * says "ready" (verified on Celo). One instance on purpose: one per consumer would open a
+ * wallet prompt per consumer.
+ *
+ * As soon as a wallet is connected on another chain, this asks it to switch (adding Celo first
+ * if the wallet doesn't know it) and then confirms the wallet really is on Celo; see
+ * lib/celoOnboarding.ts. It asks on its own once per wallet, account and chain; after a refusal
+ * it waits for the player to tap again, so nobody is prompted in a loop. A wallet that later
+ * moves off Celo is asked once more.
+ *
+ * Email (Magic) wallets are created on Celo and are not wagmi connections, so `enabled` is
+ * false for them and nothing here runs.
+ */
+export function useCeloOnboardingController(enabled: boolean): NetworkGuardState {
+  const { address, connector, chainId, status: accountStatus } = useAccount();
+  const { disconnect } = useDisconnect();
+  const hasAccount = !!address && !!connector;
+  const connectionKey = enabled && hasAccount ? `${connector!.uid}:${address!.toLowerCase()}` : null;
+
+  const [runningStep, setRunningStep] = useState<SetupStep | null>(null);
+  const [failure, setFailure] = useState<SetupFailure | null>(null);
+  const [hasAttempted, setHasAttempted] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
+  // The connection whose "ready" has been handled (held for "Wallet ready", or let straight in).
+  // Until then a ready wallet still counts as held, so the app never flashes in for one render
+  // before the hold starts.
+  const [readyAck, setReadyAck] = useState<string | null>(null);
+  const [interrupted, setInterrupted] = useState(false);
+  const [surfaces, setSurfaces] = useState(0);
+
+  const status = deriveSetupStatus({ enabled, accountStatus, hasAccount, chainId, runningStep, failure });
+
+  // Latest values for work that outlives the render that started it.
+  const live = useRef({ enabled, connector, chainId, connectionKey });
+  live.current = { enabled, connector, chainId, connectionKey };
+
+  const [flight] = useState(() => createSingleFlight<EnsureCeloResult>());
+  const runIdRef = useRef(0);
+  const interactiveRef = useRef(false);
+  const expectDisconnectRef = useRef(false);
+  const autoPromptsRef = useRef(new Map<string, number>());
+  const attemptedRef = useRef(new Set<string>());
+
+  const runSetup = useCallback((): Promise<EnsureCeloResult> => {
+    const { connector: conn, connectionKey: key } = live.current;
+    if (!conn || !key) return Promise.resolve({ ok: false, reason: "disconnected" });
+    // Same connection already being set up: share that run instead of prompting again.
+    return flight.run(key, async () => {
+      const runId = ++runIdRef.current;
+      const current = () => runIdRef.current === runId;
+      interactiveRef.current = true;
+      setFailure(null);
+      setRunningStep("checking");
+      let result: EnsureCeloResult;
+      try {
+        // The connection's own provider, never window.ethereum: with several wallets installed
+        // (EIP-6963) or WalletConnect, that's the only one that reaches the chosen wallet.
+        const provider = (await conn.getProvider()) as Eip1193Like | undefined;
+        result =
+          provider && typeof provider.request === "function"
+            ? await ensureCeloChain(provider, {
+                onStep: (s) => {
+                  if (current()) setRunningStep(s);
+                },
+                isCancelled: () => !current(),
+              })
+            : { ok: false, reason: "unsupported" };
+      } catch (err) {
+        result = { ok: false, reason: classifyWalletError(err) === "disconnected" ? "disconnected" : "failed" };
+      }
+      if (!current()) return { ok: false, reason: "cancelled" }; // the connection changed or went away while we waited
+      if (result.ok) {
+        // The wallet itself just reported Celo. MetaMask can switch without a chainChanged
+        // event, which would leave wagmi (and every hook reading the chain) behind; tell it.
+        if (live.current.chainId !== CELO_CHAIN_ID) conn.emitter.emit("change", { chainId: CELO_CHAIN_ID });
+      } else if (result.reason !== "cancelled") {
+        setFailure(result.reason);
+      }
+      setHasAttempted(true);
+      setRunningStep(null);
+      return result;
+    });
+  }, [flight]);
+
+  // A different connection, or none: drop the previous one's progress and stop its run.
+  useEffect(() => {
+    runIdRef.current++;
+    setRunningStep(null);
+    setFailure(null);
+    setHasAttempted(false);
+    setCelebrating(false);
+  }, [connectionKey]);
+
+  // Connected on another chain with nothing running: ask once, automatically.
+  useEffect(() => {
+    if (status !== "checking" || !connectionKey) return;
+    const situation = `${connectionKey}:${chainId ?? "unknown"}`;
+    const used = autoPromptsRef.current.get(connectionKey) ?? 0;
+    if (attemptedRef.current.has(situation) || used >= MAX_AUTO_PROMPTS) {
+      // Already asked about exactly this: wait for the player instead of prompting again.
+      setFailure("wrong-network");
+      return;
+    }
+    attemptedRef.current.add(situation);
+    autoPromptsRef.current.set(connectionKey, used + 1);
+    void runSetup();
+  }, [status, connectionKey, chainId, runSetup]);
+
+  // Bookkeeping on status changes.
+  const prevStatusRef = useRef<SetupStatus>(status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (status === prev) return;
+    if (status === "connecting") {
+      // A connection the player started (a restore after reload is "reconnecting").
+      if (accountStatus === "connecting") interactiveRef.current = true;
+      setInterrupted(false);
+    } else if (status === "ready") {
+      setFailure(null);
+      setHasAttempted(false);
+      // Moving off Celo again later is a new situation: it gets one automatic prompt.
+      if (connectionKey) {
+        for (const k of [...attemptedRef.current]) if (k.startsWith(`${connectionKey}:`)) attemptedRef.current.delete(k);
+      }
+    } else if (status === "idle") {
+      const wasSettingUp = prev !== "connecting" && prev !== "ready";
+      if (enabled && wasSettingUp && !expectDisconnectRef.current) setInterrupted(true);
+      expectDisconnectRef.current = false;
+      interactiveRef.current = false;
+    }
+  }, [status, accountStatus, connectionKey, enabled]);
+
+  // Each time a connection becomes ready: after a setup the player took part in (they connected,
+  // or approved a switch), show "Wallet ready" for a moment; after a quiet restore, go straight in.
+  useEffect(() => {
+    if (status !== "ready") {
+      if (readyAck !== null) setReadyAck(null);
+      return;
+    }
+    if (readyAck === connectionKey) return;
+    if (interactiveRef.current) setCelebrating(true);
+    interactiveRef.current = false;
+    setReadyAck(connectionKey);
+  }, [status, connectionKey, readyAck]);
+
+  // "Wallet ready" for a moment, then let the app in.
+  useEffect(() => {
+    if (!celebrating) return;
+    if (status !== "ready") {
+      setCelebrating(false);
+      return;
+    }
+    const t = setTimeout(() => setCelebrating(false), READY_HOLD_MS);
+    return () => clearTimeout(t);
+  }, [celebrating, status]);
+
+  const retrySwitch = useCallback(() => {
+    void runSetup();
+  }, [runSetup]);
+
+  const ensureCelo = useCallback(async (): Promise<CeloReadiness> => {
+    const { enabled: on, connector: conn, connectionKey: key, chainId: current } = live.current;
+    if (!on) return { ok: true }; // email (Magic) wallets are created on Celo
+    if (!conn || !key) return { ok: false, reason: "no-wallet" };
+    // Already on Celo as far as wagmi knows: nothing to ask, and no setup run (which would briefly
+    // take the wallet out of "ready"). Shop writes stay pinned to Celo, so a wallet that has quietly
+    // moved since is refused rather than used on another network.
+    if (current === CELO_CHAIN_ID) return { ok: true };
+    // The player's own tap: asks even after an earlier refusal, like the "Switch to Celo" button.
+    const result = await runSetup();
+    return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+  }, [runSetup]);
+
+  const disconnectWallet = useCallback(() => {
+    expectDisconnectRef.current = true;
+    runIdRef.current++;
+    setInterrupted(false);
+    disconnect();
+  }, [disconnect]);
+
+  const dismissInterrupted = useCallback(() => setInterrupted(false), []);
+
+  const registerSurface = useCallback(() => {
+    setSurfaces((n) => n + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      setSurfaces((n) => Math.max(0, n - 1));
+    };
+  }, []);
+
+  const isWrongNetwork =
+    enabled && accountStatus === "connected" && hasAccount && chainId !== undefined && chainId !== CELO_CHAIN_ID;
+  const shownFailure = status === "needs-action" ? failure : null;
+  const holdingReady = status === "ready" && (celebrating || readyAck !== connectionKey);
+  const restoring = status === "connecting" && accountStatus === "reconnecting";
+
+  return useMemo<NetworkGuardState>(
+    () => ({
+      status,
+      restoring,
+      failure: shownFailure,
+      celebrating: holdingReady,
+      interrupted,
+      isWrongNetwork,
+      switchPending: runningStep !== null,
+      switchError: shownFailure ? FAILURE_COPY[shownFailure].message : null,
+      hasAttempted,
+      retrySwitch,
+      ensureCelo,
+      disconnectWallet,
+      dismissInterrupted,
+      registerSurface,
+      surfaceVisible: surfaces > 0,
+    }),
+    [status, restoring, shownFailure, holdingReady, interrupted, isWrongNetwork, runningStep, hasAttempted, retrySwitch, ensureCelo, disconnectWallet, dismissInterrupted, registerSurface, surfaces],
+  );
 }

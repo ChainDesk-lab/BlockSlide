@@ -4,15 +4,19 @@
  * shop action resolving true only for a transaction that was mined successfully.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { create } from "react-test-renderer";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { CeloReadiness } from "./celoOnboarding";
 
 const writeContractAsync = vi.fn(async (_req: { functionName: string }) => "0xabc" as `0x${string}`);
 let receiptStatus: "success" | "reverted" = "success";
 let authType: "wagmi" | "magic" = "wagmi";
 const magicRequest = vi.fn(async (_req: { method: string; params: unknown[] }) => "0xmagic" as `0x${string}`);
+// The network guard: whether the browser wallet is (or could be put) on Celo.
+const ensureCelo = vi.fn(async (): Promise<CeloReadiness> => ({ ok: true }));
 
 vi.mock("wagmi", () => ({
   useReadContract: () => ({ data: undefined, error: null, status: "success", refetch: vi.fn() }),
@@ -32,6 +36,7 @@ vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ authType, isConnected:
 vi.mock("../hooks/useSigner", () => ({ useSigner: () => ({ signer: { request: magicRequest }, isReady: true, error: null }) }));
 vi.mock("../contexts/NoGasContext", () => ({ useNoGas: () => ({ triggerNoGas: vi.fn() }) }));
 vi.mock("../hooks/useUndoAvailability", () => ({ useUndoAvailability: () => ({ available: false, reason: "switched-off" }) }));
+vi.mock("../hooks/useNetworkGuard", () => ({ useNetworkGuard: () => ({ ensureCelo }) }));
 
 import { useShop } from "../hooks/useShop";
 
@@ -51,6 +56,8 @@ beforeEach(() => {
   receiptStatus = "success";
   authType = "wagmi";
   magicRequest.mockClear();
+  ensureCelo.mockReset();
+  ensureCelo.mockImplementation(async () => ({ ok: true }));
 });
 
 describe("shop actions report whether the transaction succeeded", () => {
@@ -93,6 +100,45 @@ describe("email (Magic) sign-ins can buy", () => {
     expect(await captureShop().buyShield()).toBe(true);
     expect(writeContractAsync).toHaveBeenCalledTimes(1);
     expect(magicRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("browser-wallet purchases are put on Celo first", () => {
+  it("asks for Celo before anything is sent, then pins every purchase to Celo", async () => {
+    const order: string[] = [];
+    ensureCelo.mockImplementation(async () => {
+      order.push("ensureCelo");
+      return { ok: true };
+    });
+    writeContractAsync.mockImplementation(async (req) => {
+      order.push(`send ${req.functionName}`);
+      return "0xabc";
+    });
+    const shop = captureShop();
+    expect(await shop.approve()).toBe(true);
+    expect(await shop.buyShield()).toBe(true);
+    expect(order).toEqual(["ensureCelo", "send approve", "ensureCelo", "send buyStreakShield"]);
+    for (const [req] of writeContractAsync.mock.calls) expect(req).toMatchObject({ chainId: 42220 });
+  });
+
+  it("a declined switch sends nothing and tells the player what to do", async () => {
+    ensureCelo.mockImplementation(async () => ({ ok: false, reason: "rejected" }));
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    let shop!: ReturnType<typeof useShop>;
+    const Probe = () => { shop = useShop(); return null; };
+    const r = await act(async () => create(createElement(Probe)));
+    let bought: boolean | undefined;
+    await act(async () => { bought = await shop.buyShield(); });
+    expect(bought).toBe(false);
+    expect(writeContractAsync).not.toHaveBeenCalled();
+    expect(shop.error).toBe("Your wallet is still on another network. Approve the switch to Celo, then buy again.");
+    await act(async () => r.unmount());
+  });
+
+  it("email (Magic) purchases never ask a browser wallet to switch", async () => {
+    authType = "magic";
+    expect(await captureShop().buyShield()).toBe(true);
+    expect(ensureCelo).not.toHaveBeenCalled();
   });
 });
 

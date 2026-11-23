@@ -3,7 +3,8 @@ import { maxUint256, encodeFunctionData, toHex, type Abi } from "viem";
 import { useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ERC20_ABI, GAME2048_ABI } from "../lib/abi";
 import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
-import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED } from "../lib/constants";
+import { GAME2048_ADDRESS, G_DOLLAR_ADDRESS, CONTRACT_DEPLOYED, TARGET_CHAIN } from "../lib/constants";
+import { CeloSwitchError, isChainMismatchError } from "../lib/celoOnboarding";
 import { useUndoAvailability } from "./useUndoAvailability";
 import { undoUnavailableMessage } from "../lib/undoAvailability";
 import { useContractAddress, useContractPublicClient } from "./useContractData";
@@ -15,6 +16,7 @@ import { cosmeticPriceFromRead, toPriceRead, type CosmeticPrice } from "../lib/s
 import { contributionsFromReceipt } from "../lib/ubiContribution";
 import { useAuth } from "../auth/AuthContext";
 import { useSigner } from "./useSigner";
+import { useNetworkGuard } from "./useNetworkGuard";
 
 export type ShopAction = "approve" | "shield" | "boost2" | "boost5" | "undo" | "cosmetic" | null;
 
@@ -27,7 +29,11 @@ export function useShop() {
   const pricesEnabled = CONTRACT_DEPLOYED;
   const { triggerNoGas } = useNoGas();
 
+  // Browser-wallet purchases are put on Celo first, then pinned with chainId: TARGET_CHAIN.id.
+  // Without the pin wagmi skips the chain check and a wallet left on another network would send
+  // the purchase there; with it the wallet must be on Celo.
   const { writeContractAsync } = useWriteContract();
+  const { ensureCelo } = useNetworkGuard();
   const { authType } = useAuth();
   // Email (Magic) sign-ins have no wagmi connection, so wagmi's writeContract can't
   // send for them. They go through the same signer the game uses (useSigner) and
@@ -36,8 +42,15 @@ export function useShop() {
 
   type WriteRequest = { address: `0x${string}`; abi: Abi | readonly unknown[]; functionName: string; args?: readonly unknown[] };
   const send = async (req: WriteRequest): Promise<`0x${string}`> => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (authType !== "magic") return writeContractAsync(req as any);
+    if (authType !== "magic") {
+      // Ask the wallet to switch to Celo (or add it) before anything is sent, so a purchase never
+      // fails just because the wallet was left on another network. wagmi reads the live
+      // connection when it sends, so the purchase can carry on straight after the switch.
+      const onCelo = await ensureCelo();
+      if (!onCelo.ok) throw new CeloSwitchError(onCelo.reason, "buy");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return writeContractAsync({ ...(req as any), chainId: TARGET_CHAIN.id });
+    }
     if (!signer || !address || !publicClient) {
       throw new Error("Your wallet is still connecting. Please wait a moment and try again.");
     }
@@ -204,9 +217,15 @@ export function useShop() {
       window.dispatchEvent(new Event("gdBalanceChanged"));
       return true;
     } catch (e: any) {
-      if (isInsufficientGasError(e)) {
+      if (e instanceof CeloSwitchError) {
+        // The wallet couldn't be put on Celo; nothing was sent. The message says what to do.
+        setError(e.message);
+      } else if (isInsufficientGasError(e)) {
         triggerNoGas();
         setError("You need a little CELO for gas — see the pop-up.");
+      } else if (isChainMismatchError(e)) {
+        // The wallet moved off Celo; nothing was sent. Say so plainly, not with viem's chain ids.
+        setError("Your wallet isn't on Celo. Switch to Celo, then try again.");
       } else {
         const msg: string = e?.shortMessage ?? e?.message ?? "Transaction failed";
         if (!msg.toLowerCase().includes("rejected") && !msg.toLowerCase().includes("denied")) {

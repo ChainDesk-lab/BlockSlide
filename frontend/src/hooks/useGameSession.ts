@@ -4,10 +4,11 @@ import { signTransaction } from "viem/actions";
 import {
   usePublicClient,
   useReadContract,
-  useSwitchChain,
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { useWalletChainId } from "./useWalletChainId";
+import { useNetworkGuard } from "./useNetworkGuard";
+import { switchFailureMessage, switchedToCeloMessage } from "../lib/celoOnboarding";
 import { GAME2048_ABI } from "../lib/abi";
 import { GAME2048_MERGED_ABI } from "../lib/abiMerged";
 import { GAME2048_ADDRESS, TARGET_CHAIN } from "../lib/constants";
@@ -71,7 +72,9 @@ export function useGameSession() {
   const address = useContractAddress();
   const { isConnected, authType } = useAuth();
   const chainId = useWalletChainId();
-  const { switchChain, isPending: isSwitchPending } = useSwitchChain();
+  // The one switch path (switch, add Celo if needed, confirm), shared with the sign-in setup so
+  // a tap here can't open a second wallet prompt next to one already open.
+  const { retrySwitch, ensureCelo, switchPending: isSwitchPending } = useNetworkGuard();
   const { triggerNoGas } = useNoGas();
   const { showToast } = useToast();
 
@@ -111,6 +114,33 @@ export function useGameSession() {
   // wallet's real chain — see useWalletChainId for why useChainId() can't do this.
   const isWrongChain =
     authType === "magic" ? false : (!!address && chainId !== undefined && chainId !== TARGET_CHAIN.id);
+
+  // Wrong network: a New Game or Submit tap asks the wallet to switch to Celo (or add it) and does
+  // nothing else. Nothing carries on by itself afterwards (the signer is rebuilt asynchronously
+  // after a switch), so the player taps again once the wallet is on Celo.
+  const switchMessageRef = useRef<string | null>(null);
+  const askForCelo = useCallback(
+    async (action: "start" | "submit") => {
+      setError(null);
+      switchMessageRef.current = null;
+      const onCelo = await ensureCelo();
+      if (onCelo.ok) {
+        showToast(switchedToCeloMessage(action), "success");
+        return;
+      }
+      const message = switchFailureMessage(onCelo.reason, action);
+      switchMessageRef.current = message;
+      setError(message);
+    },
+    [ensureCelo, showToast],
+  );
+  // A switch message only applies while the wallet is off Celo: clear it once the wallet is back.
+  useEffect(() => {
+    if (isWrongChain || !switchMessageRef.current) return;
+    const stale = switchMessageRef.current;
+    switchMessageRef.current = null;
+    setError((current) => (current === stale ? null : current));
+  }, [isWrongChain]);
 
   // Log auth state for debugging (especially Magic/email submit issues)
   useEffect(() => {
@@ -470,8 +500,9 @@ export function useGameSession() {
       }
 
       if (isWrongChain) {
-        setPhase("active");
-        onSeedReady(generateSeed());
+        // Never start a game on the wrong network: it couldn't be saved on-chain. Ask the wallet
+        // to switch to Celo and start nothing: no phase change, no seed, no board.
+        await askForCelo("start");
         return;
       }
 
@@ -701,7 +732,7 @@ export function useGameSession() {
         pendingActionRef.current = null;
       }
     },
-    [address, isConnected, contractDeployed, isWrongChain, onChainSession, signer, signerError, publicClient, refetchSession, tryResumeActiveSession, signAndBroadcast, triggerNoGas, showToast, ensureGas, authType, chainId],
+    [address, isConnected, contractDeployed, isWrongChain, askForCelo, onChainSession, signer, signerError, publicClient, refetchSession, tryResumeActiveSession, signAndBroadcast, triggerNoGas, showToast, ensureGas, authType, chainId],
   );
 
   // ── submitScore ───────────────────────────────────────────────────────────
@@ -716,6 +747,11 @@ export function useGameSession() {
       }
       if (!contractDeployed) {
         setError("Deploy the contract and update GAME2048_ADDRESS to submit scores on-chain.");
+        return;
+      }
+      if (isWrongChain) {
+        // As with New Game: ask for the switch and send nothing; the player taps Submit again.
+        await askForCelo("submit");
         return;
       }
       // The gas check happens after simulation, below, against the exact
@@ -1158,7 +1194,7 @@ export function useGameSession() {
         submissionInProgressRef.current = false;
       }
     },
-    [address, isConnected, contractDeployed, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, ensureGas, authType, chainId, isWrongChain],
+    [address, isConnected, contractDeployed, signer, signerError, publicClient, onChainSession, refetchSession, signAndBroadcast, triggerNoGas, showToast, ensureGas, authType, chainId, isWrongChain, askForCelo],
   );
 
   // One submission at a time, from the first tap: the gas check, seed recovery
@@ -1182,8 +1218,8 @@ export function useGameSession() {
   }, [resetWrite]);
 
   const switchToTargetChain = useCallback(() => {
-    switchChain({ chainId: TARGET_CHAIN.id });
-  }, [switchChain]);
+    retrySwitch();
+  }, [retrySwitch]);
 
   const SESSION_TIMEOUT_SECS = 2 * 60 * 60;
   const sessionExpiresAt = onChainSession?.active

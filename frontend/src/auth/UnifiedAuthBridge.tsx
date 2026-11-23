@@ -5,7 +5,7 @@ import { useAccount, useDisconnect } from "wagmi";
 import { AuthContext, type AuthValue } from "./AuthContext";
 import { useAuthSelection } from "../contexts/AuthSelectionContext";
 import { getMagic, isMagicConfigured } from "../magic";
-import { NetworkGuardProvider } from "../hooks/useNetworkGuard";
+import { NetworkGuardContext, useCeloOnboardingController } from "../hooks/useNetworkGuard";
 
 /**
  * Single source of truth for auth state.
@@ -28,10 +28,12 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
   const { disconnect } = useDisconnect();
 
-  // Chain enforcement lives in NetworkGuardProvider (mounted below), which
-  // handles switch -> add -> re-switch and the rejection path. The auto-switch
-  // that used to sit here compared wagmi's useChainId() against Celo, a value
-  // pinned to 42220 by our single-chain config, so it never actually fired.
+  // Celo onboarding for browser wallets (switch, add Celo if needed, then confirm the wallet
+  // really is on Celo). A browser wallet only counts as signed in once this reports "ready",
+  // so the app never shows a connected wallet that is still on another network. Email (Magic)
+  // wallets are created on Celo and skip it.
+  const walletSetup = useCeloOnboardingController(selectedAuth === "wallet");
+  const walletReady = wagmiConnected && walletSetup.status === "ready" && !walletSetup.celebrating;
 
   const clearWagmiStorage = () => {
     if (typeof localStorage === "undefined") return;
@@ -248,7 +250,9 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
   const value: AuthValue =
     selectedAuth === "wallet"
       ? {
-          isConnected: wagmiConnected,
+          // Connected AND verified on Celo. While the wallet is connected but not set up yet,
+          // `address` is still the wallet's, so the sign-in screen can show its progress.
+          isConnected: walletReady,
           address: wagmiAddress,
           isReady: true,
           loading: false,
@@ -281,7 +285,7 @@ export function UnifiedAuthBridge({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
-      <NetworkGuardProvider>{children}</NetworkGuardProvider>
+      <NetworkGuardContext.Provider value={walletSetup}>{children}</NetworkGuardContext.Provider>
     </AuthContext.Provider>
   );
 }
