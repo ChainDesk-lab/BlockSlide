@@ -23,6 +23,8 @@ vi.mock("../hooks/useContractData", () => ({
   useContractAddress: () => "0x00000000000000000000000000000000000000aa",
   useContractPublicClient: () => ({ waitForTransactionReceipt: async () => ({ status: "success", logs: [] }) }),
 }));
+vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ authType: "wagmi", isConnected: true }) }));
+vi.mock("../hooks/useSigner", () => ({ useSigner: () => ({ signer: null, isReady: false, error: null }) }));
 vi.mock("../contexts/NoGasContext", () => ({ useNoGas: () => ({ triggerNoGas: vi.fn() }) }));
 vi.mock("../hooks/useUndoAvailability", () => ({ useUndoAvailability: () => availability }));
 

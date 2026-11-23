@@ -29,6 +29,8 @@ import { useUndoAvailability } from "./hooks/useUndoAvailability";
 import { usableUndoCredits } from "./lib/undoAvailability";
 import { useFeatureNotifications } from "./hooks/useFeatureNotifications";
 import { useFlowstateVotingContext } from "./contexts/FlowstateVotingContext";
+import { VerifyPromptModal, TelegramPromptModal } from "./components/PromptModals";
+import { nextPrompt, isTelegramDue, markTelegramShown, markTelegramJoined, dismissTelegramForWeek, isNewGameStart } from "./lib/promptSequence";
 import { sounds } from "./lib/sounds";
 
 type View = "home" | "game" | "leaderboard" | "shop";
@@ -61,7 +63,7 @@ export default function App() {
   }, [isConnected, address]);
 
   // Trigger Flowstate voting reminder after a successful score submission
-  const { triggerVotingReminder } = useFlowstateVotingContext();
+  const { triggerVotingReminder, isOpen: voteOpen } = useFlowstateVotingContext();
   useEffect(() => {
     const handleScoreSubmitted = () => {
       // Small delay to let the success toast show first
@@ -113,6 +115,7 @@ export default function App() {
     startSession,
     submitScore,
     reset,
+    onChainSession,
     sessionExpiresAt,
     sessionExpired,
     sessionStuck,
@@ -224,6 +227,10 @@ export default function App() {
     (stuckActive && !sessionExpired) ? "active" :
     // session expired → unlock New Game regardless of phase/stuckActive
     (stuckActive || sessionExpired) ? "idle" :
+    // Game over and the chain shows a live session: Submit must be usable even if
+    // the local phase never left "starting"/"idle". submitScore re-checks the
+    // session and seed on-chain before sending, so this can't send a bad score.
+    (gameEnded && onChainSession?.active && (phase === "starting" || phase === "idle")) ? "active" :
     phase;
   const controlProps = {
     state, phase: controlPhase, isPending, isWrongChain, identityStatus, canSubmitScore: isVerifiedForSubmission,
@@ -244,7 +251,8 @@ export default function App() {
   // Track when a new game starts to increment session count
   const prevPhaseRef = useRef(phase);
   useEffect(() => {
-    if (prevPhaseRef.current === "idle" && phase === "starting" && address) {
+    // Counts Play Again ("done" → "starting") too, not only a fresh board.
+    if (isNewGameStart(prevPhaseRef.current, phase) && address) {
       const key = `session_count_${address}`;
       setSessionCount((prev) => {
         const newCount = prev + 1;
@@ -269,6 +277,34 @@ export default function App() {
   // Don't show notifications if a modal is open (modals block gameplay)
   const hasOpenModal = showHowToPlay || showUsernameModal || isFundingWallet || (view === "game" && gameEnded && !isVerifiedForSubmission);
   const visibleNotifications = hasOpenModal ? [] : activeNotifications;
+
+  // ── Between-games pop-ups, same on mobile and desktop ─────────────────────
+  // Unverified: "Get verified" once per visit. Verified: vote, then Telegram.
+  // One at a time, 4s after the player is between games with nothing else open.
+  const [prompt, setPrompt] = useState<"verify" | "telegram" | null>(null);
+  const verifyShownRef = useRef(false);
+  const [promptTick, setPromptTick] = useState(0);
+  const anyPromptOpen = prompt !== null || voteOpen;
+  useEffect(() => {
+    if (!address || hasOpenModal || isGameActive || anyPromptOpen) return;
+    const t = setTimeout(() => {
+      const verified = isVerifiedForSubmission;
+      const unsettled = identityStatus === "loading" || identityStatus === "pending" || identityStatus === "no-wallet";
+      // Verified players: try the vote first; it reports whether it was due (and shows itself).
+      if (!unsettled && verified && triggerVotingReminder()) return;
+      const next = nextPrompt({
+        verified,
+        verificationUnsettled: unsettled,
+        verifyShownThisVisit: verifyShownRef.current,
+        voteDue: false, // handled just above
+        telegramDue: isTelegramDue(address),
+      });
+      if (next === "verify") { verifyShownRef.current = true; setPrompt("verify"); }
+      else if (next === "telegram") { markTelegramShown(address); setPrompt("telegram"); }
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [address, hasOpenModal, isGameActive, anyPromptOpen, isVerifiedForSubmission, identityStatus, triggerVotingReminder, promptTick]);
+  const closePrompt = () => { setPrompt(null); setPromptTick((n) => n + 1); };
 
   // Auth gate — 3-state, to avoid a login loop. The two signals are independent
   // (see MagicBridge): `isConnected` is the SDK's auth truth; `address` is
@@ -437,7 +473,7 @@ export default function App() {
               <LiveStanding state={state} active={phase === "active" && !!state && !gameEnded} />
               <SubmitScoreCard state={state} ended={!!gameEnded}>
                 <GameControls {...controlProps} part="submit" />
-                {!(phase === "active" && gameEnded) && phase !== "submitting" && phase !== "finalizing" && (
+                {!(controlPhase === "active" && gameEnded) && controlPhase !== "submitting" && controlPhase !== "finalizing" && (
                   <button className="btn btn--primary btn--block" disabled>Submit Run</button>
                 )}
               </SubmitScoreCard>
@@ -483,6 +519,16 @@ export default function App() {
       </main>
 
       {/* Feature Notifications — render active notifications */}
+      {prompt === "verify" && (
+        <VerifyPromptModal verifiedElsewhere={identityStatus === "verified"} onClose={closePrompt} onStarted={() => { markIdentityPending(); closePrompt(); }} />
+      )}
+      {prompt === "telegram" && address && (
+        <TelegramPromptModal
+          onJoin={() => { markTelegramJoined(address); closePrompt(); }}
+          onClose={closePrompt}
+          onDismissWeek={() => { dismissTelegramForWeek(address); closePrompt(); }}
+        />
+      )}
       {visibleNotifications.map((notif) => (
         <FeatureNotificationRenderer
           key={notif.id}
