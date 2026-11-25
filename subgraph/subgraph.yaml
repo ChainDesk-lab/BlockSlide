@@ -16,6 +16,7 @@ dataSources:
       language: wasm/assemblyscript
       entities:
         - Player
+        - UbiContribution
       abis:
         - name: Game2048
           file: ./abis/Game2048.json
@@ -45,4 +46,10 @@ dataSources:
           handler: handleUndoConsumed
         - event: CosmeticPurchased(indexed address,indexed uint256,uint256)
           handler: handleCosmeticPurchased
+        # 5% of each paid Shop purchase, sent to GoodDollar UBI (implementation
+        # after the UBI upgrade; earlier blocks have none). `receipt: true` lets
+        # the handler find the matching G$ Transfer in the same transaction.
+        - event: UbiContribution(indexed address,indexed uint8,uint256,uint256,uint256,uint256,indexed address)
+          handler: handleUbiContribution
+          receipt: true
       file: ./src/mapping.ts

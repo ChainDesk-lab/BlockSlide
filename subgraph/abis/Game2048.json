@@ -1,6 +1,12 @@
 [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_ubiRecipient",
+        "type": "address"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -88,6 +94,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidUbiRecipient",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidUsername",
     "type": "error"
   },
@@ -135,7 +146,23 @@
   },
   {
     "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ReferrerAlreadySet",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
     "type": "error"
   },
   {
@@ -162,6 +189,11 @@
       }
     ],
     "name": "UUPSUnsupportedProxiableUUID",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UbiRateAboveCap",
     "type": "error"
   },
   {
@@ -438,6 +470,55 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "buyer",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "enum Game2048.ShopItem",
+        "name": "item",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "itemId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "quantity",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amountPaid",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "contribution",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      }
+    ],
+    "name": "UbiContribution",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "player",
         "type": "address"
       }
@@ -599,6 +680,19 @@
   },
   {
     "inputs": [],
+    "name": "MAX_UBI_CONTRIBUTION_BPS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "REWARD_1024",
     "outputs": [
       {
@@ -652,6 +746,19 @@
   {
     "inputs": [],
     "name": "SESSION_TIMEOUT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "UBI_CONTRIBUTION_BPS",
     "outputs": [
       {
         "internalType": "uint256",
@@ -927,7 +1034,7 @@
             "type": "bool"
           }
         ],
-        "internalType": "struct Game2048V6.CosmeticItem",
+        "internalType": "struct Game2048.CosmeticItem",
         "name": "",
         "type": "tuple"
       }
@@ -981,7 +1088,7 @@
             "type": "uint32"
           }
         ],
-        "internalType": "struct Game2048V6.LeaderboardEntry[10]",
+        "internalType": "struct Game2048.LeaderboardEntry[10]",
         "name": "",
         "type": "tuple[10]"
       }
@@ -1017,7 +1124,7 @@
             "type": "bytes32"
           }
         ],
-        "internalType": "struct Game2048V6.Session",
+        "internalType": "struct Game2048.Session",
         "name": "",
         "type": "tuple"
       }
@@ -1067,7 +1174,7 @@
             "type": "uint64"
           }
         ],
-        "internalType": "struct Game2048V6.XpBoost",
+        "internalType": "struct Game2048.XpBoost",
         "name": "",
         "type": "tuple"
       }
@@ -1486,6 +1593,38 @@
     "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ubiContributionFor",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ubiRecipient",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

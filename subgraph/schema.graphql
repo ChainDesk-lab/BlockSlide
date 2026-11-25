@@ -31,4 +31,43 @@ type Player @entity(immutable: false) {
   undoCreditsPurchased: BigInt!
   "Array of cosmetic itemIds owned by this player (V6+)"
   cosmeticsOwned: [Int!]!
+  "G$ (wei) this wallet's Shop purchases sent to GoodDollar UBI: sum of UbiContribution events whose G$ Transfer to the recipient was found in the same transaction"
+  totalUbiContributed: BigInt!
+  "Number of verified UBI contributions counted in totalUbiContributed"
+  ubiContributionCount: Int!
+  "G$ (wei) from UbiContribution events with no matching G$ Transfer in the receipt. Never added to totalUbiContributed"
+  totalUbiUnverified: BigInt!
+  "Number of UbiContribution events counted in totalUbiUnverified"
+  ubiUnverifiedCount: Int!
+  "Every UbiContribution event for this wallet"
+  ubiContributions: [UbiContribution!]! @derivedFrom(field: "buyer")
+}
+
+"""
+One UbiContribution event: 5% of a paid Shop purchase sent by the game contract to GoodDollar UBI.
+Stored exactly as emitted; the contract computed the amount. id = transactionHash-logIndex.
+"""
+type UbiContribution @entity(immutable: true) {
+  "transactionHash-logIndex (hex hash, decimal log index)"
+  id: ID!
+  "The purchasing wallet (the event's indexed buyer, i.e. msg.sender)"
+  buyer: Player!
+  "ShopItem enum: 0 StreakShield, 1 XpBoost, 2 UndoMove, 3 Cosmetic"
+  item: Int!
+  "Boost multiplier for XpBoost, cosmetic id for Cosmetic, 0 otherwise"
+  itemId: BigInt!
+  quantity: BigInt!
+  "G$ (wei) the buyer paid for the purchase"
+  amountPaid: BigInt!
+  "G$ (wei) sent to UBI, from the event"
+  contribution: BigInt!
+  recipient: Bytes!
+  transactionHash: Bytes!
+  logIndex: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  "True when the same transaction's receipt has a G$ Transfer from the game contract to recipient for exactly contribution"
+  transferVerified: Boolean!
+  "logIndex of that G$ Transfer, when found"
+  transferLogIndex: BigInt
 }
