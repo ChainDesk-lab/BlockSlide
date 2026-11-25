@@ -14,6 +14,8 @@ contract Game2048Test is Test {
     MockIdentity id;
 
     address alice = makeAddr("alice");
+    // Stand-in for the GoodDollar UBIScheme that receives the 5% contribution.
+    address ubi   = makeAddr("ubi");
     address bob   = makeAddr("bob");
 
     bytes32 constant SEED      = bytes32(uint256(0xdeadbeef));
@@ -23,7 +25,7 @@ contract Game2048Test is Test {
         token = new MockERC20();
         id    = new MockIdentity();
 
-        Game2048 impl = new Game2048();
+        Game2048 impl = new Game2048(ubi);
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(impl),
             abi.encodeCall(Game2048.initialize, (address(token), address(id)))
