@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { EVENT_BIT } from "./stats/config";
 import type { AddrRow } from "./stats/state";
 import {
-  countByInviter, decideReferral, inviteListMessage, issuedAtIsFresh, normalizeAddress, parseRecords,
-  rankInviters, referralsCsv, secretMatches, startedAGame, SIGN_WINDOW_MS,
+  MIN_PAYOUT_G, MIN_PAYOUT_REFERRALS, REFERRAL_REWARD_G, claimableInvitees, countByInviter, decideReferral, inviteListMessage,
+  issuedAtIsFresh, normalizeAddress, parsePayout, parseRecords, payoutAmountG, payoutNotification, payoutRequestMessage,
+  rankInviters, referralsCsv, secretMatches, startedAGame, SIGN_WINDOW_MS, type PayoutRequest,
 } from "./referrals";
 
 const A = "0x00000000000000000000000000000000000000a1";
@@ -43,9 +44,10 @@ describe("counting", () => {
       "0x4": { referrer: B, at: 4 }, "0x5": { referrer: B, at: 5 },
     };
     const played = new Set(["0x4", "0x5", "0x1"]);
-    const counts = countByInviter(records, (i) => played.has(i));
-    expect(counts.get(A)).toEqual({ address: A, joined: 3, played: 1 });
-    expect(counts.get(B)).toEqual({ address: B, joined: 2, played: 2 });
+    const verified = new Set(["0x1", "0x2", "0x4"]);
+    const counts = countByInviter(records, (i) => played.has(i), (i) => verified.has(i));
+    expect(counts.get(A)).toEqual({ address: A, joined: 3, played: 1, verified: 2, eligible: 1 });
+    expect(counts.get(B)).toEqual({ address: B, joined: 2, played: 2, verified: 1, eligible: 1 });
     expect(rankInviters(counts.values(), 10).map((c) => c.address)).toEqual([B, A]);
     expect(rankInviters(counts.values(), 1)).toHaveLength(1);
   });
@@ -80,13 +82,13 @@ describe("signed invitee list", () => {
 describe("owner export", () => {
   it("writes CSV with a header and escapes awkward values", () => {
     const csv = referralsCsv([
-      { inviter: B, inviterUsername: 'Has "quotes", commas', invitee: A, inviteeUsername: null, joinedAt: "2026-11-14T10:00:00.000Z", played: true },
-      { inviter: B, inviterUsername: null, invitee: A, inviteeUsername: "x", joinedAt: "2026-11-14T10:00:00.000Z", played: null },
+      { inviter: B, inviterUsername: 'Has "quotes", commas', invitee: A, inviteeUsername: null, joinedAt: "2026-11-14T10:00:00.000Z", played: true, verified: true, payout: "paid" },
+      { inviter: B, inviterUsername: null, invitee: A, inviteeUsername: "x", joinedAt: "2026-11-14T10:00:00.000Z", played: null, verified: null, payout: null },
     ]);
     const lines = csv.trim().split("\n");
-    expect(lines[0]).toBe("inviter,inviter_username,invitee,invitee_username,joined_at,played");
-    expect(lines[1]).toBe(`${B},"Has ""quotes"", commas",${A},,2026-11-14T10:00:00.000Z,true`);
-    expect(lines[2]).toBe(`${B},,${A},x,2026-11-14T10:00:00.000Z,`);
+    expect(lines[0]).toBe("inviter,inviter_username,invitee,invitee_username,joined_at,played,verified,payout");
+    expect(lines[1]).toBe(`${B},"Has ""quotes"", commas",${A},,2026-11-14T10:00:00.000Z,true,true,paid`);
+    expect(lines[2]).toBe(`${B},,${A},x,2026-11-14T10:00:00.000Z,,,`);
   });
 
   it("the key must match exactly, and a missing key never matches", () => {
@@ -95,5 +97,47 @@ describe("owner export", () => {
     expect(secretMatches("abc", "abc123")).toBe(false);
     expect(secretMatches(null, "abc123")).toBe(false);
     expect(secretMatches("abc123", undefined)).toBe(false);
+  });
+});
+
+describe("referral payments", () => {
+  it("10 referrals are 26,350 G$, 2,635 G$ each", () => {
+    expect(REFERRAL_REWARD_G).toBe(2635);
+    expect(MIN_PAYOUT_REFERRALS).toBe(10);
+    expect(MIN_PAYOUT_G).toBe(26_350);
+    expect(payoutAmountG(12)).toBe(31_620);
+  });
+
+  it("only referrals that have played AND are verified, and aren't already requested, can be requested", () => {
+    const played = new Set(["0x1", "0x2", "0x3", "0x5"]);
+    const verified = new Set(["0x1", "0x3", "0x4", "0x5"]);
+    const claimed = { "0x5": "req-1" };
+    expect(claimableInvitees(["0x1", "0x2", "0x3", "0x4", "0x5"], (i) => played.has(i), (i) => verified.has(i), claimed)).toEqual(["0x1", "0x3"]);
+  });
+
+  it("the signed request names the wallet and the payout wallet", () => {
+    expect(payoutRequestMessage("0x00000000000000000000000000000000000000A1", "0x00000000000000000000000000000000000000B2", "2026-11-26T10:00:00.000Z"))
+      .toBe(`BlockSlide: request my referral payment\nWallet: ${A}\nPay to: ${B}\nIssued: 2026-11-26T10:00:00.000Z`);
+  });
+
+  const req: PayoutRequest = {
+    id: "req-1", inviter: A, payTo: B, invitees: ["0x1"], count: 10, amountG: 26_350, rewardPerReferralG: 2635,
+    status: "pending", createdAt: Date.parse("2026-11-26T10:00:00Z"), snapshot: { joined: 187, played: 160, verified: 12, eligible: 10 },
+  };
+
+  it("the owner's message has the amount, payout wallet and all counts, with names escaped", () => {
+    const text = payoutNotification(req, "<b>Wol&Gan</b>", "https://blockslide.app");
+    expect(text).toContain("26,350 G$ (10 × 2,635 G$)");
+    expect(text).toContain(`<code>${B}</code> (a different wallet)`);
+    expect(text).toContain("187 joined · 160 played · 12 verified · 10 played and verified");
+    expect(text).toContain("&lt;b&gt;Wol&amp;Gan&lt;/b&gt;");
+    expect(text).toContain('href="https://blockslide.app/admin/payouts"');
+    expect(payoutNotification({ ...req, payTo: A }, null, "https://blockslide.app")).toContain("(their own wallet)");
+  });
+
+  it("stored requests that can't be read are skipped", () => {
+    expect(parsePayout(JSON.stringify(req))?.id).toBe("req-1");
+    expect(parsePayout("{broken")).toBeNull();
+    expect(parsePayout(JSON.stringify({ id: "x" }))).toBeNull();
   });
 });

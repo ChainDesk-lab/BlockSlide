@@ -277,7 +277,8 @@ html.light-mode .stats { --viz-2: #1baf7a; --viz-grid: rgba(31, 41, 55, 0.09); -
   .stats2__meta { margin-top: -8px; }
   .stats2__invites { padding: 16px 14px; }
   .stats2__invites-table th, .stats2__invites-table td { padding-inline: 6px; }
-  .stats2__invites-table .num { width: 4.5em; }
+  .stats2__invites-table .num { width: 1%; white-space: nowrap; }
+  .stats2__invites-table th { font-size: 0.62rem; letter-spacing: 0.03em; }
 }
 @media (max-width: 380px) {
   .stats2__tiles { grid-template-columns: minmax(0, 1fr); gap: 10px; }
