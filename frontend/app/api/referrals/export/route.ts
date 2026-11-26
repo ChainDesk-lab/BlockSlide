@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRedis } from "../../_lib/redis";
 import { referralsCsv, secretMatches, type ExportRow } from "../../../../src/lib/referrals";
-import { allReferrals, playedFn, registryUsernames, walletActivity } from "../../../../src/lib/referralStore";
+import {
+  allReferrals, claimedInvitees, payoutRequests, playedFn, registryUsernames, verificationOf, walletActivity,
+} from "../../../../src/lib/referralStore";
 
 /**
- * GET /api/referrals/export — every invite: who invited whom, when, and whether the invited
- * player has started a game. For the project owner only.
+ * GET /api/referrals/export — every invite: who invited whom, when, whether the invited player has
+ * started a game and is GoodDollar-verified, and the status of any payment request that includes
+ * the referral. For the project owner only.
  *
  *   curl -H "Authorization: Bearer $REFERRALS_EXPORT_SECRET" "https://blockslide.app/api/referrals/export?format=csv"
  *
@@ -28,7 +31,13 @@ export async function GET(request: NextRequest) {
   const records = await allReferrals(client);
   const played = playedFn(await walletActivity());
   const entries = Object.entries(records).sort(([, a], [, b]) => a.referrer.localeCompare(b.referrer) || a.at - b.at);
-  const names = await registryUsernames(client, [...new Set(entries.flatMap(([invitee, r]) => [invitee, r.referrer]))]);
+  const [names, verified, claimed, requests] = await Promise.all([
+    registryUsernames(client, [...new Set(entries.flatMap(([invitee, r]) => [invitee, r.referrer]))]),
+    verificationOf(entries.map(([invitee]) => invitee)),
+    claimedInvitees(client),
+    payoutRequests(client),
+  ]);
+  const statusOf = new Map(requests.map((r) => [r.id, r.status]));
 
   const rows: ExportRow[] = entries.map(([invitee, r]) => ({
     inviter: r.referrer,
@@ -37,6 +46,8 @@ export async function GET(request: NextRequest) {
     inviteeUsername: names[invitee] ?? null,
     joinedAt: new Date(r.at).toISOString(),
     played: played ? played(invitee) : null,
+    verified: verified[invitee] ?? null,
+    payout: claimed[invitee] ? (statusOf.get(claimed[invitee]) ?? null) : null,
   }));
 
   if (request.nextUrl.searchParams.get("format") === "csv") {

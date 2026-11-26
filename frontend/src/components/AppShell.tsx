@@ -12,6 +12,7 @@ import BlockSlideMark from "./BlockSlideMark";
 import WalletButton from "./WalletButton";
 import ThemeToggle from "./ThemeToggle";
 import BottomNav, { type PageId } from "./BottomNav";
+import { isAdminWallet } from "../config/admins";
 import { SoundOnIcon, SoundOffIcon, VerifiedIcon } from "./icons";
 import { DIAGNOSTICS_STORAGE_KEY, diagnosticsEnabled, diagnosticsPreference } from "../lib/diagnostics";
 
@@ -66,6 +67,9 @@ export default function AppShell({ children }: AppShellProps) {
   const isProfile = pathname.startsWith("/profile");
   const isHowToPlay = pathname === "/how-to-play";
   const isStats = pathname === "/analytics" || pathname === "/stats";
+  const isAdminPage = pathname.startsWith("/admin");
+  // Shown only to admin wallets (config/admins.ts); the admin pages themselves also check on the server.
+  const showAdmin = isAdminWallet(address);
   const currentPage: PageId | null =
     isHome ? "home" : isGame ? "game" : isLeaderboard ? "leaderboard" : isShop ? "shop" : isBounty ? "bounty"
     : isProfile ? "profile" : isHowToPlay ? "howtoplay" : isStats ? "stats" : null;
@@ -101,6 +105,11 @@ export default function AppShell({ children }: AppShellProps) {
           >
             Profile
           </button>
+          {showAdmin && (
+            <Link href="/admin/payouts" className={`nav-link ${isAdminPage ? "nav-link--active" : ""}`} aria-current={isAdminPage ? "page" : undefined}>
+              Admin
+            </Link>
+          )}
         </nav>
         <div className="header__actions">
           <ThemeToggle />
@@ -145,7 +154,7 @@ export default function AppShell({ children }: AppShellProps) {
         </nav>
       </footer>
 
-      <BottomNav current={currentPage} address={address} />
+      <BottomNav current={currentPage} address={address} showAdmin={showAdmin} adminActive={isAdminPage} />
 
       {/* Diagnostic footer for support/debugging */}
       <DiagnosticFooter />

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  BountyIcon, CartIcon, CloseIcon, GamepadIcon, GridIcon, HelpIcon, HomeIcon, StatsIcon, TrophyIcon, UserIcon,
+  BountyIcon, CartIcon, CloseIcon, GamepadIcon, GridIcon, HelpIcon, HomeIcon, ShieldIcon, StatsIcon, TrophyIcon, UserIcon,
 } from "./icons";
 
 /**
@@ -28,7 +28,13 @@ const PAGES: NavPage[] = [
 
 const IN_BAR: readonly PageId[] = ["game", "leaderboard", "bounty", "shop"];
 
-export default function BottomNav({ current, address }: { current: PageId | null; address?: string | null }) {
+export default function BottomNav({ current, address, showAdmin = false, adminActive = false }: {
+  current: PageId | null;
+  address?: string | null;
+  /** Admin wallets also get an Admin tile in the More panel. */
+  showAdmin?: boolean;
+  adminActive?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const moreRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -51,7 +57,7 @@ export default function BottomNav({ current, address }: { current: PageId | null
   const close = () => setOpen(false);
   // Signed out, Profile leads to the game tab, which shows the sign-in screen.
   const profileHref = address ? `/profile/${address}` : "/?tab=game";
-  const moreActive = open || (current !== null && !IN_BAR.includes(current));
+  const moreActive = open || adminActive || (current !== null && !IN_BAR.includes(current));
 
   return (
     <>
@@ -93,6 +99,19 @@ export default function BottomNav({ current, address }: { current: PageId | null
                   </span>
                 </Link>
               </li>
+              {showAdmin && (
+                <li>
+                  <Link
+                    href="/admin/payouts"
+                    className={`more-sheet__item ${adminActive ? "more-sheet__item--active" : ""}`}
+                    aria-current={adminActive ? "page" : undefined}
+                    onClick={close}
+                  >
+                    <ShieldIcon size={22} />
+                    <span className="more-sheet__label">Admin</span>
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
         </>

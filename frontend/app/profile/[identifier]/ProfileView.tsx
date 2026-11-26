@@ -11,7 +11,8 @@ import StatCard from "../../../src/components/StatCard";
 import UsernameModal from "../../../src/components/UsernameModal";
 import { InviteCard, ProfileHeader, ProfileLayout, ProfileStat, RunHistoryCard } from "../../../src/components/ProfilePanels";
 import { SOLVE_TIME_STAT, countStat, inviteNote, rankStat } from "../../../src/lib/profileState";
-import { useInviteCounts, useMyInvitees } from "../../../src/hooks/useReferrals";
+import { useInviteCounts, useMyInvitees, useRequestPayout, type InviteCounts } from "../../../src/hooks/useReferrals";
+import ReferralRewards from "../../../src/components/ReferralRewards";
 import { resolveIdentifier, isAddress } from "../../../src/lib/profileUtils";
 
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? "";
@@ -239,7 +240,7 @@ export default function ProfileView({ identifier }: { identifier: string }) {
           value={inviteCounts ? (inviteCounts.played ?? inviteCounts.joined) : null}
           loading={invites.isLoading}
           error={invites.isError}
-          note={inviteCounts ? (inviteCounts.played === null ? "joined via invite link" : `played · ${inviteCounts.joined} joined via invite link`) : undefined}
+          note={invites.data ? invitedNote(invites.data) : undefined}
         />
       </div>
 
@@ -247,6 +248,7 @@ export default function ProfileView({ identifier }: { identifier: string }) {
         <RunHistoryCard />
         {isOwnProfile && (
           <OwnInviteCard
+            counts={invites.data ?? null}
             address={profileAddress}
             refLink={refLink}
             copied={copied === "link"}
@@ -263,9 +265,22 @@ export default function ProfileView({ identifier }: { identifier: string }) {
   );
 }
 
-/** The invite card on the viewer's own profile, which alone may ask the wallet to sign for the invitee list. */
-function OwnInviteCard({ address, ...card }: {
+/** "7 played · 5 verified · 12 joined via invite link", leaving out what can't be read right now. */
+function invitedNote(c: InviteCounts): string {
+  // When played can't be read the card's number is the joined count, so it isn't repeated here.
+  const parts = c.played === null
+    ? [c.verified === null ? null : `${c.verified} verified`, "joined via invite link"]
+    : ["played", c.verified === null ? null : `${c.verified} verified`, `${c.joined} joined via invite link`];
+  return parts.filter(Boolean).join(" · ");
+}
+
+/**
+ * The invite card on the viewer's own profile, which alone may ask the wallet to sign: for the
+ * invitee list and for a referral payment request.
+ */
+function OwnInviteCard({ address, counts, ...card }: {
   address: string;
+  counts: InviteCounts | null;
   refLink: string;
   copied: boolean;
   referral: string | null;
@@ -274,5 +289,19 @@ function OwnInviteCard({ address, ...card }: {
   onShare: () => void;
 }) {
   const invitees = useMyInvitees(address);
-  return <InviteCard {...card} list={invitees.state} onShowList={invitees.load} onHideList={invitees.hide} />;
+  const payout = useRequestPayout(address);
+  return (
+    <InviteCard {...card} list={invitees.state} onShowList={invitees.load} onHideList={invitees.hide}>
+      <ReferralRewards
+        counts={counts && { joined: counts.joined, played: counts.played, verified: counts.verified, eligible: counts.eligible }}
+        payout={counts?.payout ?? null}
+        connected={address}
+        request={payout.state}
+        onRequest={payout.request}
+        onDone={payout.reset}
+        details={invitees.state.status === "shown" ? invitees.state.lastDecision : null}
+        onShowDetails={invitees.load}
+      />
+    </InviteCard>
+  );
 }

@@ -93,14 +93,17 @@ export function RunHistoryCard() {
 
 // ── Invite friends ───────────────────────────────────────────────────────
 
-export interface InviteeView { address: string; username: string | null; joinedAt: string; played: boolean | null }
+export interface InviteeView {
+  address: string; username: string | null; joinedAt: string;
+  played: boolean | null; verified: boolean | null; payout: "pending" | "paid" | "rejected" | null;
+}
 export type InviteListView =
   | { status: "idle" } | { status: "signing" } | { status: "loading" }
   | { status: "shown"; invitees: InviteeView[] } | { status: "error"; message: string };
 
 const joinedDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
-export function InviteCard({ refLink, copied, referral, onCopy, onShare, canList = false, list = { status: "idle" }, onShowList, onHideList }: {
+export function InviteCard({ refLink, copied, referral, onCopy, onShare, canList = false, list = { status: "idle" }, onShowList, onHideList, children }: {
   refLink: string;
   copied: boolean;
   /** The invite count line, or null while it is still loading. */
@@ -112,6 +115,8 @@ export function InviteCard({ refLink, copied, referral, onCopy, onShare, canList
   list?: InviteListView;
   onShowList?: () => void;
   onHideList?: () => void;
+  /** Shown under the count line: the referral rewards panel. */
+  children?: ReactNode;
 }) {
   return (
     <section className="card profile2__invite" aria-label="Invite friends">
@@ -125,6 +130,7 @@ export function InviteCard({ refLink, copied, referral, onCopy, onShare, canList
       </div>
       <button type="button" className="profile2__share" onClick={onShare}>Share Invite</button>
       {referral && <p className="profile2__referrals">{referral}</p>}
+      {children}
 
       {canList && list.status === "idle" && (
         <button type="button" className="profile2__invitees-btn" onClick={onShowList}>See who you invited</button>
@@ -152,11 +158,20 @@ export function InviteCard({ refLink, copied, referral, onCopy, onShare, canList
                     <a href={`/profile/${p.address}`} className="profile2__invitee-name">{p.username ?? formatAddress(p.address)}</a>
                     <span className="profile2__invitee-date">Joined {joinedDate(p.joinedAt)}</span>
                   </span>
-                  {p.played !== null && (
-                    <span className={`profile2__invitee-badge ${p.played ? "profile2__invitee-badge--played" : ""}`}>
-                      {p.played ? "Played" : "Not played yet"}
-                    </span>
-                  )}
+                  <span className="profile2__invitee-badges">
+                    {p.played !== null && (
+                      <span className={`profile2__invitee-badge ${p.played ? "profile2__invitee-badge--played" : ""}`}>
+                        {p.played ? "Played" : "Not played yet"}
+                      </span>
+                    )}
+                    {p.verified !== null && (
+                      <span className={`profile2__invitee-badge ${p.verified ? "profile2__invitee-badge--played" : ""}`}>
+                        {p.verified ? "Verified" : "Not verified"}
+                      </span>
+                    )}
+                    {p.payout === "paid" && <span className="profile2__invitee-badge profile2__invitee-badge--paid">Paid</span>}
+                    {p.payout === "pending" && <span className="profile2__invitee-badge profile2__invitee-badge--pending">Requested</span>}
+                  </span>
                 </li>
               ))}
             </ul>
