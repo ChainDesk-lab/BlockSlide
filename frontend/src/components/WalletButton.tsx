@@ -6,6 +6,7 @@ import { useAuthSelection } from "../contexts/AuthSelectionContext";
 import { useContractPublicClient } from "../hooks/useContractData";
 import { useGDollarBalance } from "../hooks/useGDollarBalance";
 import { formatUnits } from "viem";
+import SendGDollarModal from "./SendGDollarModal";
 
 export default function WalletButton() {
   const { address, logout, authType } = useAuth();
@@ -14,6 +15,7 @@ export default function WalletButton() {
   const { balance: gDollarBalance, refetch: refetchGDollar } = useGDollarBalance();
   const [celoBalance, setCeloBalance] = useState<string>("0");
   const [isOpen, setIsOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Fetch CELO balance
@@ -126,6 +128,13 @@ export default function WalletButton() {
               <div className="wallet-dropdown__value">
                 {gDollarBalance ? parseFloat(gDollarBalance).toFixed(2) : "0.00"} G$
               </div>
+              <button
+                className="btn btn--sm btn--secondary wallet-dropdown__send"
+                onClick={() => { setIsOpen(false); setSendOpen(true); }}
+                disabled={!gDollarBalance || Number(gDollarBalance) <= 0}
+              >
+                Send G$
+              </button>
             </div>
 
             <div className="wallet-dropdown__section">
@@ -149,6 +158,7 @@ export default function WalletButton() {
           </div>
         </div>
       )}
+      {sendOpen && <SendGDollarModal balance={gDollarBalance || "0"} onClose={() => setSendOpen(false)} />}
     </div>
   );
 }
