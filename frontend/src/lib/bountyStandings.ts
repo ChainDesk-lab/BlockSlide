@@ -95,6 +95,8 @@ export type PublicStandings =
       phase: "final"; winners: Winner[]; participants: number; checks?: ChecksStatus;
       /** Rule bounties: winners stay provisional until the team makes the manual checks. */
       provisional?: boolean;
+      /** Rule bounties: the winners were confirmed by the team after every check (see confirmedWinners). */
+      confirmed?: boolean;
       /** Rule bounties: false while some data needed to pick the winners is still missing. */
       complete?: boolean;
     }
@@ -152,6 +154,46 @@ export function publicStandings(status: "upcoming" | "live" | "ended", rows: Sta
       const name = r.username?.trim() || null;
       return { rank: i + 1, displayName: name, profile: name, xp: r.bountyXp.toString() };
     }),
+  };
+}
+
+/**
+ * An ended rule bounty whose winners the team has confirmed: exactly those players, by place, with
+ * their race XP and leaderboard position taken from the standings. A confirmed winner missing
+ * from the standings still appears (XP "0"), so a confirmed player is never silently dropped.
+ */
+export function confirmedStandings(
+  rows: StandingRow[],
+  confirmed: { place: number; username: string }[],
+  prizeTable?: PrizePlace[],
+): PublicStandings {
+  const byName = new Map<string, { row: StandingRow; index: number }>();
+  rows.forEach((row, index) => {
+    const key = row.username?.trim().toLowerCase();
+    if (key && !byName.has(key)) byName.set(key, { row, index });
+  });
+  const winners: Winner[] = [...confirmed]
+    .sort((a, b) => a.place - b.place)
+    .map((c) => {
+      const hit = byName.get(c.username.trim().toLowerCase());
+      const name = hit?.row.username?.trim() || c.username;
+      return {
+        rank: c.place,
+        displayName: name,
+        profile: name,
+        xp: hit ? hit.row.bountyXp.toString() : "0",
+        ...(hit ? { leaderboardRank: hit.index + 1 } : {}),
+        prizeUsd: prizeFor(prizeTable, c.place),
+      };
+    });
+  return {
+    phase: "final",
+    participants: rows.length,
+    winners,
+    checks: { purchasesComplete: true, verificationAvailable: true, manualChecks: [], evaluatedPlayers: winners.length, selectionComplete: true },
+    provisional: false,
+    complete: true,
+    confirmed: true,
   };
 }
 

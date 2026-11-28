@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { bounties, getBountyStatus } from "../config/bounties";
-import { compareStandings, publicStandings, rankStandings, toPublicBounty, type PlayerSnapshot, type StandingRow } from "./bountyStandings";
+import { compareStandings, confirmedStandings, publicStandings, rankStandings, toPublicBounty, type PlayerSnapshot, type StandingRow } from "./bountyStandings";
 import { BountyStandings, PastBountyCard } from "../components/BountyPanels";
 
 const ADDR = /0x[0-9a-fA-F]{40}/;
@@ -243,5 +243,65 @@ describe("GET /api/bounties", () => {
     ({ GET } = await loadRoute("2026-09-01T00:00:00Z", cfg));
     const failed = await (await GET()).json();
     for (const b of failed.bounties) expect(b.standings).toEqual({ phase: "unavailable" });
+  });
+});
+
+describe("team-confirmed winners", () => {
+  const row = (id: string, username: string | null, xp: bigint): StandingRow => ({ id, username, bountyXp: xp } as StandingRow);
+  const rows = [
+    row("0xa", "1234", 492_365n),
+    row("0xb", "Champee_01", 313_090n),
+    row("0xc", "Boloooo", 298_835n),
+    row("0xd", "Xthehacker", 295_948n),
+  ];
+  const prizeTable = [{ place: 1, usd: 10 }, { place: 2, usd: 7 }, { place: 3, usd: 5 }, { place: 4, usd: 5 }, { place: 5, usd: 3 }];
+
+  it("shows exactly the confirmed players by place, final and not provisional", () => {
+    const s = confirmedStandings(rows, [{ place: 2, username: "boloooo" }, { place: 1, username: "1234" }, { place: 3, username: "XTHEHACKER" }], prizeTable);
+    expect(s.phase).toBe("final");
+    if (s.phase !== "final") return;
+    expect(s.provisional).toBe(false);
+    expect(s.confirmed).toBe(true);
+    expect(s.complete).toBe(true);
+    expect(s.participants).toBe(4);
+    expect(s.winners.map((w) => [w.rank, w.displayName, w.xp, w.leaderboardRank, w.prizeUsd])).toEqual([
+      [1, "1234", "492365", 1, 10],
+      [2, "Boloooo", "298835", 3, 7],
+      [3, "Xthehacker", "295948", 4, 5],
+    ]);
+  });
+
+  it("never drops a confirmed winner missing from the standings", () => {
+    const s = confirmedStandings(rows, [{ place: 1, username: "ghost" }], prizeTable);
+    if (s.phase !== "final") throw new Error("expected final");
+    expect(s.winners).toEqual([{ rank: 1, displayName: "ghost", profile: "ghost", xp: "0", prizeUsd: 10 }]);
+  });
+});
+
+describe("Season 5 Leaderboard Race config", () => {
+  it("lists the three confirmed winners in order", () => {
+    const race = bounties.find((b) => b.id === "bounty-4");
+    expect(race?.confirmedWinners).toEqual([
+      { place: 1, username: "1234" },
+      { place: 2, username: "Boloooo" },
+      { place: 3, username: "Xthehacker" },
+    ]);
+  });
+});
+
+describe("confirmed winners on the page", () => {
+  it("renders them as final winners, not provisional", () => {
+    const rows = [
+      { id: "0xa", username: "1234", bountyXp: 492_365n },
+      { id: "0xc", username: "Boloooo", bountyXp: 298_835n },
+      { id: "0xd", username: "Xthehacker", bountyXp: 295_948n },
+    ] as StandingRow[];
+    const s = confirmedStandings(rows, [{ place: 1, username: "1234" }, { place: 2, username: "Boloooo" }, { place: 3, username: "Xthehacker" }], [{ place: 1, usd: 10 }, { place: 2, usd: 7 }, { place: 3, usd: 5 }]);
+    const html = renderToStaticMarkup(createElement(BountyStandings, { standings: s }));
+    expect(html).toContain("Winners · Final Standings");
+    expect(html).not.toContain("Provisional");
+    expect(html).not.toContain("Results Being Checked");
+    for (const n of ["1234", "Boloooo", "Xthehacker"]) expect(html).toContain(n);
+    expect(html).toContain("confirmed by the BlockSlide team");
   });
 });
