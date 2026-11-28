@@ -5530,7 +5530,21 @@ html.dark-mode {
 .htp-label__icon { vertical-align: -2px; margin-right: 4px; }
 .game-overlay__icon { vertical-align: -3px; margin-right: 6px; }
 
+/* ── Send G$ (wallet menu) ──────────────────────────────────────────── */
+.wallet-dropdown__send { margin-top: 8px; width: 100%; }
+.send-g__label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.78rem; font-weight: 600; color: var(--text); margin: 12px 0 6px; }
+.send-g__balance { font-weight: 500; color: var(--text-muted); }
+.send-g__amount { display: flex; align-items: center; gap: 10px; }
+.send-g__error { margin: 8px 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--tone-error, #C81E4A); }
+.send-g .rewards__help { margin: 10px 0 14px; }
+.send-g__summary { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.send-g__summary p { margin: 0; display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; }
+.send-g__summary span { color: var(--text-muted); }
+.send-g__summary code { font-size: 0.72rem; word-break: break-all; text-align: right; }
+.send-g .rewards__notice { margin-bottom: 14px; }
+
 /* ═══════════════════════════════════════════════════════════════════════════
+
    Light mode (reference frames: cool grey page, white chrome, grey cards).
    Light-only: every rule below is scoped to html.light-mode, or to a system
    light preference with no dark-mode class, so dark mode is untouched.
