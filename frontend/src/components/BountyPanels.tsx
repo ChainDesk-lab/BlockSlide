@@ -178,7 +178,8 @@ export function BountyStandings({ standings, loading, title = true, bounty }: { 
   }
   const ruled = !!standings.checks;
   const settled = standings.complete !== false;
-  const heading = !ruled ? "Winners · Final Standings" : settled ? "Provisional Winners · Final Standings" : "Results Being Checked";
+  const confirmed = standings.confirmed === true;
+  const heading = !ruled || confirmed ? "Winners · Final Standings" : settled ? "Provisional Winners · Final Standings" : "Results Being Checked";
   return (
     <div className="bounty-standings bounty-standings--final">
       {title && <h3 className="bounty-card__section-title">{heading}</h3>}
@@ -193,11 +194,13 @@ export function BountyStandings({ standings, loading, title = true, bounty }: { 
       {ruled ? (
         <>
           <p className="bounty-standings__note">
-            Results: XP earned from the race&apos;s start up to (not including) its end, among players who passed the on-chain checks.
-            {settled && standings.winners.length > 0 && standings.winners.length < 5 && ` Only ${standings.winners.length} player${standings.winners.length === 1 ? "" : "s"} passed every check.`}
+            {confirmed
+              ? "Final results, confirmed by the BlockSlide team: XP earned during the race, among players who met every requirement (GoodDollar verified, the required Shop purchases during the race, and the team's checks)."
+              : "Results: XP earned from the race's start up to (not including) its end, among players who passed the on-chain checks."}
+            {settled && standings.winners.length > 0 && standings.winners.length < 5 && ` Only ${standings.winners.length} player${standings.winners.length === 1 ? "" : "s"} met every requirement, so the remaining prize places weren't awarded.`}
             {standings.participants > 0 && ` ${standings.participants} player${standings.participants === 1 ? "" : "s"} earned XP in the race.`}
           </p>
-          {standings.checks && <ChecksNote checks={standings.checks} live={false} />}
+          {standings.checks && !confirmed && <ChecksNote checks={standings.checks} live={false} />}
         </>
       ) : (
         <p className="bounty-standings__note">

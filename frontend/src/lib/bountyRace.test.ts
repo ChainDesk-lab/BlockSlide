@@ -311,14 +311,17 @@ interface ChainFake {
 const chainFake = (purchases: Map<string, number>, verify: (id: string) => boolean | null, extra: Partial<ChainFake> = {}): ChainFake =>
   ({ purchases, verify, windows: [], verifyCalls: [], ...extra });
 
-async function loadRaceRoute(now: string, chain: ChainFake) {
+async function loadRaceRoute(now: string, chain: ChainFake, opts: { confirmed?: boolean } = {}) {
   vi.resetModules();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(now));
   process.env.SUBGRAPH_URL = "https://subgraph.test";
   vi.doMock("../config/bounties", async (orig) => {
     const real = (await orig()) as typeof import("../config/bounties");
-    return { ...real, bounties: [real.bounties.find((b) => b.id === "bounty-4")!] };
+    const b4 = real.bounties.find((b) => b.id === "bounty-4")!;
+    // These tests exercise the automated selection; the team-confirmed path is tested separately.
+    const { confirmedWinners, ...unconfirmed } = b4;
+    return { ...real, bounties: [opts.confirmed ? { ...unconfirmed, confirmedWinners } : unconfirmed] };
   });
   vi.doMock("./blockResolver", () => ({
     resolveBlockByTime: async () => { throw new Error("the race uses exact blocks"); },
@@ -408,6 +411,20 @@ describe("GET /api/bounties for the race", () => {
     expect(html).toContain("Provisional Winners");
     expect(html).toContain("$10 equivalent in G$");
     expect(html).toContain("Checked by the team before any prize is paid: Follows @blockslide_app on X.");
+  });
+
+  it("ended with team-confirmed winners: shows exactly those players as final, and skips the purchase scan", async () => {
+    vi.stubGlobal("fetch", fakeSubgraph(raceEvents));
+    const chain = chainFake(racePurchases, (id) => verifiedIds.has(id));
+    const { GET } = await loadRaceRoute("2026-11-27T08:00:00.000Z", chain, { confirmed: true });
+    const raw = await (await GET()).text();
+    expect(raw).not.toMatch(/0x[0-9a-fA-F]{40}/);
+    const s = JSON.parse(raw).bounties[0].standings;
+    expect([s.phase, s.provisional, s.confirmed, s.complete]).toEqual(["final", false, true, true]);
+    expect(s.winners.map((w: { rank: number; displayName: string; prizeUsd: number }) => [w.rank, w.displayName, w.prizeUsd]))
+      .toEqual([[1, "1234", 10], [2, "Boloooo", 7], [3, "Xthehacker", 5]]);
+    expect(chain.windows).toEqual([]);
+    expect(chain.verifyCalls).toEqual([]);
   });
 
   it("XP at the boundaries: the first race block counts, the block before it doesn't, and the first block at the end doesn't", async () => {

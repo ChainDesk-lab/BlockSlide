@@ -27,7 +27,7 @@ import { celo } from "viem/chains";
 import { bounties, getBountyStatus, type Bounty } from "../../../src/config/bounties";
 import { firstBlockAtOrAfter, resolveBlockByTime } from "../../../src/lib/blockResolver";
 import {
-  LIVE_LIMIT, WINNER_COUNT, publicStandings, rankStandings, toPublicBounty,
+  LIVE_LIMIT, WINNER_COUNT, confirmedStandings, publicStandings, rankStandings, toPublicBounty,
   type EligibilityInput, type PlayerSnapshot, type PublicBounty, type StandingRow,
 } from "../../../src/lib/bountyStandings";
 import { evaluateEligibility, type BlockWindow, type EntryEligibility } from "../../../src/lib/bountyEligibility";
@@ -196,6 +196,12 @@ async function resultFor(b: Bounty, status: "live" | "ended"): Promise<Computed>
     if (done) return done;
     const [start, end] = await Promise.all([startSnapshot(b), endSnapshotBlock(b).then((n) => playersAt(n, playerFilter(b)))]);
     const rows = rankStandings(start, end);
+    // Team-confirmed winners need only the standings (for XP); no purchase scan.
+    if (b.confirmedWinners?.length) {
+      const value: Computed = { rows };
+      finalResults.set(b.id, value);
+      return value;
+    }
     const value: Computed = { rows, elig: await eligibilityFor(b, rows, "ended") };
     if (isSettled(value)) finalResults.set(b.id, value);
     return value;
@@ -218,6 +224,9 @@ export async function GET() {
       if (!SUBGRAPH_URL) return toPublicBounty(b, i, status, { phase: "unavailable" });
       try {
         const { rows, elig } = await resultFor(b, status);
+        if (status === "ended" && b.confirmedWinners?.length) {
+          return toPublicBounty(b, i, status, confirmedStandings(rows, b.confirmedWinners, b.prizeTable));
+        }
         return toPublicBounty(b, i, status, publicStandings(status, rows, elig));
       } catch (err) {
         console.error(`[api/bounties] ${b.id} standings unavailable:`, (err as Error).message);

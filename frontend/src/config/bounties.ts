@@ -47,6 +47,14 @@ export interface Bounty {
    * rule: the end instant is still live, and each boundary uses the block nearest in time.
    */
   exactWindow?: boolean;
+  /**
+   * Rule bounties, once the team has finished every check (on-chain and manual): the final
+   * winners by place. When set on an ended bounty, the page shows exactly these players as the
+   * final winners (not provisional), with their race XP from the standings, and skips the
+   * on-chain purchase scan, so the result can't be held back by a slow or incomplete read.
+   * `username` is matched (case-insensitively) against the race standings.
+   */
+  confirmedWinners?: { place: number; username: string }[];
 }
 
 // Bounty times: Aug 1 2026 12:00 PM WAT (UTC+1) = 2026-08-01T11:00:00Z
@@ -150,6 +158,13 @@ export const bounties: Bounty[] = [
     },
     winnerCriteria: "The five highest-ranked eligible players by XP earned during the race",
     timeZone: { iana: "Africa/Lagos", label: "WAT" },
+    // Confirmed by the team on 27 Nov 2026: the only three players who met every rule (GoodDollar
+    // verified, 10+ paid Shop purchases inside the race window, X follow). Places 4 and 5 unfilled.
+    confirmedWinners: [
+      { place: 1, username: "1234" },
+      { place: 2, username: "Boloooo" },
+      { place: 3, username: "Xthehacker" },
+    ],
     // Start inclusive (13:00:00 WAT counts), end exclusive (13:00:00 WAT on 26 Nov doesn't).
     exactWindow: true,
   },
