@@ -31,10 +31,22 @@ import {
   type EligibilityInput, type PlayerSnapshot, type PublicBounty, type StandingRow,
 } from "../../../src/lib/bountyStandings";
 import { evaluateEligibility, type BlockWindow, type EntryEligibility } from "../../../src/lib/bountyEligibility";
-import { bountyPurchases, goodDollarVerification, latestBlock } from "../../../src/lib/bountyEligibilityChain";
+import { bountyPurchases, goodDollarVerification, latestBlock, type ScanStore } from "../../../src/lib/bountyEligibilityChain";
+import { getRedis } from "../_lib/redis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** A whole race's purchase scan can take ~10-30 s on a cold start (see bountyEligibilityChain). */
+export const maxDuration = 60;
+
+/**
+ * Purchase-scan progress in Redis, so it survives cold starts and is shared by every instance.
+ * Without Redis (REDIS_URL unset or unreachable) the scan falls back to memory only.
+ */
+const scanStore: ScanStore = {
+  async load(key) { const r = await getRedis(); return r ? await r.get(key) : null; },
+  async save(key, value) { const r = await getRedis(); if (r) await r.set(key, value, { EX: 60 * 60 * 24 * 90 }); },
+};
 
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ?? process.env.SUBGRAPH_URL ?? "";
 const RPC = (process.env.CELO_RPC_URLS ?? "https://forno.celo.org").split(",")[0].trim();
@@ -135,7 +147,7 @@ async function eligibilityFor(b: Bounty, rows: StandingRow[], status: "live" | "
   let purchasesComplete = min === 0;
   if (min > 0) {
     try {
-      const scan = await bountyPurchases(rpc(), b.id, await purchaseWindow(b, status));
+      const scan = await bountyPurchases(rpc(), b.id, await purchaseWindow(b, status), scanStore);
       counts = scan.counts;
       purchasesComplete = scan.complete;
     } catch (err) {

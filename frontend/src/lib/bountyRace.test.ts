@@ -243,6 +243,50 @@ describe("Purchase scan against the chain (faked)", () => {
     expect((await bountyPurchases(client, "race", { fromBlock: 1_000n, toBlock: 1_999n })).counts.get(buyer)).toBe(2);
   });
 
+  it("reads a whole 5-day race (432,000 blocks, 87 chunks) in a single request", async () => {
+    const logs = [purchase(1_000, 0, buyer), purchase(200_000, 0, buyer), purchase(432_999, 0, buyer)];
+    const { client, request } = fakeClient(logs);
+    const scan = await bountyPurchases(client, "race", { fromBlock: 1_000n, toBlock: 432_999n });
+    expect([scan.complete, scan.scannedTo, scan.counts.get(buyer)]).toEqual([true, 432_999n, 3]);
+    expect(request).toHaveBeenCalledTimes(87 * 2);
+  });
+
+  function memoryStore() {
+    const data = new Map<string, string>();
+    return { data, store: { load: vi.fn(async (k: string) => data.get(k) ?? null), save: vi.fn(async (k: string, v: string) => { data.set(k, v); }) } };
+  }
+
+  it("saves progress to the store, and a cold start continues from it instead of starting over", async () => {
+    const { store, data } = memoryStore();
+    let scan = await bountyPurchases(fakeClient(three, { failFrom: 11_000n }).client, "race", { fromBlock: 1_000n, toBlock: 12_000n }, store);
+    expect([scan.complete, scan.scannedTo]).toEqual([false, 10_999n]);
+    expect(data.size).toBe(1);
+    resetEligibilityCaches(); // a cold start: memory is gone, the store isn't
+    const ok = fakeClient(three);
+    scan = await bountyPurchases(ok.client, "race", { fromBlock: 1_000n, toBlock: 12_000n }, store);
+    expect([scan.complete, scan.counts.get(buyer)]).toEqual([true, 3]);
+    expect(ok.request).toHaveBeenCalledTimes(2); // only the missing chunk, twice
+  });
+
+  it("never loses another instance's progress: saved scans are merged, not overwritten", async () => {
+    const { store } = memoryStore();
+    // Instance A reads only the first chunk, instance B (fresh memory) reads only the first two.
+    await bountyPurchases(fakeClient(three, { failFrom: 6_000n }).client, "race", { fromBlock: 1_000n, toBlock: 12_000n }, store);
+    resetEligibilityCaches();
+    await bountyPurchases(fakeClient(three, { failFrom: 11_000n }).client, "race", { fromBlock: 1_000n, toBlock: 12_000n }, store);
+    resetEligibilityCaches();
+    const last = fakeClient(three);
+    const scan = await bountyPurchases(last.client, "race", { fromBlock: 1_000n, toBlock: 12_000n }, store);
+    expect([scan.complete, scan.counts.get(buyer)]).toEqual([true, 3]);
+    expect(last.request).toHaveBeenCalledTimes(2);
+  });
+
+  it("works without a store, and a store that fails is ignored", async () => {
+    const broken = { load: vi.fn(async () => { throw new Error("redis down"); }), save: vi.fn(async () => { throw new Error("redis down"); }) };
+    const scan = await bountyPurchases(fakeClient(three).client, "race", { fromBlock: 1_000n, toBlock: 12_000n }, broken);
+    expect([scan.complete, scan.counts.get(buyer)]).toEqual([true, 3]);
+  });
+
   it("reads GoodDollar verification on-chain and reports a failed read as unknown, not verified", async () => {
     const multicall = vi.fn(async () => [{ status: "success", result: true }, { status: "success", result: false }, { status: "failure", error: new Error("x") }]);
     const out = await goodDollarVerification({ multicall } as unknown as PublicClient, [addr(1), addr(2), addr(3)]);
